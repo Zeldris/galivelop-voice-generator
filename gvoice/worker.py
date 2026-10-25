@@ -58,10 +58,13 @@ def _single_worker():
     path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(str(path), os.O_RDWR | os.O_CREAT, 0o600)
     try:
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            raise GvoiceError("worker.already_running", path=str(path))
+        # Under the queue lock: a client's liveness probe (`queue._no_worker`) holds the worker lock for an
+        # instant inside that same lock, and must not be mistaken for a running worker.
+        with fsutil.lock(queue.queue_path()):
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise GvoiceError("worker.already_running", path=str(path))
         yield
     finally:
         os.close(fd)

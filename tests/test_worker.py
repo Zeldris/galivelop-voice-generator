@@ -15,7 +15,7 @@ import wave
 from pathlib import Path
 from unittest import mock
 
-from gvoice import engine, log, machinelock, orders, projects, queue, worker
+from gvoice import engine, fsutil, log, machinelock, orders, projects, queue, worker
 from gvoice.errors import GvoiceError
 from tests.test_queue import QueueBase
 
@@ -340,6 +340,25 @@ class AttemptTests(WorkerBase):
         self.push()
         self.assertEqual(self.code(worker.run), "worker.already_running")
         self.assertEqual(queue.get(1)["state"], "queued")  # nothing was taken
+
+    def test_a_client_probing_the_worker_lock_does_not_stop_a_starting_worker(self):
+        self.push()
+        errors = []
+
+        def start():
+            try:
+                worker.run()
+            except GvoiceError as exc:
+                errors.append(exc.code)
+
+        with fsutil.lock(queue.queue_path()), queue._no_worker() as free:  # a client's probe, as in `_txn`
+            self.assertTrue(free)
+            thread = threading.Thread(target=start)
+            thread.start()
+            time.sleep(0.2)
+        thread.join(10)
+        self.assertEqual(errors, [])
+        self.assertEqual(queue.get(1)["state"], "done")
 
     def test_two_workers_at_once_in_two_processes(self):
         self.push(count=2)

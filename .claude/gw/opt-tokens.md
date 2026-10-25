@@ -15,6 +15,12 @@ las crea una vez; desde entonces son del proyecto.
 
 <!-- Lo que se ha visto que cuesta mucho en este proyecto (archivos grandes leídos enteros, salidas largas...). -->
 
+- El documento de origen (`World-Maker-Fantasy/docs/arquitectura/reutilizables/02-voces-y-sonidos-locales.md`) ya
+  está sustituido por `docs/plan.md` y `docs/investigacion/`: no se relee. Leerlo entero costó 5,5k tokens arrastrados
+  ~181k en la sesión de diseño.
+- Del plan de `galivelop-image-generator` se lee solo la tabla de decisiones (`grep -n "^| D" docs/plan.md`).
+- Medir el motor a mano con un subagente costó ~1,3M tokens (banco del 2026-10-25): desde F2, `gvoice bench`.
+
 ## Ajustes en vigor
 
 - Ventana de compactación automática: `CLAUDE_CODE_AUTO_COMPACT_WINDOW` en `.claude/settings.json`.
@@ -22,3 +28,6 @@ las crea una vez; desde entonces son del proyecto.
 ## Referencias medidas
 
 <!-- Cifras medidas con las que comparar: fecha, sesión, contexto medio, llamadas, total. -->
+
+- 2026-10-25, diseño del generador de voz (`af3f3065`): 35 llamadas, contexto medio 101k (techo 150k), 0
+  compactaciones; subagentes 1,75M de entrada (banco 1,27M). Con `/clear` antes de F0.

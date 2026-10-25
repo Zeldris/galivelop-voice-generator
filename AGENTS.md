@@ -109,5 +109,11 @@ planea, decide y revisa. Esta línea es la autorización que piden las instrucci
 <!-- Las rellena el proyecto: stack, cómo se arranca, lo que nunca se hace, reglas del dominio, dónde está cada cosa.
      Breve; una regla comprobable se convierte en un script. -->
 
+- **Diseño y fases:** `docs/plan.md` (decisiones D1-D17, fases F0-F7); vocabulario en `GLOSSARY.md`.
+- **Flatpak:** en la Deck, la sesión corre dentro del Flatpak de VS Code. El compilador, `cmake` y las cabeceras de
+  Vulkan son del SDK `org.freedesktop.Sdk`, no de SteamOS, y no hay `journalctl` ni `dmesg`. Lo que tenga que
+  correr o comprobarse en el anfitrión va con `flatpak-spawn --host <orden>`. Detalle en
+  `docs/investigacion/2026-10-25-banco-deck.md`.
+
 - Instalar: —.
 - _(por rellenar)_

@@ -8,10 +8,10 @@
 
 | Campo | Valor |
 |---|---|
-| **Rama** | `ccr-a6c4dde9-3qadwv` |
-| **Fase / tarea** | Fase 0: flujo Galivelop-workflow v0.3.0 aplicado y llevado a `main` por PR; aún no hay código |
-| **Último punto estable** | Commit «Flujo Galivelop-workflow v0.3.0»: actualiza skills, ganchos, CI y plantillas desde la v0.1.0 |
-| **Siguiente paso** | Elegir el stack del generador de voz y sustituir el check provisional `true` en `.claude/gw.json` por el real (tests + linter) |
+| **Rama** | `claude/voces-diseno` |
+| **Fase / tarea** | Diseño del generador de voz **cerrado** (D1-D17 y fases F0-F7 en `docs/plan.md`, aprobados por la persona). Compactaciones: 0 de 1 presupuestada |
+| **Último punto estable** | Plan completo: decisiones, fases y pendientes; ADR 0001-0002; glosario; investigación y banco en `docs/investigacion/` |
+| **Siguiente paso** | `/clear` y F0 Esqueleto (`docs/plan.md`) en una rama nueva desde `main` |
 | **Check** | `true`: verde (provisional, no comprueba nada) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con
@@ -19,20 +19,22 @@ la forma ``| **Tarea en curso · `<rama>`** | tarea, qué falta y siguiente paso
 
 ## Para la próxima publicación
 
-La aplicación del flujo, por pull request desde `ccr-a6c4dde9-3qadwv`, confirmada por la persona. El CI de GitHub está
-agotado: se corrieron en local los pasos de `comprobar.yml` en un clon limpio (validar config, install, check), en verde.
+Nada todavía: el diseño ya está en `main` (PR #2).
 
 ## Hecho (5 últimas)
 
-1. 2026-10-25 — Revisión, `opt-tokens` y retro (`docs/registros/retro-2026-10-25-aplicar-flujo.md`) antes de `main`.
-2. 2026-10-25 — Flujo actualizado a v0.3.0 (se había aplicado la v0.1.0 de la rama por defecto del repo del flujo).
-3. 2026-10-25 — Aplicado Galivelop-workflow con todas las skills (incluidas `opt-ai` y `scout-updates`).
+1. 2026-10-25 — Diseño a `main` por el PR #2, con la confirmación de la persona. El CI de GitHub no arrancó (facturación de la cuenta); los pasos de `comprobar.yml` corrieron en local en un clon limpio, en verde.
+2. 2026-10-25 — Diseño del generador de voz en tres rondas de `grilling`: D1-D17, fases F0-F7 y banco de pruebas en la Deck.
+3. 2026-10-25 — Investigación de actualizaciones del documento de voces (motor activo sin binarios, español confirmado, Piper ahora GPL, riesgo Vulkan en APU AMD).
+4. 2026-10-25 — Revisión, `opt-tokens` y retro (`docs/registros/retro-2026-10-25-aplicar-flujo.md`) antes de `main`.
+5. 2026-10-25 — Flujo actualizado a v0.3.0 (se había aplicado la v0.1.0 de la rama por defecto del repo del flujo).
 
 ## Pendiente
 
-- **Deuda:** el `check` es `true` provisional porque no hay código; cambiarlo al elegir el stack.
+- **Deuda:** el `check` es `true` provisional porque no hay código; pasa a `python3 -m unittest` en F0 (D1).
+- Escucha del banco y registro del núcleo tras Vulkan: los dos, de la persona (ver «Pendiente» en `docs/plan.md`).
 - Rellenar «Reglas del proyecto» en `AGENTS.md` cuando haya stack.
-- Aplazadas, para proponer al flujo (detalle en la retro): rama por defecto del flujo en 0.1.0; camino para CI
+- Para proponer al flujo: R2-R4 de `docs/registros/retro-2026-10-25-diseno-voces.md`, y las aplazadas de la retro anterior: rama por defecto del flujo en 0.1.0; camino para CI
   agotado (`ci-local.sh`); 2 tests de `scout-updates` fallan fuera del flujo; `gw-init` debe decir que no se llame a
   `register_repo_root`.
 

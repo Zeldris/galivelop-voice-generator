@@ -10,8 +10,8 @@
 |---|---|
 | **Rama** | `claude/voces-diseno` |
 | **Fase / tarea** | Diseño del generador de voz a partir de `World-Maker-Fantasy/docs/arquitectura/reutilizables/02-voces-y-sonidos-locales.md`, con `grilling`; luego implementación. Presupuesto: 1 compactación para el diseño (llevadas: 0) |
-| **Último punto estable** | Decisiones D1-D13 en `docs/plan.md` (rondas 1 y 2 de `grilling` aprobadas), ADR 0001-0002 y glosario |
-| **Siguiente paso** | Banco de pruebas en la Deck (subagente; informe en `docs/investigacion/2026-10-25-banco-deck.md`, motor y modelos en `~/.local/share/galivelop-voice/`); con sus cifras, ronda 3: niveles de hardware, perfil `steam-deck` y fases de implementación |
+| **Último punto estable** | Banco de pruebas en la Deck (`docs/investigacion/2026-10-25-banco-deck.md`): Vulkan RTF ~1, CPU 4-18; motor y modelos en `~/.local/share/galivelop-voice/` |
+| **Siguiente paso** | Ronda 3 de `grilling` (niveles, perfil `steam-deck`, motor por intento, reproducibilidad, compilación en el SDK de Flatpak, fases) y escucha de los `.wav` del banco por la persona |
 | **Check** | `true`: verde (provisional, no comprueba nada) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con

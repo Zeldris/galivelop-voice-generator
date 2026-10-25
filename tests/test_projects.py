@@ -79,6 +79,11 @@ class ProjectTests(unittest.TestCase):
         self.assertEqual(err.code, "project.config_invalid")
         self.assertEqual([e.code for e in err.errors], ["enum"])
 
+    def test_repeated_print_model_rejected(self):
+        err = self.code(projects.load_config, self.make(printModels=["0.6b-base", "0.6b-base"]))
+        self.assertEqual(err.code, "project.config_invalid")
+        self.assertEqual([e.code for e in err.errors], ["uniqueItems"])
+
     def test_min_version(self):
         err = self.code(projects.load_config, self.make(minVersion="99.0.0"))
         self.assertEqual(err.code, "project.version_too_new")
@@ -96,6 +101,7 @@ class ProjectTests(unittest.TestCase):
             ({"delivery": {"dir": ".git/voices"}}, "project.forbidden_git"),
             ({"delivery": {"dir": "a/.GIT/x"}}, "project.forbidden_git"),
             ({"delivery": {"dir": "galivelop-voices.json"}}, "project.forbidden_config"),
+            ({"delivery": {"dir": "."}}, "project.forbidden_root"),
             ({"delivery": {"dir": "Galivelop-Voices.JSON"}}, "project.forbidden_config"),
             ({"delivery": {"dir": "a/../galivelop-voices.json"}}, "project.config_invalid"),
             ({"delivery": {"dir": "/etc"}}, "project.config_invalid"),

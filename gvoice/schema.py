@@ -25,7 +25,7 @@ ANNOTATIONS = frozenset(
 VALIDATING = frozenset(
     [
         "type", "properties", "required", "additionalProperties", "propertyNames",
-        "minProperties", "items", "minItems", "maxItems", "enum", "const", "pattern",
+        "minProperties", "items", "minItems", "maxItems", "uniqueItems", "enum", "const", "pattern",
         "minLength", "maxLength", "minimum", "maximum", "$ref", "$defs",
         "allOf", "if", "then", "else",
     ]
@@ -33,7 +33,7 @@ VALIDATING = frozenset(
 # Every code format_error may be asked to render.
 CODES = (
     "required", "type", "enum", "const", "pattern", "minimum", "maximum",
-    "minLength", "maxLength", "minItems", "maxItems", "minProperties",
+    "minLength", "maxLength", "minItems", "maxItems", "uniqueItems", "minProperties",
     "additionalProperties", "propertyNames", "false",
 )
 TYPES = ("object", "array", "string", "integer", "number", "boolean", "null")
@@ -104,6 +104,8 @@ def _check_schema(schema, root, where="#"):
             key == "additionalProperties" and not isinstance(value, bool)
         ):
             _check_schema(value, root, "%s/%s" % (where, key))
+        elif key == "uniqueItems" and not isinstance(value, bool):
+            raise SchemaError("%s/uniqueItems: must be a boolean" % where)
         elif key == "allOf":
             _list(where, key, value)
             if not value:
@@ -296,6 +298,10 @@ def _validate(value, schema, root, path, errors, seen=frozenset()):
             add("minItems", limit=schema["minItems"])
         if "maxItems" in schema and len(value) > schema["maxItems"]:
             add("maxItems", limit=schema["maxItems"])
+        if schema.get("uniqueItems") and any(
+            _same(value[i], value[j]) for i in range(len(value)) for j in range(i)
+        ):
+            add("uniqueItems")
         if "items" in schema:
             for i, item in enumerate(value):
                 _validate(item, schema["items"], root, _pointer(path, i), errors)

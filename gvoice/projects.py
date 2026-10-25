@@ -39,6 +39,8 @@ def _forbidden(root: Path, field: str, rel: str) -> None:
     target = paths.inside(root, rel)
     real_root = root.resolve()
     parts = target.relative_to(real_root).parts
+    if not parts:
+        raise GvoiceError("project.forbidden_root", field=field, path=rel)
     if any(p.casefold() == ".git" for p in parts):
         raise GvoiceError("project.forbidden_git", field=field, path=rel)
     if len(parts) == 1 and parts[0].casefold() == CONFIG_FILE:

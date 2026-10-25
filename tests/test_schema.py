@@ -70,6 +70,11 @@ class KeywordTests(unittest.TestCase):
         sch = {"items": {"type": "integer"}, "minItems": 1, "maxItems": 2}
         self.assertEqual(codes([1, 2], sch), [])
         self.assertEqual(codes([], sch), [("", "minItems")])
+        uniq = {"uniqueItems": True}
+        self.assertEqual(codes(["a", "b"], uniq), [])
+        self.assertEqual(codes(["a", "a"], uniq), [("", "uniqueItems")])
+        self.assertEqual(codes([1, 1.0], uniq), [("", "uniqueItems")])
+        self.assertEqual(codes([1, True], uniq), [])
         self.assertEqual(codes([1, 2, 3], sch), [("", "maxItems")])
         self.assertEqual(codes([1, "x"], sch), [("/1", "type")])
 

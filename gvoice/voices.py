@@ -213,11 +213,11 @@ def _cancel(entries: list) -> None:
 
 def _queue_prints(project: str, voice: str, config: dict, reference: int) -> list:
     """Cancel the pending prints of other references and queue one print per print model that is neither up to
-    date nor already pending for `reference`."""
+    date nor already pending (and not being cancelled) for `reference`."""
     from . import queue
     pending = _voice_prints(project, voice)
     _cancel([e for e in pending if e["reference"] != reference])
-    have = {e["model"] for e in pending if e["reference"] == reference}
+    have = {e["model"] for e in pending if e["reference"] == reference and not e.get("cancelRequested")}
     return [queue.enqueue_print(project, voice, model, reference) for model in projects.print_models(config)
             if model not in have and not is_up_to_date(project, voice, model)]
 

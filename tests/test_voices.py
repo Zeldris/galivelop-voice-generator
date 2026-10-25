@@ -3,7 +3,7 @@
 import json
 import unittest
 
-from gvoice import engine, fsutil, orders, queue, voices, worker
+from gvoice import engine, fsutil, orders, projects, queue, voices, worker
 from tests.test_worker import StubEngine, WorkerBase
 
 MODELS = ["0.6b-base", "1.7b-base"]
@@ -235,6 +235,23 @@ class UndoTests(VoicesBase):
         self.assertIn(queue.get(entry["id"])["state"], ("cancelled",))
         self.assertEqual(self.print_names(), [])
         self.assertIsNone(voices.reference_id("proj", "narrator"))
+
+    def test_choose_and_undo_while_a_print_runs_queues_it_again(self):
+        voices.choose("proj", "narrator", 1)
+
+        class ChooseAndUndo(engine.FakeEngine):
+            def extract_print(self, job, should_cancel):
+                result = super().extract_print(job, should_cancel)
+                if not getattr(self, "done", False):
+                    self.done = True
+                    voices.choose("proj", "narrator", 2)  # asks the running print of 1 to cancel
+                    voices.undo("proj", "narrator")  # back to 1: its print must be queued again
+                return result
+
+        worker.run(engine=ChooseAndUndo())
+        self.assertEqual(voices.reference_id("proj", "narrator"), 1)
+        for model in projects.print_models(projects.get("proj")["config"]):
+            self.assertTrue(voices.is_up_to_date("proj", "narrator", model), model)
 
     def test_nothing_to_undo(self):
         self.assertEqual(self.code(voices.undo, "proj", "narrator"), "order.history_empty")

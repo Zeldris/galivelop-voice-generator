@@ -10,9 +10,9 @@
 |---|---|
 | **Rama** | `claude/voces-f1` |
 | **Fase / tarea** | F1 Núcleo (`docs/plan.md`, «F1 en detalle», pasos F1.1-F1.6). Compactaciones: 0 de 1 presupuestada |
-| **Último punto estable** | F1.5 (`voices`; 377 tests). Antes, F1.4 (`queue` y `worker`). Antes, F1.3 con sus arreglos (`engine`, `machine`, `machinelock`, `log`), F1.2 (`orders`, `sheet`) y F1.1 |
-| **Siguiente paso** | Revisión corta de F1.5 y luego F1.6: `cli` (`python3 -m gvoice`, con `voice status`, `choose`, `undo`), prueba del ciclo completo y README es/en |
-| **Check** | verde (`bash -n` de cada gancho y `unittest`, 377 tests) |
+| **Último punto estable** | F1.5 con los arreglos de su revisión corta (`voices`; 378 tests). Antes, F1.4 (`queue` y `worker`). Antes, F1.3 con sus arreglos (`engine`, `machine`, `machinelock`, `log`), F1.2 (`orders`, `sheet`) y F1.1 |
+| **Siguiente paso** | F1.6: `cli` (`python3 -m gvoice`, con `voice status`, `choose`, `undo`), prueba del ciclo completo y README es/en |
+| **Check** | verde (`bash -n` de cada gancho y `unittest`, 378 tests) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con
 la forma ``| **Tarea en curso · `<rama>`** | tarea, qué falta y siguiente paso |``; el push lo comprueba.
@@ -32,6 +32,7 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 ## Pendiente
 
 - Leves de la revisión corta de F1.4: `_clean_pending` no borra `attempts/q<id>.wav` si el trabajador muere entre `os.replace` y `add_attempt` y la entrada se recupera como `cancelled`; `_finish(cancelled)` se escribe antes de borrar `.pending` y descartar la huella (instante terminal con archivos a medias); `enqueue_attempts` no valida el tipo de `seed` (falla después, en el motor).
+- Leves de la revisión corta de F1.5: `voices.fixed_print` lee la referencia dos veces (una `line` puede guardar `voiceReference` de la nueva con la huella de la vieja si un `choose` cae entre medias); `voices.undo` calcula el destino con `history[-1]` fuera del candado (otro `choose` entre medias copia otra toma), y un fallo de `_apply` tras `orders.undo`/`choose` deja pedido y disco distintos sin poder repetir el `undo`; `enqueue_attempts` de una `line` no llama a `voices.check_model` (falla después en el trabajador).
 - F2: el fd del candado no se hereda, así que un hijo `qwen-tts` sigue vivo sin candado si muere el trabajador; el estimado de `speak` no tiene en cuenta la longitud del texto (`rtf`/`text_chars` ya están en el registro, a valorar con `opt-ai`).
 - Leves de la revisión corta de F1.3: `wav_bytes` del motor de pruebas gasta 283 MB con 4000 caracteres (`array('h')`); `machinelock.hold` deja salir `OSError` (ENOLCK) sin `GvoiceError`, `not_file` no se alcanza con un directorio, no hay tests de `not_file`/`unusable`, y el TOCTOU entre `lstat` de la carpeta y `os.open` (`dir_fd`); los tests de `EngineError` del motor no comprueban el mensaje; el `geteuid` simulado de `test_file_of_another_user_refused` depende del orden de llamadas.
 - Leve de la revisión corta de F1.1: `projects._version` confía en el patrón del esquema (seguro hoy, porque siempre se valida antes).

@@ -107,6 +107,11 @@ class BrokenExamples(unittest.TestCase):
         self.broken(ln, "order", lambda d: d.update(key="a/../b"), [("/key", "pattern")])
         self.broken(ln, "order", lambda d: d.update(text=""), [("/text", "minLength")])
         self.broken(ln, "order", lambda d: d.pop("type"), [("", "required")])
+        for bad, code in ((0, "minimum"), (21, "maximum"), ("2", "type"), (1.5, "type")):
+            self.broken(ln, "order", lambda d: d.update(count=bad), [("/count", code)])
+            self.broken(v, "order", lambda d: d.update(count=bad), [("/count", code)])
+        self.broken(ln, "order", lambda d: d.update(model="9b-base"), [("/model", "enum")])
+        self.broken(v, "order", lambda d: d.update(model="1.7b-base"), [("/model", "false")])
 
     def test_machine_profile(self):
         rel = EXAMPLES["machine-profile"]

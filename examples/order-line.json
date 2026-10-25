@@ -4,5 +4,7 @@
   "type": "line",
   "voice": "narrator",
   "text": "Long ago, the valley was silent.",
-  "seed": 7
+  "seed": 7,
+  "model": "1.7b-base",
+  "count": 3
 }

@@ -45,6 +45,17 @@
       "minLength": 1,
       "maxLength": 4000,
       "description": "line: text to speak."
+    },
+    "model": {
+      "$ref": "common.schema.json#/$defs/baseModel",
+      "description": "line: Base model that speaks the line (one of the project's printModels). Omitted: the first printModel."
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "default": 1,
+      "description": "Attempts to enqueue with this submission (not stored in the order)."
     }
   },
   "allOf": [
@@ -88,7 +99,8 @@
         ],
         "properties": {
           "voice": false,
-          "text": false
+          "text": false,
+          "model": false
         }
       }
     }

@@ -33,7 +33,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import engine as engine_mod
-from . import fsutil, i18n, log, machine, orders, paths, projects, schema
+from . import fsutil, i18n, log, machine, orders, paths, projects, schema, voices
 from .errors import GvoiceError
 
 KEEP_TERMINAL = 200
@@ -180,7 +180,9 @@ def _add(entries: list) -> list:
 def enqueue_attempts(project: str, type_: str, key: str, specs: list) -> list:
     """Queue one ``attempt`` entry per spec (from ``orders.attempt_specs``); returns the new entries.
 
-    The order must exist and the machine profile must load; nothing is queued if a spec lacks a field."""
+    The order must exist and the machine profile must load; nothing is queued if a spec lacks a field. A ``line``
+    is queued only if its voice has an up-to-date print for its model (`voices.fixed_print`, else
+    ``line.voice_not_fixed``); the worker checks it again."""
     orders.get(project, type_, key)
     machine.load_machine()
     fields = _SPEC_FIELDS[type_]
@@ -188,6 +190,9 @@ def enqueue_attempts(project: str, type_: str, key: str, specs: list) -> list:
         missing = [f for f in fields if not isinstance(spec, dict) or f not in spec]
         if missing:
             raise GvoiceError("order.spec_invalid", missing=", ".join(missing))
+    if type_ == "line":
+        for spec in specs:
+            voices.fixed_print(project, spec["voice"], spec["model"])
     return _add([{"kind": "attempt", "project": project, "type": type_, "key": key, "seed": spec["seed"],
                   "params": {f: copy.deepcopy(spec[f]) for f in fields if f != "seed"}} for spec in specs])
 
@@ -195,7 +200,8 @@ def enqueue_attempts(project: str, type_: str, key: str, specs: list) -> list:
 def enqueue_print(project: str, voice: str, model: str, reference: int) -> dict:
     """Queue a ``print`` entry: extract the prints of `voice` for the Base `model` from take `reference`.
 
-    The voice must be in the project and the model one of its print models."""
+    The voice must be in the project and have a ``voice`` order that has the take `reference`, and the model one
+    of its print models. (`voices.choose` is the normal way to get here.)"""
     config = projects.get(project)["config"]
     if voice not in config["voices"]:
         raise GvoiceError("order.unknown_voice", project=project, voice=str(voice))
@@ -204,6 +210,8 @@ def enqueue_print(project: str, voice: str, model: str, reference: int) -> dict:
         raise GvoiceError("order.model_not_allowed", model=str(model), allowed=", ".join(allowed))
     if type(reference) is not int or reference < 1:
         raise GvoiceError("order.spec_invalid", missing="reference")
+    if not any(t["id"] == reference for t in orders.get(project, "voice", voice)["attempts"]):
+        raise GvoiceError("order.attempt_unknown", attempt=reference, order=voice, type="voice")
     return _add([{"kind": "print", "project": project, "voice": voice, "model": model, "reference": reference}])[0]
 
 

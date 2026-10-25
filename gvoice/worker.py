@@ -30,9 +30,12 @@ else ``worker.unexpected`` with ``{"message": "Type: msg"}``.
 Log: one line for every operation that reaches the worker and fails or succeeds (``app.error`` is the English
 rendering of the error); a cancel writes no line.
 
-F1.5 SEAMS (marked below): `_fixed_print` (the print a ``line`` speaks with, and the id of the reference it comes
-from), `_print_job` (what a ``print`` entry extracts from) and `_print_commit` / `_print_discard` (what is written
-after / instead). They read the layout of D10 directly; F1.5 moves them into ``voices`` and keeps these signatures.
+The voice's files are `voices`' business: `voices.fixed_print` (the print a ``line`` speaks with, and the id of the
+reference it comes from), `voices.print_job` (what a ``print`` entry extracts from) and `voices.print_commit` /
+`voices.print_discard` (what is written after / instead). A ``print`` whose reference is no longer the voice's
+current one (`voice.print_stale`, before or after the engine) ends ``cancelled`` with that error and leaves no
+files; a model that is no longer one of the project's print models fails with ``order.model_not_allowed``
+before the engine.
 """
 from __future__ import annotations
 
@@ -40,11 +43,9 @@ import contextlib
 import fcntl
 import os
 import sys
-from datetime import datetime, timezone
-from pathlib import Path
 
 from . import engine as engine_mod
-from . import fsutil, i18n, log, machine, machinelock, orders, paths, projects, queue
+from . import fsutil, i18n, log, machine, machinelock, orders, projects, queue, voices
 from .errors import GvoiceError
 
 
@@ -73,59 +74,6 @@ def _single_worker():
 def _unlink(path) -> None:
     with contextlib.suppress(OSError):
         os.unlink(path)
-
-
-# ---- F1.5 seams: the voice folder (``<data>/projects/<project>/voices/<voice>/``) ---------------------------
-
-def _voice_dir(project: str, voice: str) -> Path:
-    return paths.inside(paths.project_data_dir(project), "voices/" + voice)
-
-
-def _print_files(project: str, voice: str, model: str) -> tuple:
-    folder = _voice_dir(project, voice) / "prints"
-    return folder / (model + ".spk"), folder / (model + ".rvq"), folder / (model + ".json")
-
-
-def _fixed_print(entry: dict, voice: str, model: str) -> tuple:
-    """``(reference id, .spk, .rvq)`` of the up-to-date print a line speaks with. Up to date: both files exist and
-    ``print.json`` (written last) names the reference. Raises ``worker.voice_not_fixed`` otherwise."""
-    spk, rvq, marker = _print_files(entry["project"], voice, model)
-    try:
-        reference = fsutil.read_json(marker)["reference"]
-    except (OSError, ValueError, KeyError, TypeError):
-        reference = None
-    if type(reference) is not int or not spk.is_file() or not rvq.is_file():
-        raise GvoiceError("worker.voice_not_fixed", voice=voice, model=model)
-    return reference, spk, rvq
-
-
-def _print_job(entry: dict, machine_profile: dict) -> engine_mod.PrintJob:
-    """The job of a ``print`` entry: the voice's ``reference.wav`` and ``reference.txt`` (copied there by choosing)."""
-    folder = _voice_dir(entry["project"], entry["voice"])
-    wav, txt = folder / "reference.wav", folder / "reference.txt"
-    for needed in (wav, txt):
-        if not needed.is_file():
-            raise GvoiceError("worker.reference_missing", path=str(needed))
-    spk, rvq, marker = _print_files(entry["project"], entry["voice"], entry["model"])
-    _unlink(marker)  # the files are about to change: the old marker would lie
-    return engine_mod.PrintJob(
-        reference=str(wav), reference_text=txt.read_text(encoding="utf-8"), model=entry["model"],
-        spk=str(spk), rvq=str(rvq), device=machine_profile["engine"]["device"],
-        timeout_s=machine_profile.get("timeoutS"))
-
-
-def _print_commit(entry: dict, result) -> None:
-    """After the engine: ``print.json`` is the last thing written, so "up to date" is never true half way."""
-    marker = _print_files(entry["project"], entry["voice"], entry["model"])[2]
-    fsutil.write_json(marker, {
-        "reference": entry["reference"], "device": result.device, "engineVersion": result.engine_version,
-        "createdAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
-
-
-def _print_discard(entry: dict) -> None:
-    """The print failed or was cancelled: remove what it may have left."""
-    for path in _print_files(entry["project"], entry["voice"], entry["model"]):
-        _unlink(path)
 
 
 # ---- worker -------------------------------------------------------------------------------------------------
@@ -172,7 +120,8 @@ def _finish(entry_id, state, lang=None, **kw) -> None:
 
 
 def _check_exists(entry: dict) -> None:
-    """The project, the order (for an attempt) and the voice must still exist: they may be gone since enqueue."""
+    """The project, the order (for an attempt), the voice and (print, line) its model must still exist: they may be
+    gone since enqueue."""
     config = projects.get(entry["project"])["config"]
     if entry["kind"] == "attempt":
         orders.get(entry["project"], entry["type"], entry["key"])
@@ -181,6 +130,10 @@ def _check_exists(entry: dict) -> None:
         voice = entry["voice"]
     if voice not in config["voices"]:
         raise GvoiceError("order.unknown_voice", project=entry["project"], voice=voice)
+    if entry["kind"] == "print":
+        voices.check_model(config, entry["model"])
+    elif entry["type"] == "line":
+        voices.check_model(config, entry["params"]["model"])
 
 
 def _call_engine(call, should_cancel):
@@ -210,7 +163,7 @@ def _generate(entry: dict, eng, profile: dict, state: dict):
                                    model=spec["model"], output=str(tmp), device=device, timeout_s=timeout)
         call = lambda: eng.design(job, cancelled)  # noqa: E731
     else:
-        reference, spk, rvq = _fixed_print(entry, params["voice"], params["model"])
+        reference, spk, rvq = voices.fixed_print(entry["project"], params["voice"], params["model"])
         spec.update(text=params["text"], model=params["model"], voiceReference=reference)
         job = engine_mod.SpeakJob(text=params["text"], seed=seed, model=params["model"], spk=str(spk),
                                   rvq=str(rvq), output=str(tmp), device=device, timeout_s=timeout)
@@ -237,12 +190,12 @@ def _generate_print(entry: dict, eng, profile: dict, state: dict):
     _check_exists(entry)
     profile.update(machine.load_machine())
     cancelled = lambda: queue.is_cancel_requested(entry["id"])  # noqa: E731
-    job = _print_job(entry, profile)
+    job = voices.print_job(entry, profile)
     state["discard"] = True  # from here the voice's files may change
     state["result"] = _call_engine(lambda: eng.extract_print(job, cancelled), cancelled)
     if cancelled():
         raise engine_mod.Cancelled()
-    _print_commit(entry, state["result"])
+    voices.print_commit(entry, state["result"])
     state["discard"] = False
     return None
 
@@ -259,6 +212,14 @@ def _process(entry: dict, eng, lang=None) -> None:
     except engine_mod.Cancelled:
         _finish(entry_id, "cancelled", lang)
         return
+    except GvoiceError as exc:
+        if exc.code != "voice.print_stale":
+            error = _error_for(exc)
+            _log_failure(entry, profile, eng.provider, error)
+            _finish(entry_id, "failed", lang, error=error)
+        else:  # superseded by a newer reference: not a failure, and nothing is logged
+            _finish(entry_id, "cancelled", lang, error=_error_for(exc))
+        return
     except Exception as exc:  # a bug must not leave the entry running or kill the loop
         error = _error_for(exc)
         _log_failure(entry, profile, eng.provider, error)
@@ -270,7 +231,7 @@ def _process(entry: dict, eng, lang=None) -> None:
                 _unlink(leftover)
         if state["discard"]:
             with contextlib.suppress(Exception):
-                _print_discard(entry)
+                voices.print_discard(entry)
     # the work is stored: from here nothing may fail the entry
     if state["result"] is not None:
         try:

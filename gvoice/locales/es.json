@@ -82,8 +82,10 @@
   "error.queue.bad_state": "estado final no válido «{state}»; usa uno de: {states}",
   "error.queue.not_running": "la entrada {id} no está en marcha (estado: {state})",
   "error.worker.already_running": "ya hay un trabajador en marcha ({path})",
-  "error.worker.voice_not_fixed": "la voz «{voice}» no tiene una huella al día para el modelo «{model}»; elige su referencia otra vez",
-  "error.worker.reference_missing": "falta la referencia de la voz: {path}",
+  "error.line.voice_not_fixed": "la voz «{voice}» no tiene una huella al día para el modelo «{model}»; elige su referencia otra vez",
+  "error.voice.reference_missing": "falta la referencia de la voz: {path}",
+  "error.voice.print_stale": "la referencia de la voz «{voice}» ya no es la toma {reference}; se descarta esta huella del modelo «{model}»",
+  "error.voice.take_audio_missing": "la toma {take} no tiene audio ({path}) y no puede ser la referencia",
   "error.worker.audio_move": "no se pudo guardar el audio del intento: {reason}",
   "error.worker.unexpected": "error inesperado del trabajador: {message}"
 }

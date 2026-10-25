@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from gvoice import log, orders, projects, queue, sheet
+from gvoice import engine, fsutil, log, orders, projects, queue, sheet, voices
 from gvoice.errors import GvoiceError
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -56,6 +56,46 @@ class QueueBase(unittest.TestCase):
             fn(*args, **kwargs)
         return cm.exception.code
 
+    def take(self, voice="narrator", project="proj", text="Hello there."):
+        """Add a take with its audio to the ``voice`` order of `voice` (created if missing); returns its id."""
+        try:
+            orders.get(project, "voice", voice)
+        except GvoiceError:
+            orders.submit(project, {"key": voice, "type": "voice", "testText": text, "designSheet": dict(SHEET)})
+        take_id = orders.add_attempt(project, "voice", voice, {
+            "seed": 1, "instruct": "i", "testText": text, "model": "1.7b-voicedesign", "device": "Vulkan0"})
+        audio = orders.attempt_audio(project, "voice", voice, {"audio": "attempts/%d.wav" % take_id})
+        audio.parent.mkdir(parents=True, exist_ok=True)
+        audio.write_bytes(engine.wav_bytes(5, 200))
+        return take_id
+
+    def prepare_reference(self, reference=1, voice="narrator", project="proj", text="Hello there."):
+        """Leave `voice` with take `reference` as its reference on disk (takes 1..reference are made if missing),
+        as `voices.choose` would, without queueing the prints."""
+        while True:
+            try:
+                orders.choose(project, "voice", voice, reference)
+                break
+            except GvoiceError as exc:
+                if exc.code != "order.attempt_unknown" and exc.code != "order.unknown":
+                    raise
+                self.take(voice, project, text)
+        folder = voices.voice_dir(project, voice)
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "reference.wav").write_bytes(engine.wav_bytes(5, 200))
+        (folder / "reference.txt").write_text(text, encoding="utf-8")
+        fsutil.write_json(folder / "reference.json", {"reference": reference, "createdAt": "2026-01-01T00:00:00Z"})
+
+    def fix(self, model="0.6b-base", reference=1, voice="narrator", project="proj"):
+        """Leave `voice` fixed for `model` on disk: reference `reference` and its up-to-date print."""
+        self.prepare_reference(reference, voice, project)
+        spk, rvq, marker = voices.print_files(project, voice, model)
+        spk.parent.mkdir(parents=True, exist_ok=True)
+        spk.write_bytes(b"spk")
+        rvq.write_bytes(b"rvq")
+        fsutil.write_json(marker, {"reference": reference, "device": "Vulkan0", "engineVersion": "x",
+                                   "createdAt": "2026-01-01T00:00:00Z"})
+
     def push(self, project="proj", type_="voice", key="narrator", count=1, **kw):
         """Queue `count` attempts of a voice order (created if missing) or of a line of `narrator`."""
         try:
@@ -66,6 +106,8 @@ class QueueBase(unittest.TestCase):
                                         "designSheet": dict(SHEET)})
             else:
                 orders.submit(project, {"key": key, "type": "line", "voice": "narrator", "text": "Long ago."})
+        if type_ == "line" and not voices.is_up_to_date(project, "narrator", kw.pop("model", "0.6b-base")):
+            self.fix(project=project)
         return queue.enqueue_attempts(project, type_, key, orders.attempt_specs(project, type_, key, count, **kw))
 
 
@@ -89,6 +131,7 @@ class QueueTests(QueueBase):
                          ("line", {"text": "Long ago.", "model": "0.6b-base", "voice": "narrator"}))
 
     def test_enqueue_print_fields(self):
+        self.prepare_reference(2)
         entry = queue.enqueue_print("proj", "narrator", "1.7b-base", 2)
         self.assertEqual((entry["kind"], entry["state"], entry["voice"], entry["model"], entry["reference"]),
                          ("print", "queued", "narrator", "1.7b-base", 2))
@@ -96,6 +139,7 @@ class QueueTests(QueueBase):
         self.assertEqual(queue.get(entry["id"]), entry)
 
     def test_enqueue_print_refused(self):
+        self.prepare_reference(1)
         for args, code in ((("proj", "ghost", "0.6b-base", 1), "order.unknown_voice"),
                            (("proj", "narrator", "9b-base", 1), "order.model_not_allowed"),
                            (("proj", "narrator", "0.6b-base", 0), "order.spec_invalid"),
@@ -271,6 +315,7 @@ class QueueTests(QueueBase):
         self.assertTrue(other.exists())  # only the recovered entries' files
 
     def test_recovery_of_a_print_entry(self):
+        self.prepare_reference(1)
         entry = queue.enqueue_print("proj", "narrator", "0.6b-base", 1)
         queue.claim()
         self.assertEqual(queue.get(entry["id"])["state"], "queued")
@@ -317,6 +362,7 @@ class QueueTests(QueueBase):
     def test_tasks_and_models(self):
         voice = self.push()[0]
         line = self.push(type_="line", key="narrator/intro")[0]
+        self.prepare_reference(1)
         prn = queue.enqueue_print("proj", "narrator", "1.7b-base", 1)
         profile = {"models": {"design": "1.7b-voicedesign"}}
         self.assertEqual([queue.task_of(e) for e in (voice, line, prn)], ["design", "speak", "print"])

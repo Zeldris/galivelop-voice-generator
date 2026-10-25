@@ -71,15 +71,12 @@ class WorkerBase(QueueBase):
     def voice_dir(self, voice="narrator", project="proj"):
         return self.tmp / "data" / "projects" / project / "voices" / voice
 
-    def write_reference(self, voice="narrator", text="Hello there."):
-        folder = self.voice_dir(voice)
-        folder.mkdir(parents=True, exist_ok=True)
-        (folder / "reference.wav").write_bytes(engine.wav_bytes(5, 200))
-        (folder / "reference.txt").write_text(text, encoding="utf-8")
+    def write_reference(self, voice="narrator", text="Hello there.", reference=1):
+        self.prepare_reference(reference, voice, text=text)
 
     def fix_voice(self, model="0.6b-base", reference=1):
-        """Queue and run the print of narrator for `model`, as choosing a reference will (F1.5)."""
-        self.write_reference()
+        """Queue and run the print of narrator for `model`, as choosing a reference will."""
+        self.write_reference(reference=reference)
         entry = queue.enqueue_print("proj", "narrator", model, reference)
         worker.run()
         self.assertEqual(queue.get(entry["id"])["state"], "done")
@@ -601,16 +598,21 @@ class GoneTests(WorkerBase):
 
 
 class LineAndPrintTests(WorkerBase):
-    def test_line_without_a_print_fails_and_is_translated(self):
-        self.push(type_="line", key="narrator/intro")
+    def line_entry(self):
+        return self.push(type_="line", key="narrator/intro")[0]
+
+    def test_line_whose_print_is_gone_fails_and_is_translated(self):
+        self.fix_voice()
+        self.line_entry()
+        (self.voice_dir() / "prints" / "0.6b-base.json").unlink()
         worker.run()
-        entry = queue.get(1)
+        entry = queue.get(2)
         self.assertEqual((entry["state"], entry["error"]),
-                         ("failed", {"code": "worker.voice_not_fixed",
+                         ("failed", {"code": "line.voice_not_fixed",
                                      "params": {"voice": "narrator", "model": "0.6b-base"}}))
         self.assertIn("no tiene una huella al día", queue.error_text(entry, "es"))
         self.assertIn("no up-to-date print", queue.error_text(entry, "en"))
-        self.assertEqual(self.lines()[0]["app.task"], "speak")
+        self.assertEqual(self.lines()[-1]["app.task"], "speak")
         self.assertEqual(self.attempts("line", "narrator/intro"), [])
 
     def test_print_then_line(self):
@@ -636,26 +638,29 @@ class LineAndPrintTests(WorkerBase):
         self.assertEqual((last["app.task"], last["app.audio.key"], last["app.audio.text_chars"]),
                          ("speak", "narrator/intro", 9))
 
-    def test_line_for_a_model_without_a_print(self):
+    def test_line_for_a_model_without_a_print_is_not_queued(self):
         self.fix_voice("1.7b-base")  # the line asks for the first print model, 0.6b-base
-        self.push(type_="line", key="narrator/intro")
-        worker.run()
-        self.assertEqual(queue.get(2)["error"]["code"], "worker.voice_not_fixed")
+        orders.submit("proj", {"key": "narrator/intro", "type": "line", "voice": "narrator", "text": "Long ago."})
+        specs = orders.attempt_specs("proj", "line", "narrator/intro")
+        self.assertEqual(self.code(queue.enqueue_attempts, "proj", "line", "narrator/intro", specs),
+                         "line.voice_not_fixed")
+        self.assertEqual(len(queue.list_entries()), 1)  # only the print
 
     def test_line_with_a_print_without_marker_fails(self):
         self.fix_voice()
+        self.line_entry()
         (self.voice_dir() / "prints" / "0.6b-base.json").unlink()
-        self.push(type_="line", key="narrator/intro")
         worker.run()
-        self.assertEqual(queue.get(2)["error"]["code"], "worker.voice_not_fixed")
+        self.assertEqual(queue.get(2)["error"]["code"], "line.voice_not_fixed")
 
     def test_print_without_a_reference_fails_and_touches_nothing(self):
         self.fix_voice()
+        self.write_reference(reference=2)
         (self.voice_dir() / "reference.wav").unlink()
         queue.enqueue_print("proj", "narrator", "0.6b-base", 2)
         worker.run()
         entry = queue.get(2)
-        self.assertEqual((entry["state"], entry["error"]["code"]), ("failed", "worker.reference_missing"))
+        self.assertEqual((entry["state"], entry["error"]["code"]), ("failed", "voice.reference_missing"))
         self.assertTrue((self.voice_dir() / "prints" / "0.6b-base.json").is_file())  # the old print is intact
 
     def test_print_engine_failure_discards_the_files(self):
@@ -670,12 +675,14 @@ class LineAndPrintTests(WorkerBase):
 
     def test_failed_reprint_does_not_leave_the_old_marker(self):
         self.fix_voice(reference=1)
+        self.write_reference(reference=2)
         queue.enqueue_print("proj", "narrator", "0.6b-base", 2)
         worker.run(engine=engine.FakeEngine(fail_with="boom"))
         self.assertEqual(list((self.voice_dir() / "prints").glob("*")), [])
-        self.push(type_="line", key="narrator/intro")
-        worker.run()
-        self.assertEqual(queue.get(3)["error"]["code"], "worker.voice_not_fixed")
+        orders.submit("proj", {"key": "narrator/intro", "type": "line", "voice": "narrator", "text": "Long ago."})
+        specs = orders.attempt_specs("proj", "line", "narrator/intro")
+        self.assertEqual(self.code(queue.enqueue_attempts, "proj", "line", "narrator/intro", specs),
+                         "line.voice_not_fixed")
 
     def test_cancel_a_print_during_the_engine(self):
         self.write_reference()

@@ -112,18 +112,25 @@ Antes de nada comprueba otra vez que el proyecto, el pedido y la voz de la entra
 `project.unknown`, `order.unknown` u `order.unknown_voice`). Cada intento guarda `engine`, `engineVersion`, `device`,
 `audio` y `state`; el registro lleva una línea por operación (`design`/`speak`/`print`, `key` = la voz en `print`). El audio
 se llama como la entrada (`attempts/.pending-<entrada>.wav` -> `attempts/q<entrada>.wav`). Una `line` sin huella al día
-para su modelo falla con `worker.voice_not_fixed`. **Formato en disco de la huella (lo fija F1.4, lo usa F1.5):**
-`voices/<voz>/reference.wav` + `reference.txt` (entrada de `print`), `voices/<voz>/prints/<modelo>.spk`, `.rvq` y
-`<modelo>.json` (`reference`, `device`, `engineVersion`, `createdAt`), escrito el último; antes de extraer se borra el
-`.json` viejo y, si falla o se cancela, se borran los tres. Esas lecturas y escrituras están en el trabajador como
-`_fixed_print`, `_print_job`, `_print_commit` y `_print_discard` (puntos de F1.5, que los llevará a `voices`).
+para su modelo falla con `line.voice_not_fixed`. **Formato en disco de la voz (lo fija F1.5, en `voices`):**
+`voices/<voz>/reference.wav` + `reference.txt` (la toma elegida: audio y su `testText`) y `reference.json`
+(`reference`: id de la toma, `createdAt`), escrito el último, que es **la referencia actual**; huellas en
+`voices/<voz>/prints/<modelo>.spk`, `.rvq` y `<modelo>.json` (`reference`, `device`, `engineVersion`, `createdAt`),
+escrito el último. **El archivo de la huella es siempre `prints/<modelo>.json`** (no hay `print.json`). Una huella
+está al día si su `.json` nombra la referencia actual y los dos archivos existen. Antes de extraer se borra el `.json`
+viejo y, si falla, se cancela o la referencia cambió, se borran los tres. Una entrada `print` cuya `reference` ya no es
+la actual (al empezar o, bajo el candado de la voz, al terminar) acaba `cancelled` con el error `voice.print_stale`,
+sin dejar archivos. El trabajador solo llama a `voices.fixed_print`, `print_job`, `print_commit` y `print_discard`;
+antes del motor comprueba que el `model` de un `print` o de un `line` sigue en `print_models`
+(`order.model_not_allowed`).
 
 **Fijar y desfasadas** (`voices`, D10). Elegir una referencia (`voices.choose`/`undo`, que envuelven a `orders`)
-copia la toma a `<datos>/projects/<proyecto>/voices/<voz>/reference.wav` + `reference.txt` (temporal y
-`os.replace`) y encola una entrada `print` por modelo de `print_models`; cada una escribe
-`voices/<voz>/prints/<modelo>.spk/.rvq` y su `print.json` (`reference`, `device`, `engineVersion`, `createdAt`).
-Deshacer hasta `null` borra la referencia y las huellas. `voices.status(proyecto, voz)` devuelve la referencia, las
-huellas al día (su `reference` es la actual) y las frases **desfasadas**: las elegidas cuyo `voiceReference` no es la
+copia la toma (existente, no descartada y con audio) a `voices/<voz>/reference.wav` + `reference.txt` +
+`reference.json` (temporal y `os.replace`, bajo el candado de la voz), cancela los `print` pendientes de otra
+referencia y encola un `print` por modelo de `print_models` sin huella al día; cada una escribe
+`prints/<modelo>.spk/.rvq/.json`. Deshacer hasta `null` borra la referencia y las huellas y cancela los `print`
+pendientes. `enqueue_print` exige que `reference` sea una toma del pedido `voice` de la voz. `voices.status(proyecto, voz)` devuelve la referencia, las
+huellas al día (su `reference` es la actual) y las frases **desfasadas** (`staleLines`: `key`, `chosen`, `voiceReference`): las elegidas cuyo `voiceReference` no es la
 referencia actual. Desfasada se calcula, no se guarda; nada se regenera solo. Un pedido `line` se encola solo si su
 voz tiene huella al día para su modelo (si no, `line.voice_not_fixed`); el trabajador lo comprueba otra vez al
 ejecutar. Elegir una frase no entrega nada: el paquete lo exporta F3.

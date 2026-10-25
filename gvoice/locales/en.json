@@ -82,8 +82,10 @@
   "error.queue.bad_state": "invalid final state \"{state}\"; use one of: {states}",
   "error.queue.not_running": "entry {id} is not running (state: {state})",
   "error.worker.already_running": "a worker is already running ({path})",
-  "error.worker.voice_not_fixed": "voice \"{voice}\" has no up-to-date print for model \"{model}\"; choose its reference again",
-  "error.worker.reference_missing": "the voice reference is missing: {path}",
+  "error.line.voice_not_fixed": "voice \"{voice}\" has no up-to-date print for model \"{model}\"; choose its reference again",
+  "error.voice.reference_missing": "the voice reference is missing: {path}",
+  "error.voice.print_stale": "the reference of voice \"{voice}\" is no longer take {reference}; this print for model \"{model}\" was dropped",
+  "error.voice.take_audio_missing": "take {take} has no audio ({path}) and cannot be the reference",
   "error.worker.audio_move": "could not store the attempt audio: {reason}",
   "error.worker.unexpected": "unexpected worker error: {message}"
 }

@@ -1,7 +1,7 @@
 # Retro 2026-10-25 — aplicar Galivelop-workflow
 
 **Estado:** propuestas presentadas a la persona; las cuatro aplazadas (son del flujo, no del proyecto) y apuntadas
-como pendientes en la bitácora. `opt-tokens` sin propuestas.
+en la bitácora. `opt-tokens` sin propuestas.
 
 ## opt-tokens
 

@@ -20,7 +20,8 @@ la forma ``| **Tarea en curso · `<rama>`** | tarea, qué falta y siguiente paso
 ## Para la próxima publicación
 
 El diseño del generador de voz (`claude/voces-diseno`), confirmado por la persona. Solo contenido: sin revisión de código.
-`opt-tokens` y retro en `docs/registros/retro-2026-10-25-diseno-voces.md`. El CI de GitHub está agotado: se corre en local.
+`opt-tokens` y retro en `docs/registros/retro-2026-10-25-diseno-voces.md`. El CI de GitHub está agotado: corrió en local en un clon limpio de `83cc2eb` (validate, install, check `true`,
+pre-commit de `main` sobre el rango): verde.
 
 ## Hecho (5 últimas)
 

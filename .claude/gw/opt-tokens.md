@@ -20,6 +20,8 @@ las crea una vez; desde entonces son del proyecto.
   ~181k en la sesión de diseño.
 - Del plan de `galivelop-image-generator` se lee solo la tabla de decisiones (`grep -n "^| D" docs/plan.md`).
 - Medir el motor a mano con un subagente costó ~1,3M tokens (banco del 2026-10-25): desde F2, `gvoice bench`.
+- Al empezar una fase, el gancho de inicio ya trae la bitácora: se lee solo la fase de `docs/plan.md`. Releer
+  bitácora, glosario y `gw.json` en F0 arrastró 79k.
 
 ## Ajustes en vigor
 
@@ -31,3 +33,5 @@ las crea una vez; desde entonces son del proyecto.
 
 - 2026-10-25, diseño del generador de voz (`af3f3065`): 35 llamadas, contexto medio 101k (techo 150k), 0
   compactaciones; subagentes 1,75M de entrada (banco 1,27M). Con `/clear` antes de F0.
+- 2026-10-25, F0 esqueleto (`ad9f19a0`): 18 llamadas, contexto medio 68k (techo 89k), 0 compactaciones;
+  subagentes 2,8M de entrada (revisión de código en opus 0,67M).

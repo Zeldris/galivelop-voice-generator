@@ -1,0 +1,34 @@
+{
+  "$schema": "gw/schema/gw.schema.json",
+  "version": "0.1.0",
+  "language": "es",
+  "visibleLanguages": [],
+  "log": "docs/traspaso.md",
+  "logRows": false,
+  "protectedBranch": "main",
+  "pushToProtected": "pr",
+  "install": [],
+  "check": [
+    "true"
+  ],
+  "reviewMark": "docs/registros/revisado.txt",
+  "requireRetro": true,
+  "content": [
+    "^docs/",
+    "\\.md$",
+    "^\\.claude/skills/"
+  ],
+  "roadmap": false,
+  "selector": {
+    "cases": []
+  },
+  "designReferences": [],
+  "protectedPaths": [],
+  "staleRefs": [],
+  "relatedTests": {
+    "fast": [],
+    "slow": []
+  },
+  "plan": [],
+  "taskId": "[A-Z]{2,5}-\\d+"
+}

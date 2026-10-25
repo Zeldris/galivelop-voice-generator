@@ -10,9 +10,9 @@
 |---|---|
 | **Rama** | `claude/voces-f1` |
 | **Fase / tarea** | F1 Núcleo (`docs/plan.md`, «F1 en detalle», pasos F1.1-F1.6). Compactaciones: 0 de 1 presupuestada |
-| **Último punto estable** | F1.2 (`orders` con `voice` y `line`, `model` y `count` en el esquema de pedido, `sheet` con `build_instruct` y `warnings`; 192 tests). Antes, F1.1 (`paths`, `fsutil`, `errors`, `projects` con `print_models`) |
-| **Siguiente paso** | F1.3: `engine` (`FakeEngine`), `machine`, `machinelock` y `log` |
-| **Check** | verde (`bash -n` de cada gancho y `unittest`, 192 tests) |
+| **Último punto estable** | F1.3 (`engine` con `FakeEngine`, `machine`, `machinelock` y `log`; 254 tests). Antes, F1.2 (`orders`, `sheet`) y F1.1 (`paths`, `fsutil`, `errors`, `projects`) |
+| **Siguiente paso** | F1.4: `queue` y `worker` con entradas `attempt` y `print` (el trabajador toma `machinelock.hold` solo alrededor de la llamada al motor) |
+| **Check** | verde (`bash -n` de cada gancho y `unittest`, 254 tests) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con
 la forma ``| **Tarea en curso · `<rama>`** | tarea, qué falta y siguiente paso |``; el push lo comprueba.
@@ -23,11 +23,11 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 
 ## Hecho (5 últimas)
 
-1. 2026-10-25 — F1.2: `orders` copiado de `gimg@0d02f51` (pedidos `voice` y `line`, API `(project, type, key)`, carpeta `orders/<tipo>/<key>/`, audio `.wav`, `voiceReference` como parámetro de `add_attempt`, clave `attempts` reservada) y `sheet` nuevo (`build_instruct` en el orden de `design-sheet.schema.json`, `warnings` con edad y palabras vetadas de D11); `model` y `count` en el esquema de pedido; textos es/en.
-2. 2026-10-25 — F1.1: `paths`, `fsutil`, `errors` y `projects` copiados de `gimg@0d02f51` y adaptados (`GVOICE_*`, `galivelop-voice`, `galivelop-voices.json`, `GvoiceError`); `project_data_dir` usa el patrón de `common.schema.json`; sin `check_key` (el límite de la clave es del esquema) ni plantilla/manifiesto; `delivery.dir` se comprueba contra `.git` y el archivo de configuración; `print_models` lee el enum `baseModel`; `gvoice.__version__`.
-3. 2026-10-25 — F0 a `main` por el PR #3, con la confirmación de la persona. CI de GitHub sin arrancar (facturación); los pasos de `comprobar.yml` corrieron en local en un clon limpio, en verde.
-4. 2026-10-25 — Arreglos de la revisión de código de F0: check con una orden `bash -n` por gancho; validador ampliado respecto a `gimg` (`$ref` a esquemas hermanos de `gvoice/schemas/`, ciclos y rutas fuera de carpeta como `SchemaError`, `allOf`, `if`/`then`/`else`, `load_schema` con caché y copia); `common.schema.json` y fin de las copias de `$defs`; pedido y pasos de efecto por tipo; `seed` 0-4294967295; D16 (`device` en `voice.json`, huellas y `pack.json`); `prints` y `models[].id` con `baseModel`; `formatVersion` solo en `pack.json`; `watchMemoryMb` obligatorio; `GVOICE_LANG` normalizado y limitado a `locales/`; README sin copias; ejemplos coherentes.
-5. 2026-10-25 — F0 Esqueleto: paquete `gvoice/` (validador e i18n copiados de `gimg@4365f9a`), esquemas de proyecto, pedido, perfil de máquina, ficha, cadena de efectos, `pack.json` y `voice.json`, ejemplos, README es/en y check real. Decisiones de forma: pedido sin condicionales (el motor exige `voice`/`text` en `line`) y pasos de efecto planos con parámetros opcionales (el subconjunto no tiene `oneOf`/`if`).
+1. 2026-10-25 — F1.3: `engine` (jobs `DesignJob`/`SpeakJob`/`PrintJob`, `EngineResult` con `audio_ms` y `device`, `FakeEngine` con WAV 24 kHz de tono por semilla a 60 ms por carácter y huellas `.spk`/`.rvq` deterministas, `GVOICE_ENGINE`/`FAKE_DELAY`/`FAKE_FAIL`), `machine` (perfil de `limits` de `gimg`, sin límites), `machinelock` (D8: `hold(should_cancel)` con `flock` no bloqueante, rechaza enlaces y otro usuario) y `log` (`speech_generation`, `app.audio.*` con `rtf`, estimado por motor, tarea, modelo y dispositivo); textos es/en.
+2. 2026-10-25 — F1.2: `orders` copiado de `gimg@0d02f51` (pedidos `voice` y `line`, API `(project, type, key)`, carpeta `orders/<tipo>/<key>/`, audio `.wav`, `voiceReference` como parámetro de `add_attempt`, clave `attempts` reservada) y `sheet` nuevo (`build_instruct` en el orden de `design-sheet.schema.json`, `warnings` con edad y palabras vetadas de D11); `model` y `count` en el esquema de pedido; textos es/en.
+3. 2026-10-25 — F1.1: `paths`, `fsutil`, `errors` y `projects` copiados de `gimg@0d02f51` y adaptados (`GVOICE_*`, `galivelop-voice`, `galivelop-voices.json`, `GvoiceError`); `project_data_dir` usa el patrón de `common.schema.json`; sin `check_key` (el límite de la clave es del esquema) ni plantilla/manifiesto; `delivery.dir` se comprueba contra `.git` y el archivo de configuración; `print_models` lee el enum `baseModel`; `gvoice.__version__`.
+4. 2026-10-25 — F0 a `main` por el PR #3, con la confirmación de la persona. CI de GitHub sin arrancar (facturación); los pasos de `comprobar.yml` corrieron en local en un clon limpio, en verde.
+5. 2026-10-25 — Arreglos de la revisión de código de F0: check con una orden `bash -n` por gancho; validador ampliado respecto a `gimg` (`$ref` a esquemas hermanos de `gvoice/schemas/`, ciclos y rutas fuera de carpeta como `SchemaError`, `allOf`, `if`/`then`/`else`, `load_schema` con caché y copia); `common.schema.json` y fin de las copias de `$defs`; pedido y pasos de efecto por tipo; `seed` 0-4294967295; D16 (`device` en `voice.json`, huellas y `pack.json`); `prints` y `models[].id` con `baseModel`; `formatVersion` solo en `pack.json`; `watchMemoryMb` obligatorio; `GVOICE_LANG` normalizado y limitado a `locales/`; README sin copias; ejemplos coherentes.
 
 ## Pendiente
 

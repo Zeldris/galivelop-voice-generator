@@ -87,7 +87,7 @@ semilla, modelo de diseño, dispositivo, salida `.wav`), `speak(SpeakJob)` (text
 `.spk`/`.rvq`). `EngineResult`: `duration_ms`, `load_ms`, `audio_ms` (duración del audio, si hay), `engine_version`,
 `device`. `FakeEngine` (`GVOICE_ENGINE=fake`, el único en F1) escribe un WAV PCM válido (un tono que sale de la
 semilla, duración proporcional al texto) y huellas de prueba; `GVOICE_FAKE_DELAY` y `GVOICE_FAKE_FAIL` como los de
-`gimg`, y `EngineTimeout`. El dispositivo sale del perfil de máquina (`engine.device`).
+`gimg`, y `EngineTimeout`. El dispositivo sale del perfil de máquina (`engine.device`). Jobs: `DesignJob(instruct, text, seed, model, output, device, timeout_s)`, `SpeakJob(text, seed, model, spk, rvq, output, device, timeout_s)`, `PrintJob(reference, reference_text, model, spk, rvq, device, timeout_s)`. El `FakeEngine` dura 60 ms por carácter (`FAKE_MS_PER_CHAR`, al menos uno) y su tono es `200 + semilla % 600` Hz; `speak` falla si faltan `.spk`/`.rvq`. `machinelock.hold(should_cancel)` es el context manager del candado.
 
 **Perfil de máquina** (`machine`, de `limits` de `gimg`): `GVOICE_MACHINE_PROFILE` o `machineProfile` de
 `<config>/config.json`, por defecto `steam-deck`. En F1 solo aporta `timeoutS`, el dispositivo y los modelos; la

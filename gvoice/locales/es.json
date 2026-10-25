@@ -57,5 +57,21 @@
   "error.sheet.invalid": "la ficha de diseño no es válida",
   "warning.sheet.age_missing": "la ficha no dice la edad: sin ella el modelo puede derivar a una voz infantil",
   "warning.sheet.age_minor": "la edad «{age}» no es adulta: el modelo puede derivar a una voz infantil",
-  "warning.sheet.banned_word": "«{word}» en «{field}» tiende a una voz infantil; prueba con: {suggestions}"
+  "warning.sheet.banned_word": "«{word}» en «{field}» tiende a una voz infantil; prueba con: {suggestions}",
+  "error.machine.config_unreadable": "no se puede leer la configuración «{path}»: {reason}",
+  "error.machine.missing": "no existe el perfil de máquina «{path}»",
+  "error.machine.unreadable": "no se puede leer el perfil de máquina «{path}»: {reason}",
+  "error.machine.invalid": "el perfil de máquina «{path}» no es válido:",
+  "error.machine.bad_name": "nombre de perfil de máquina no válido: «{name}» (letras minúsculas, cifras y guiones; para un archivo, usa una ruta con / o acabada en .json)",
+  "error.machine.bad_path": "ruta de perfil de máquina no válida (caracteres de control): {path}",
+  "error.engine.unknown": "motor desconocido: «{engine}» (en esta versión solo existe «fake»)",
+  "error.engine.bad_delay": "GVOICE_FAKE_DELAY no es un número finito >= 0: «{value}»",
+  "error.engine.timeout": "el motor superó el tiempo máximo",
+  "error.engine.failed": "el motor falló: {message}",
+  "error.log.bad_project": "nombre de proyecto no válido para el registro: «{project}»",
+  "error.machinelock.symlink": "el candado de la máquina {path} es un enlace simbólico; se rechaza",
+  "error.machinelock.foreign": "el candado de la máquina {path} es de otro usuario; se rechaza",
+  "error.machinelock.not_dir": "la carpeta del candado de la máquina {path} no es una carpeta",
+  "error.machinelock.not_file": "el candado de la máquina {path} no es un archivo normal",
+  "error.machinelock.unusable": "no se puede abrir el candado de la máquina {path}: {reason}"
 }

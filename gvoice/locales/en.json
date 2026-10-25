@@ -57,5 +57,21 @@
   "error.sheet.invalid": "the design sheet is not valid",
   "warning.sheet.age_missing": "the sheet gives no age: without it the model may drift to a childlike voice",
   "warning.sheet.age_minor": "age \"{age}\" is not adult: the model may drift to a childlike voice",
-  "warning.sheet.banned_word": "\"{word}\" in \"{field}\" tends towards a childlike voice; try: {suggestions}"
+  "warning.sheet.banned_word": "\"{word}\" in \"{field}\" tends towards a childlike voice; try: {suggestions}",
+  "error.machine.config_unreadable": "cannot read the configuration \"{path}\": {reason}",
+  "error.machine.missing": "machine profile \"{path}\" does not exist",
+  "error.machine.unreadable": "cannot read machine profile \"{path}\": {reason}",
+  "error.machine.invalid": "machine profile \"{path}\" is not valid:",
+  "error.machine.bad_name": "invalid machine profile name: \"{name}\" (lowercase letters, digits and hyphens; for a file, use a path with / or ending in .json)",
+  "error.machine.bad_path": "invalid machine profile path (control characters): {path}",
+  "error.engine.unknown": "unknown engine: \"{engine}\" (this version only has \"fake\")",
+  "error.engine.bad_delay": "GVOICE_FAKE_DELAY is not a finite number >= 0: \"{value}\"",
+  "error.engine.timeout": "the engine ran past the time limit",
+  "error.engine.failed": "the engine failed: {message}",
+  "error.log.bad_project": "invalid project name for the log: \"{project}\"",
+  "error.machinelock.symlink": "the machine lock {path} is a symbolic link; it is refused",
+  "error.machinelock.foreign": "the machine lock {path} belongs to another user; it is refused",
+  "error.machinelock.not_dir": "the machine lock folder {path} is not a folder",
+  "error.machinelock.not_file": "the machine lock {path} is not a regular file",
+  "error.machinelock.unusable": "cannot open the machine lock {path}: {reason}"
 }

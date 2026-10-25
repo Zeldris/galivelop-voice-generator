@@ -11,7 +11,7 @@
 | **Rama** | `claude/voces-f0` |
 | **Fase / tarea** | F0 Esqueleto (`docs/plan.md`), primera fase del roadmap F0-F7. Compactaciones: 0 de 1 presupuestada |
 | **Último punto estable** | F0 con los arreglos de la revisión de código: validador con `$ref` hermano, `allOf` e `if`/`then`/`else`; `common.schema.json`; pedido y pasos de efecto por tipo; D16 en `voice.json`; i18n normalizado (87 tests) |
-| **Siguiente paso** | Fase 2 antes de `main` (`opt-tokens` y `retro`, que se presentan a la persona); luego fase 3 (`revisado.sh`, PR con la skill `pr`); después F1 |
+| **Siguiente paso** | F1 Núcleo (`docs/plan.md`) en una rama nueva desde `main` |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`, 87 tests) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con
@@ -23,11 +23,11 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 
 ## Hecho (5 últimas)
 
-1. 2026-10-25 — Arreglos de la revisión de código de F0: check con una orden `bash -n` por gancho; validador ampliado respecto a `gimg` (`$ref` a esquemas hermanos de `gvoice/schemas/`, ciclos y rutas fuera de carpeta como `SchemaError`, `allOf`, `if`/`then`/`else`, `load_schema` con caché y copia); `common.schema.json` y fin de las copias de `$defs`; pedido y pasos de efecto por tipo; `seed` 0-4294967295; D16 (`device` en `voice.json`, huellas y `pack.json`); `prints` y `models[].id` con `baseModel`; `formatVersion` solo en `pack.json`; `watchMemoryMb` obligatorio; `GVOICE_LANG` normalizado y limitado a `locales/`; README sin copias; ejemplos coherentes.
-2. 2026-10-25 — F0 Esqueleto: paquete `gvoice/` (validador e i18n copiados de `gimg@4365f9a`), esquemas de proyecto, pedido, perfil de máquina, ficha, cadena de efectos, `pack.json` y `voice.json`, ejemplos, README es/en y check real. Decisiones de forma: pedido sin condicionales (el motor exige `voice`/`text` en `line`) y pasos de efecto planos con parámetros opcionales (el subconjunto no tiene `oneOf`/`if`).
-3. 2026-10-25 — Diseño a `main` por el PR #2, con la confirmación de la persona. El CI de GitHub no arrancó (facturación de la cuenta); los pasos de `comprobar.yml` corrieron en local en un clon limpio, en verde.
-4. 2026-10-25 — Diseño del generador de voz en tres rondas de `grilling`: D1-D17, fases F0-F7 y banco de pruebas en la Deck.
-5. 2026-10-25 — Investigación de actualizaciones del documento de voces (motor activo sin binarios, español confirmado, Piper ahora GPL, riesgo Vulkan en APU AMD).
+1. 2026-10-25 — F0 a `main` por el PR #3, con la confirmación de la persona. CI de GitHub sin arrancar (facturación); los pasos de `comprobar.yml` corrieron en local en un clon limpio, en verde.
+2. 2026-10-25 — Arreglos de la revisión de código de F0: check con una orden `bash -n` por gancho; validador ampliado respecto a `gimg` (`$ref` a esquemas hermanos de `gvoice/schemas/`, ciclos y rutas fuera de carpeta como `SchemaError`, `allOf`, `if`/`then`/`else`, `load_schema` con caché y copia); `common.schema.json` y fin de las copias de `$defs`; pedido y pasos de efecto por tipo; `seed` 0-4294967295; D16 (`device` en `voice.json`, huellas y `pack.json`); `prints` y `models[].id` con `baseModel`; `formatVersion` solo en `pack.json`; `watchMemoryMb` obligatorio; `GVOICE_LANG` normalizado y limitado a `locales/`; README sin copias; ejemplos coherentes.
+3. 2026-10-25 — F0 Esqueleto: paquete `gvoice/` (validador e i18n copiados de `gimg@4365f9a`), esquemas de proyecto, pedido, perfil de máquina, ficha, cadena de efectos, `pack.json` y `voice.json`, ejemplos, README es/en y check real. Decisiones de forma: pedido sin condicionales (el motor exige `voice`/`text` en `line`) y pasos de efecto planos con parámetros opcionales (el subconjunto no tiene `oneOf`/`if`).
+4. 2026-10-25 — Diseño a `main` por el PR #2, con la confirmación de la persona. El CI de GitHub no arrancó (facturación de la cuenta); los pasos de `comprobar.yml` corrieron en local en un clon limpio, en verde.
+5. 2026-10-25 — Diseño del generador de voz en tres rondas de `grilling`: D1-D17, fases F0-F7 y banco de pruebas en la Deck.
 
 ## Pendiente
 

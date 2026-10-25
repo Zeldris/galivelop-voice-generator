@@ -9,9 +9,9 @@
 | Campo | Valor |
 |---|---|
 | **Rama** | `claude/voces-diseno` |
-| **Fase / tarea** | Diseño del generador de voz a partir de `World-Maker-Fantasy/docs/arquitectura/reutilizables/02-voces-y-sonidos-locales.md`, con `grilling`; luego implementación. Presupuesto: 1 compactación para el diseño (llevadas: 0) |
-| **Último punto estable** | Banco de pruebas en la Deck (`docs/investigacion/2026-10-25-banco-deck.md`): Vulkan RTF ~1, CPU 4-18; motor y modelos en `~/.local/share/galivelop-voice/` |
-| **Siguiente paso** | Ronda 3 de `grilling` (niveles, perfil `steam-deck`, motor por intento, reproducibilidad, compilación en el SDK de Flatpak, fases) y escucha de los `.wav` del banco por la persona |
+| **Fase / tarea** | Diseño del generador de voz **cerrado** (D1-D17 y fases F0-F7 en `docs/plan.md`, aprobados por la persona). Compactaciones: 0 de 1 presupuestada |
+| **Último punto estable** | Plan completo: decisiones, fases y pendientes; ADR 0001-0002; glosario; investigación y banco en `docs/investigacion/` |
+| **Siguiente paso** | Llevar el diseño a `main` si la persona lo confirma (`opt-tokens`, `retro`, marca, PR) y luego F0 Esqueleto en una rama nueva |
 | **Check** | `true`: verde (provisional, no comprueba nada) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con
@@ -23,14 +23,16 @@ Nada todavía: la aplicación del flujo ya está en `main` (`8216893`).
 
 ## Hecho (5 últimas)
 
-1. 2026-10-25 — Investigación de actualizaciones del documento de voces (motor activo sin binarios, español confirmado, Piper ahora GPL, riesgo Vulkan en APU AMD).
-2. 2026-10-25 — Revisión, `opt-tokens` y retro (`docs/registros/retro-2026-10-25-aplicar-flujo.md`) antes de `main`.
-3. 2026-10-25 — Flujo actualizado a v0.3.0 (se había aplicado la v0.1.0 de la rama por defecto del repo del flujo).
-4. 2026-10-25 — Aplicado Galivelop-workflow con todas las skills (incluidas `opt-ai` y `scout-updates`).
+1. 2026-10-25 — Diseño del generador de voz en tres rondas de `grilling`: D1-D17, fases F0-F7 y banco de pruebas en la Deck.
+2. 2026-10-25 — Investigación de actualizaciones del documento de voces (motor activo sin binarios, español confirmado, Piper ahora GPL, riesgo Vulkan en APU AMD).
+3. 2026-10-25 — Revisión, `opt-tokens` y retro (`docs/registros/retro-2026-10-25-aplicar-flujo.md`) antes de `main`.
+4. 2026-10-25 — Flujo actualizado a v0.3.0 (se había aplicado la v0.1.0 de la rama por defecto del repo del flujo).
+5. 2026-10-25 — Aplicado Galivelop-workflow con todas las skills (incluidas `opt-ai` y `scout-updates`).
 
 ## Pendiente
 
-- **Deuda:** el `check` es `true` provisional porque no hay código; cambiarlo al elegir el stack.
+- **Deuda:** el `check` es `true` provisional porque no hay código; pasa a `python3 -m unittest` en F0 (D1).
+- Escucha del banco y registro del núcleo tras Vulkan: los dos, de la persona (ver «Pendiente» en `docs/plan.md`).
 - Rellenar «Reglas del proyecto» en `AGENTS.md` cuando haya stack.
 - Aplazadas, para proponer al flujo (detalle en la retro): rama por defecto del flujo en 0.1.0; camino para CI
   agotado (`ci-local.sh`); 2 tests de `scout-updates` fallan fuera del flujo; `gw-init` debe decir que no se llame a

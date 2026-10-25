@@ -8,10 +8,10 @@
 
 | Campo | Valor |
 |---|---|
-| **Rama** | `claude/voces-diseno` |
-| **Fase / tarea** | Diseño del generador de voz **cerrado** (D1-D17 y fases F0-F7 en `docs/plan.md`, aprobados por la persona). Compactaciones: 0 de 1 presupuestada |
+| **Rama** | `claude/voces-f0` |
+| **Fase / tarea** | F0 Esqueleto (`docs/plan.md`), primera fase del roadmap F0-F7. Compactaciones: 0 de 1 presupuestada |
 | **Último punto estable** | Plan completo: decisiones, fases y pendientes; ADR 0001-0002; glosario; investigación y banco en `docs/investigacion/` |
-| **Siguiente paso** | `/clear` y F0 Esqueleto (`docs/plan.md`) en una rama nueva desde `main` |
+| **Siguiente paso** | F0: estructura `gvoice/`, esquemas y ejemplos, validador (de `gimg`), textos es/en, README es/en y check `python3 -m unittest` |
 | **Check** | `true`: verde (provisional, no comprueba nada) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con

@@ -102,9 +102,21 @@ motor. Si otro generador lo tiene, el trabajador espera (la entrada sigue `runni
 (`duration_ms / audio_ms`). Estimado: mediana con el mismo motor, tarea, modelo y dispositivo.
 
 **Cola y trabajador** (`queue`, `worker`, copiados): una cola para todo el generador con las mismas reglas de
-recuperación, cancelación y errores. La entrada gana `kind`: `attempt` (un intento de un pedido) o `print` (una huella:
-`project`, `voice`, `model`, `reference`). El trabajador toma el candado de la máquina solo alrededor de la llamada al
-motor.
+recuperación, cancelación y errores. La entrada gana `kind`. `attempt`: `type` (`voice`|`line`), `key`, `seed` y
+`params` (`voice`: `instruct`, `testText`; `line`: `text`, `model`, `voice`); se encola con
+`queue.enqueue_attempts(proyecto, tipo, key, specs)`. `print` (una huella): `voice`, `model` y `reference` (id de la toma
+de la voz que es la referencia), sin `key` ni `seed`; se encola con `queue.enqueue_print(proyecto, voz, modelo,
+referencia)`, que exige voz del proyecto y modelo de `print_models`. El trabajador toma el candado de la máquina
+(`machinelock.hold`) solo alrededor de la llamada al motor; mientras espera, la entrada sigue `running` y es cancelable.
+Antes de nada comprueba otra vez que el proyecto, el pedido y la voz de la entrada siguen existiendo (si no, falla con
+`project.unknown`, `order.unknown` u `order.unknown_voice`). Cada intento guarda `engine`, `engineVersion`, `device`,
+`audio` y `state`; el registro lleva una línea por operación (`design`/`speak`/`print`, `key` = la voz en `print`). El audio
+se llama como la entrada (`attempts/.pending-<entrada>.wav` -> `attempts/q<entrada>.wav`). Una `line` sin huella al día
+para su modelo falla con `worker.voice_not_fixed`. **Formato en disco de la huella (lo fija F1.4, lo usa F1.5):**
+`voices/<voz>/reference.wav` + `reference.txt` (entrada de `print`), `voices/<voz>/prints/<modelo>.spk`, `.rvq` y
+`<modelo>.json` (`reference`, `device`, `engineVersion`, `createdAt`), escrito el último; antes de extraer se borra el
+`.json` viejo y, si falla o se cancela, se borran los tres. Esas lecturas y escrituras están en el trabajador como
+`_fixed_print`, `_print_job`, `_print_commit` y `_print_discard` (puntos de F1.5, que los llevará a `voices`).
 
 **Fijar y desfasadas** (`voices`, D10). Elegir una referencia (`voices.choose`/`undo`, que envuelven a `orders`)
 copia la toma a `<datos>/projects/<proyecto>/voices/<voz>/reference.wav` + `reference.txt` (temporal y

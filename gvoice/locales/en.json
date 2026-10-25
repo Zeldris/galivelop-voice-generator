@@ -73,5 +73,17 @@
   "error.machinelock.foreign": "the machine lock {path} belongs to another user; it is refused",
   "error.machinelock.not_dir": "the machine lock folder {path} is not a folder",
   "error.machinelock.not_file": "the machine lock {path} is not a regular file",
-  "error.machinelock.unusable": "cannot open the machine lock {path}: {reason}"
+  "error.machinelock.unusable": "cannot open the machine lock {path}: {reason}",
+  "worker.finish_failed": "gvoice: could not finish queue entry {id}: {reason}",
+  "worker.log_failed": "gvoice: could not write the log line of entry {id}: {reason}",
+  "error.queue.corrupt": "the queue {path} is corrupt",
+  "error.queue.unknown": "there is no queue entry {id}",
+  "error.queue.not_cancellable": "entry {id} has already finished ({state}) and cannot be cancelled",
+  "error.queue.bad_state": "invalid final state \"{state}\"; use one of: {states}",
+  "error.queue.not_running": "entry {id} is not running (state: {state})",
+  "error.worker.already_running": "a worker is already running ({path})",
+  "error.worker.voice_not_fixed": "voice \"{voice}\" has no up-to-date print for model \"{model}\"; choose its reference again",
+  "error.worker.reference_missing": "the voice reference is missing: {path}",
+  "error.worker.audio_move": "could not store the attempt audio: {reason}",
+  "error.worker.unexpected": "unexpected worker error: {message}"
 }

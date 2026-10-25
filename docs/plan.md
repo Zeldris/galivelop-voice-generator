@@ -71,7 +71,8 @@ no `~/.config/galivelop-voice`. Datos: `$GVOICE_DATA_HOME`, si no `$XDG_DATA_HOM
   `{id, state, seed, instruct, testText, model, device, audio, note, createdAt, queueEntry?, engine, engineVersion}`.
   La elegida es la **referencia** de la voz.
 - `line`: `voice` (clave de voz del proyecto), `text` y `model` (opcional, un `baseModel` de `printModels`; por
-  defecto el primero). Cada intento guarda además `voiceReference`: el id de la referencia con la que se generó.
+  defecto el primero). Cada intento guarda `text` (en vez de `instruct` y `testText`) y `voiceReference`: el id de la
+  referencia con la que se generó. Un segmento de clave que no sea el primero no puede ser `attempts` (`order.key_reserved`).
 - El esquema del pedido gana `model` (solo `line`) y `count` (1-20, por defecto 1, intentos que se encolan).
 - Semillas como en `gimg`: `seed + i` con semilla; aleatoria en `[0, 2^32)` sin ella.
 

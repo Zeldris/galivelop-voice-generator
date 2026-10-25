@@ -114,6 +114,16 @@ class LogTests(unittest.TestCase):
         self.put(line(300))
         self.assertEqual(self.estimate(), 200)
 
+    def test_estimate_skips_bad_bytes_and_numbers(self):
+        self.put(line(100))
+        path = self.tmp / "d" / "projects" / "proj" / "log.jsonl"
+        with open(path, "ab") as fh:
+            fh.write(b'{"app.duration_ms": 5, "x": "\xc3\n')
+            for bad in ("NaN", "Infinity", "-Infinity", "-5"):
+                fh.write(json.dumps(line(0)).replace('"app.duration_ms": 0', '"app.duration_ms": ' + bad).encode() + b"\n")
+        self.put(line(300))
+        self.assertEqual(self.estimate(), 200)
+
     def test_estimate_from_records(self):
         res = engine.EngineResult(duration_ms=700, engine_version="v", device="Vulkan0", audio_ms=300)
         self.put(log.record_for("speak", "k", MACHINE, "fake", "0.6b-base", result=res))

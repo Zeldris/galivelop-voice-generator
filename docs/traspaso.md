@@ -10,9 +10,9 @@
 |---|---|
 | **Rama** | `claude/voces-f1` |
 | **Fase / tarea** | F1 Núcleo (`docs/plan.md`, «F1 en detalle», pasos F1.1-F1.6). Compactaciones: 0 de 1 presupuestada |
-| **Último punto estable** | F1.3 (`engine` con `FakeEngine`, `machine`, `machinelock` y `log`; 254 tests). Antes, F1.2 (`orders`, `sheet`) y F1.1 (`paths`, `fsutil`, `errors`, `projects`) |
+| **Último punto estable** | F1.3 con los arreglos de su revisión corta (`engine` con `FakeEngine`, `machine`, `machinelock` y `log`; 255 tests). Antes, F1.2 (`orders`, `sheet`) y F1.1 (`paths`, `fsutil`, `errors`, `projects`) |
 | **Siguiente paso** | F1.4: `queue` y `worker` con entradas `attempt` y `print` (el trabajador toma `machinelock.hold` solo alrededor de la llamada al motor) |
-| **Check** | verde (`bash -n` de cada gancho y `unittest`, 254 tests) |
+| **Check** | verde (`bash -n` de cada gancho y `unittest`, 255 tests) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con
 la forma ``| **Tarea en curso · `<rama>`** | tarea, qué falta y siguiente paso |``; el push lo comprueba.
@@ -31,6 +31,9 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 
 ## Pendiente
 
+- F1.5: `extract_print` escribe `.spk` y `.rvq` por separado; `voices` escribe `print.json` el último y, si el motor falla, borra o ignora las huellas (si no, «al día» sería falso).
+- F2: el fd del candado no se hereda, así que un hijo `qwen-tts` sigue vivo sin candado si muere el trabajador; el estimado de `speak` no tiene en cuenta la longitud del texto (`rtf`/`text_chars` ya están en el registro, a valorar con `opt-ai`).
+- Leves de la revisión corta de F1.3: `wav_bytes` del motor de pruebas gasta 283 MB con 4000 caracteres (`array('h')`); `machinelock.hold` deja salir `OSError` (ENOLCK) sin `GvoiceError`, `not_file` no se alcanza con un directorio, no hay tests de `not_file`/`unusable`, y el TOCTOU entre `lstat` de la carpeta y `os.open` (`dir_fd`); los tests de `EngineError` del motor no comprueban el mensaje; el `geteuid` simulado de `test_file_of_another_user_refused` depende del orden de llamadas.
 - F1.4: el trabajador comprueba otra vez que la voz del pedido sigue en el proyecto (`orders.add_attempt` no lo hace).
 - Leve de la revisión corta de F1.1: `projects._version` confía en el patrón del esquema (seguro hoy, porque siempre se valida antes).
 - Hallazgos leves de la revisión de F0, sin arreglar en este PR: el mensaje de `propertyNames` sale con «()» vacío cuando el motivo no es un `pattern` (p. ej. un `enum`) y solo cuenta el primer motivo (`gvoice/schema.py`); `i18n.t()` lanza `KeyError` si a un idioma le falta un parámetro del texto y no mira `LANGUAGE`; los commits `81d76f1` y `7cebd24` de F0 tienen `Siguiente:` separado de la atribución por una línea en blanco.

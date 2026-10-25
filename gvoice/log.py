@@ -5,6 +5,7 @@ Copiado de gimg@0d02f51 (D7); cambia: GVOICE_*, `speech_generation` con `app.tas
 from __future__ import annotations
 
 import json
+import math
 import statistics
 from datetime import datetime, timezone
 
@@ -61,13 +62,13 @@ def append(project: str, record: dict) -> None:
 
 def _lines(path):
     try:
-        fh = open(path, encoding="utf-8")
+        fh = open(path, "rb")
     except FileNotFoundError:
         return
     with fh:
         for raw in fh:
             try:
-                line = json.loads(raw)
+                line = json.loads(raw.decode("utf-8"))
             except ValueError:
                 continue
             if isinstance(line, dict):
@@ -75,7 +76,7 @@ def _lines(path):
 
 
 def estimate(project: str, provider: str, task: str, model: str, device: str):
-    """Median ``app.duration_ms`` (ms) of the non-error lines with the same provider, task, model and
+    """Median ``app.duration_ms`` (ms, finite and not negative) of the non-error lines with the same provider, task, model and
     device; ``None`` without data."""
     values = []
     for line in _lines(log_path(project)):
@@ -83,7 +84,8 @@ def estimate(project: str, provider: str, task: str, model: str, device: str):
         if ("app.error" in line or line.get("gen_ai.provider.name") != provider
                 or line.get("app.task") != task or line.get("gen_ai.request.model") != model
                 or line.get("app.audio.device") != device
-                or not isinstance(duration, (int, float)) or isinstance(duration, bool)):
+                or not isinstance(duration, (int, float)) or isinstance(duration, bool)
+                or not math.isfinite(duration) or duration < 0):
             continue
         values.append(duration)
     return statistics.median(values) if values else None

@@ -10,8 +10,8 @@
 |---|---|
 | **Rama** | `claude/voces-diseno` |
 | **Fase / tarea** | Diseño del generador de voz a partir de `World-Maker-Fantasy/docs/arquitectura/reutilizables/02-voces-y-sonidos-locales.md`, con `grilling`; luego implementación. Presupuesto: 1 compactación para el diseño (llevadas: 0) |
-| **Último punto estable** | Investigación del estado actual del motor y las licencias: `docs/investigacion/2026-10-25-estado-voz.md` |
-| **Siguiente paso** | Ronda 1 de `grilling` con la persona: relación con `galivelop-image-generator`, alcance desarrollo/juego, sin dominio, motor, fauna y banco de pruebas en la Deck |
+| **Último punto estable** | Decisiones D1-D13 en `docs/plan.md` (rondas 1 y 2 de `grilling` aprobadas), ADR 0001-0002 y glosario |
+| **Siguiente paso** | Banco de pruebas en la Deck (subagente; informe en `docs/investigacion/2026-10-25-banco-deck.md`, motor y modelos en `~/.local/share/galivelop-voice/`); con sus cifras, ronda 3: niveles de hardware, perfil `steam-deck` y fases de implementación |
 | **Check** | `true`: verde (provisional, no comprueba nada) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con

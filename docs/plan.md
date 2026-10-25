@@ -50,7 +50,7 @@ Cada fase es una rama y un pull request a `main`, con las tres fases de revisió
 
 Contrato de F1 (lo implementan los pasos de abajo; un cambio de este contrato se apunta aquí en el mismo commit). Todo
 en `gvoice/`, Python stdlib, identificadores en inglés, textos visibles por `i18n.t` en es y en. **Modelo:** el F1 de
-`galivelop-image-generator` (su `docs/plan.md`, «F1 en detalle», y los módulos de `gimg/` en `4365f9a`). Lo que no
+`galivelop-image-generator` (su `docs/plan.md`, «F1 en detalle», y los módulos de `gimg/` en `0d02f51`, su F1 ya revisado). Lo que no
 cambia aquí se copia de allí con el origen anotado (D7) y se adapta a estos nombres; este apartado solo dice lo que
 difiere.
 

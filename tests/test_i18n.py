@@ -90,6 +90,26 @@ class DefaultLangTests(unittest.TestCase):
         self.check({"LC_MESSAGES": "en_US", "LANG": "es_ES"}, "en")
         self.check({"LC_ALL": "", "LC_MESSAGES": "", "LANG": "es_ES"}, "es")
 
+    def test_gvoice_lang_is_normalised_like_lang(self):
+        self.check({"GVOICE_LANG": "es_ES.UTF-8"}, "es")
+        self.check({"GVOICE_LANG": "EN_us"}, "en")
+        self.check({"GVOICE_LANG": "es@euro", "LANG": "en_US"}, "es")
+
+    def test_gvoice_lang_only_accepts_existing_locales(self):
+        for bad in ("../..", "../locales/es", "xx", "fr_FR.UTF-8", "/etc/passwd", "es/../en"):
+            self.check({"GVOICE_LANG": bad, "LANG": "es_ES.UTF-8"}, i18n.FALLBACK)
+
+    def test_lang_without_locale_falls_back(self):
+        self.check({"LANG": "fr_FR.UTF-8"}, i18n.FALLBACK)
+        self.check({"LANG": "C"}, i18n.FALLBACK)
+
+    def test_t_never_reads_outside_locales(self):
+        i18n.t("no.such.key", "es")  # warm the cache of the real locales
+        i18n.t("no.such.key", "en")
+        with mock.patch("builtins.open", side_effect=AssertionError("opened a file")):
+            self.assertEqual(i18n.t("no.such.key", "../../etc/passwd"), "no.such.key")
+        self.assertNotIn("../../etc/passwd", i18n._cache)
+
     def test_default_en(self):
         self.check({}, "en")
 

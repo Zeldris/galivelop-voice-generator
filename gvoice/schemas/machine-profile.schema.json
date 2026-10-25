@@ -7,6 +7,7 @@
   "required": [
     "name",
     "minFreeMemoryMb",
+    "watchMemoryMb",
     "timeoutS",
     "engine",
     "models"
@@ -17,7 +18,7 @@
       "description": "Schema reference so editors can validate and complete the file."
     },
     "name": {
-      "$ref": "#/$defs/name",
+      "$ref": "common.schema.json#/$defs/name",
       "description": "Profile name."
     },
     "minFreeMemoryMb": {
@@ -44,8 +45,7 @@
       "description": "Engine settings.",
       "properties": {
         "device": {
-          "type": "string",
-          "pattern": "^(cpu|[A-Za-z]+[0-9]+)$",
+          "$ref": "common.schema.json#/$defs/device",
           "description": "Preferred device, for example Vulkan0 or cpu."
         },
         "fallbackDevice": {
@@ -73,7 +73,7 @@
           "type": "array",
           "minItems": 1,
           "items": {
-            "$ref": "#/$defs/baseModel"
+            "$ref": "common.schema.json#/$defs/baseModel"
           },
           "description": "Base models usable to produce lines on this machine."
         }
@@ -81,19 +81,6 @@
     }
   },
   "$defs": {
-    "name": {
-      "type": "string",
-      "pattern": "^[a-z0-9][a-z0-9-]*$",
-      "description": "Lowercase letters, digits and hyphens."
-    },
-    "baseModel": {
-      "type": "string",
-      "enum": [
-        "0.6b-base",
-        "1.7b-base"
-      ],
-      "description": "Base (cloning) model used to produce lines."
-    },
     "designModel": {
       "type": "string",
       "enum": [

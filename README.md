@@ -12,14 +12,6 @@ voz lo decide cada proyecto en su `galivelop-voices.json`.
 En desarrollo, fase **F0 (esqueleto) hecha**: contrato (esquemas JSON), validador, textos es/en, ejemplos y tests.
 **Aún no genera voces**: el núcleo llega en F1 y el motor real en F2.
 
-| Fase | Qué trae |
-|---|---|
-| F0 Esqueleto | Esquemas, validador, textos es/en, ejemplos, README y tests |
-| F1 Núcleo | Pedidos `voice`/`line`, huellas, cola persistente y CLI `gvoice` básica |
-| F2 Motor real | `instalar.sh`, envoltorio de `qwen-tts`/`qwen-codec` y banco |
-| F3 Efectos y paquete | Cadenas a `ffmpeg` y exportación del paquete de voces |
-| F4-F7 | API, interfaz, piloto WMF y fauna |
-
 Detalle, decisiones D1-D17 y criterios de cierre en [`docs/plan.md`](docs/plan.md); vocabulario en
 [`GLOSSARY.md`](GLOSSARY.md).
 
@@ -45,23 +37,14 @@ Esquemas en `gvoice/schemas/`:
 | Ficha de diseño (las 12 claves más `extra`) | `design-sheet.schema.json` |
 | Cadena de efectos (vocabulario cerrado) | `effect-chain.schema.json` |
 | Paquete de voces: `pack.json` y `voice.json` | `pack.schema.json`, `voice.schema.json` |
+| Definiciones compartidas (`$ref`, un dato en un solo sitio) | `common.schema.json` |
 
-Ejemplo de configuración de proyecto (el resto, en [`examples/`](examples/)):
-
-```json
-{
-  "minVersion": "0.1.0",
-  "name": "example-world",
-  "voices": {"narrator": {"description": "Main narrator"}, "orc": {"effects": "orc"}},
-  "printModels": ["0.6b-base", "1.7b-base"],
-  "delivery": {"dir": "uploads/voices"}
-}
-```
+Ejemplo de configuración de proyecto: [`examples/galivelop-voices.json`](examples/galivelop-voices.json); el resto de ejemplos están en [`examples/`](examples/).
 
 ## Desarrollo
 
 ```sh
-bash -n .githooks/pre-commit .githooks/pre-push && python3 -m unittest discover -s tests -t .
+bash -n .githooks/pre-commit && bash -n .githooks/pre-push && python3 -m unittest discover -s tests -t .
 ```
 
 El flujo de trabajo del repo (relevos, ramas, revisión) está en [`AGENTS.md`](AGENTS.md). Todavía no hay licencia.

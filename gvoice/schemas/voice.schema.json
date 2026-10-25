@@ -5,9 +5,9 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "formatVersion",
     "key",
     "designSheet",
+    "device",
     "reference"
   ],
   "properties": {
@@ -15,26 +15,18 @@
       "type": "string",
       "description": "Schema reference so editors can validate and complete the file."
     },
-    "formatVersion": {
-      "type": "integer",
-      "minimum": 1,
-      "description": "Pack format version."
-    },
     "key": {
-      "$ref": "#/$defs/key",
+      "$ref": "common.schema.json#/$defs/key",
       "description": "Voice key."
     },
     "designSheet": {
-      "$ref": "#/$defs/designSheet"
+      "$ref": "design-sheet.schema.json"
     },
     "seed": {
-      "type": "integer",
-      "minimum": 0,
-      "description": "Random seed."
+      "$ref": "common.schema.json#/$defs/seed"
     },
     "testText": {
-      "type": "string",
-      "minLength": 1,
+      "$ref": "common.schema.json#/$defs/testText",
       "description": "Test sentence of the chosen take."
     },
     "reference": {
@@ -46,140 +38,50 @@
       ],
       "properties": {
         "audio": {
-          "$ref": "#/$defs/relativePath",
+          "$ref": "common.schema.json#/$defs/relativePath",
           "description": "Reference audio file, relative to the voice folder."
         },
         "text": {
-          "$ref": "#/$defs/relativePath",
+          "$ref": "common.schema.json#/$defs/relativePath",
           "description": "Reference transcript file, relative to the voice folder."
         }
       }
     },
     "prints": {
       "type": "object",
-      "description": "Prints by model id.",
+      "description": "Prints by base model id; each remembers the device it was extracted on (D16).",
       "propertyNames": {
-        "pattern": "^[a-z0-9][a-z0-9.-]*$"
+        "$ref": "common.schema.json#/$defs/baseModel"
       },
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
         "required": [
+          "device",
           "spk",
           "rvq"
         ],
         "properties": {
+          "device": {
+            "$ref": "common.schema.json#/$defs/device",
+            "description": "Device the print was extracted on (D16)."
+          },
           "spk": {
-            "$ref": "#/$defs/relativePath"
+            "$ref": "common.schema.json#/$defs/relativePath"
           },
           "rvq": {
-            "$ref": "#/$defs/relativePath"
+            "$ref": "common.schema.json#/$defs/relativePath"
           }
         }
       }
     },
     "effects": {
-      "$ref": "#/$defs/name",
+      "$ref": "common.schema.json#/$defs/name",
       "description": "Name of the effect chain applied at playback."
-    }
-  },
-  "$defs": {
-    "name": {
-      "type": "string",
-      "pattern": "^[a-z0-9][a-z0-9-]*$",
-      "description": "Lowercase letters, digits and hyphens."
     },
-    "key": {
-      "type": "string",
-      "maxLength": 100,
-      "pattern": "^[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)*$",
-      "description": "Key; slash-separated safe segments, no leading slash and no .. segments."
-    },
-    "relativePath": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^(?![/~])(?!.*(^|/)\\.\\.(/|$))[^\\\\\\u0000-\\u001f\\u007f]+$",
-      "description": "Relative path that cannot be absolute, start with ~, contain .. segments, backslashes or control characters."
-    },
-    "seed": {
-      "type": "integer",
-      "minimum": 0,
-      "description": "Random seed."
-    },
-    "designSheet": {
-      "type": "object",
-      "additionalProperties": false,
-      "description": "Design sheet: the 12 template keys, all optional, plus free-form extra attributes.",
-      "properties": {
-        "gender": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Design attribute: gender."
-        },
-        "age": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Design attribute: age."
-        },
-        "pitch": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Design attribute: pitch."
-        },
-        "speed": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Design attribute: speed."
-        },
-        "volume": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Design attribute: volume."
-        },
-        "clarity": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Design attribute: clarity."
-        },
-        "fluency": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Design attribute: fluency."
-        },
-        "accent": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Design attribute: accent."
-        },
-        "texture": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Design attribute: texture."
-        },
-        "emotion": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Design attribute: emotion."
-        },
-        "tone": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Design attribute: tone."
-        },
-        "personality": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Design attribute: personality."
-        },
-        "extra": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string",
-            "minLength": 1
-          },
-          "description": "Free-form extra attributes, name to text."
-        }
-      }
+    "device": {
+      "$ref": "common.schema.json#/$defs/device",
+      "description": "Device the reference was generated on (D16)."
     }
   }
 }

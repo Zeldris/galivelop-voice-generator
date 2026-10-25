@@ -2,7 +2,7 @@
 # Guía de revisión
 
 Lo que el revisor (`/code-review`, o cualquier agente que revise un diff) comprueba en cada diff de galivelop-voice-generator,
-además de los fallos de siempre. Lo mecánico ya lo hacen el check (`bash -n .githooks/pre-commit .githooks/pre-push && python3 -m unittest discover -s tests -t .`) y los ganchos de git; aquí está lo que
+además de los fallos de siempre. Lo mecánico ya lo hacen el check (`bash -n .githooks/pre-commit && bash -n .githooks/pre-push && python3 -m unittest discover -s tests -t .`) y los ganchos de git; aquí está lo que
 pide criterio. La rellena el proyecto; el flujo nunca la sobrescribe una vez creada.
 
 ## Un dato, un sitio

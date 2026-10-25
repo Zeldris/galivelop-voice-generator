@@ -30,7 +30,7 @@ def errs(instance, name):
 class ValidExamples(unittest.TestCase):
     def test_every_schema_has_a_valid_example(self):
         schemas = {p.name[: -len(".schema.json")] for p in (ROOT / "gvoice" / "schemas").glob("*.schema.json")}
-        self.assertEqual(schemas, set(EXAMPLES) | {"order"})
+        self.assertEqual(schemas, set(EXAMPLES) | {"order", "common"})
         for name, rel in EXAMPLES.items():
             self.assertEqual(errs(read(rel), name), [], rel)
         for rel in ORDERS:
@@ -42,18 +42,27 @@ class ValidExamples(unittest.TestCase):
             if ref:
                 self.assertTrue((ROOT / Path(rel).parent / ref).exists(), rel)
 
-    def test_shared_defs_are_identical_across_schemas(self):
-        seen = {}
+    def test_shared_defs_live_only_in_common(self):
+        common = set(S.load_schema("common")["$defs"])
+        self.assertTrue({"key", "name", "relativePath", "baseModel", "seed", "testText", "device"} <= common)
         for path in (ROOT / "gvoice" / "schemas").glob("*.schema.json"):
-            for key, d in S.load_schema(path.name[: -len(".schema.json")]).get("$defs", {}).items():
-                seen.setdefault(key, []).append((path.name, d))
-        for key in ("name", "key", "relativePath", "baseModel", "designSheet", "seed"):
-            self.assertGreater(len(seen[key]), 1, key)
-        for key, copies in seen.items():
-            if key in ("step",):
+            name = path.name[: -len(".schema.json")]
+            if name == "common":
                 continue
-            for fname, d in copies[1:]:
-                self.assertEqual(d, copies[0][1], "%s: %s vs %s" % (key, fname, copies[0][0]))
+            copies = common & set(S.load_schema(name).get("$defs", {}))
+            self.assertEqual(copies, set(), name)
+            self.assertNotIn("designSheet", S.load_schema(name).get("$defs", {}), name)
+            text = path.read_text(encoding="utf-8")
+            self.assertNotIn('"0.6b-base"', text, name)  # model ids only in common (and examples)
+            self.assertNotIn("(?![/~])", text, name)  # the relative-path pattern lives in common
+
+    def test_voice_example_matches_the_project_example(self):
+        voice, project = read(EXAMPLES["voice"]), read(EXAMPLES["project-config"])
+        self.assertEqual(voice.get("effects"), project["voices"][voice["key"]].get("effects"))
+        self.assertNotIn("formatVersion", voice)
+        self.assertEqual(voice["device"], "Vulkan0")
+        for print_ in voice["prints"].values():
+            self.assertIn("device", print_)
 
     def test_design_sheet_has_the_twelve_keys(self):
         props = set(S.load_schema("design-sheet")["properties"])
@@ -152,6 +161,84 @@ class BrokenExamples(unittest.TestCase):
         self.broken(rel, "voice", lambda d: d["prints"].update({"Bad": d["prints"]["0.6b-base"]}),
                     [("/prints/Bad", "propertyNames")])
         self.broken(rel, "voice", lambda d: d.update(key="Narrator"), [("/key", "pattern")])
+
+    def test_order_type_decides_the_fields(self):
+        v, ln = ORDERS
+        self.broken(ln, "order", lambda d: d.pop("text"), [("", "required")])
+        self.broken(ln, "order", lambda d: d.pop("voice"), [("", "required")])
+        self.broken(ln, "order", lambda d: d.update(testText="hi"), [("/testText", "false")])
+        self.broken(ln, "order", lambda d: d.update(designSheet={}), [("/designSheet", "false")])
+        self.broken(v, "order", lambda d: d.update(text="hi"), [("/text", "false")])
+        self.broken(v, "order", lambda d: d.update(voice="narrator"), [("/voice", "false")])
+        self.broken(v, "order", lambda d: d.pop("testText"), [("", "required")])
+        self.broken(v, "order", lambda d: d.pop("designSheet"), [("", "required")])
+        self.broken(v, "order", lambda d: d.pop("type"), [("", "required")])
+
+    def test_order_missing_field_names_it(self):
+        data = copy.deepcopy(read(ORDERS[1]))
+        del data["text"]
+        err = S.validate(data, S.load_schema("order"))[0]
+        self.assertEqual(err.params["name"], "text")
+
+    def test_seed_is_an_unsigned_32_bit_integer(self):
+        v = ORDERS[0]
+        self.broken(v, "order", lambda d: d.update(seed=2 ** 32 - 1), [])
+        self.broken(v, "order", lambda d: d.update(seed=2 ** 32), [("/seed", "maximum")])
+        self.broken(v, "order", lambda d: d.update(seed=2 ** 80), [("/seed", "maximum")])
+        self.broken(v, "order", lambda d: d.update(seed=1e300), [("/seed", "maximum")])
+        self.broken(v, "order", lambda d: d.update(seed=1.5), [("/seed", "type")])
+        self.broken(EXAMPLES["voice"], "voice", lambda d: d.update(seed=2 ** 80),
+                    [("/seed", "maximum")])
+
+    def test_effect_steps_require_their_own_parameters(self):
+        rel = EXAMPLES["effect-chain"]
+        self.broken(rel, "effect-chain", lambda d: d["steps"][4].pop("impulse"),
+                    [("/steps/4", "required")])
+        self.broken(rel, "effect-chain", lambda d: d["steps"][2].pop("semitones"),
+                    [("/steps/2", "required")])
+        self.broken(rel, "effect-chain", lambda d: d["steps"][0].pop("freqHz"),
+                    [("/steps/0", "required")])
+        self.broken(rel, "effect-chain", lambda d: d["steps"][6].pop("freqHz"),
+                    [("/steps/6", "required")])
+        self.broken(rel, "effect-chain", lambda d: d["steps"][0].update(semitones=3),
+                    [("/steps/0/semitones", "additionalProperties")])
+        self.broken(rel, "effect-chain", lambda d: d["steps"][7].update(impulse="a.wav"),
+                    [("/steps/7/impulse", "additionalProperties")])
+
+    def test_effect_step_error_message_names_the_parameter(self):
+        data = copy.deepcopy(read(EXAMPLES["effect-chain"]))
+        data["steps"][4].pop("impulse")
+        err = S.validate(data, S.load_schema("effect-chain"))[0]
+        self.assertEqual((err.path, err.params["name"]), ("/steps/4", "impulse"))
+
+    def test_voice_device_and_prints(self):
+        rel = EXAMPLES["voice"]
+        self.broken(rel, "voice", lambda d: d.pop("device"), [("", "required")])
+        self.broken(rel, "voice", lambda d: d.update(device="gpu"), [("/device", "pattern")])
+        self.broken(rel, "voice", lambda d: d["prints"]["0.6b-base"].pop("device"),
+                    [("/prints/0.6b-base", "required")])
+        self.broken(rel, "voice", lambda d: d.update(formatVersion=1),
+                    [("/formatVersion", "additionalProperties")])
+
+    def test_prints_with_unknown_model(self):
+        data = copy.deepcopy(read(EXAMPLES["voice"]))
+        data["prints"]["9b-base"] = data["prints"]["0.6b-base"]
+        errors = S.validate(data, S.load_schema("voice"))
+        self.assertEqual([(e.path, e.code, e.params["name"]) for e in errors],
+                         [("/prints/9b-base", "propertyNames", "9b-base")])
+
+    def test_pack_models_and_device(self):
+        rel = EXAMPLES["pack"]
+        self.broken(rel, "pack", lambda d: d["models"][0].update(id="9b-base"),
+                    [("/models/0/id", "enum")])
+        self.broken(rel, "pack", lambda d: d.update(device="Vulkan0"), [])
+        self.broken(rel, "pack", lambda d: d.update(device="x"), [("/device", "pattern")])
+
+    def test_machine_profile_requires_the_abort_threshold(self):
+        data = copy.deepcopy(read(EXAMPLES["machine-profile"]))
+        del data["watchMemoryMb"]
+        err = S.validate(data, S.load_schema("machine-profile"))[0]
+        self.assertEqual((err.path, err.code, err.params["name"]), ("", "required", "watchMemoryMb"))
 
 
 if __name__ == "__main__":

@@ -46,9 +46,8 @@
         ],
         "properties": {
           "id": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9.-]*$",
-            "description": "Model identifier, for example 0.6b-base."
+            "$ref": "common.schema.json#/$defs/baseModel",
+            "description": "Base model identifier, for example 0.6b-base."
           },
           "sha256": {
             "type": "string",
@@ -57,6 +56,10 @@
           }
         }
       }
+    },
+    "device": {
+      "$ref": "common.schema.json#/$defs/device",
+      "description": "Device the pack was generated on, if it applies (D16)."
     }
   }
 }

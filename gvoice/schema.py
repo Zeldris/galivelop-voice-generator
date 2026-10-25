@@ -1,8 +1,11 @@
 """Small strict validator for the JSON Schema subset used by gvoice.
 
-Copiado de gimg@4365f9a (D7); adapted to gvoice."""
+Copiado de gimg@4365f9a (D7); adapted to gvoice. Se amplía respecto a `gimg`:
+`$ref` a un esquema hermano de gvoice/schemas/ (nunca fuera de esa carpeta), `allOf`,
+`if`/`then`/`else`, caché de `load_schema` y comprobación de ciclos de `$ref`."""
 from __future__ import annotations
 
+import copy
 import functools
 import json
 import math
@@ -13,6 +16,8 @@ from typing import NamedTuple
 from . import i18n
 
 _SCHEMAS = Path(__file__).parent / "schemas"
+_SIBLING = re.compile(r"^[a-z0-9-]+\.schema\.json$")
+_NAME = re.compile(r"^[a-z0-9-]+$")
 
 ANNOTATIONS = frozenset(
     ["$schema", "$id", "title", "description", "default", "examples", "$comment"]
@@ -22,6 +27,7 @@ VALIDATING = frozenset(
         "type", "properties", "required", "additionalProperties", "propertyNames",
         "minProperties", "items", "minItems", "maxItems", "enum", "const", "pattern",
         "minLength", "maxLength", "minimum", "maximum", "$ref", "$defs",
+        "allOf", "if", "then", "else",
     ]
 )
 # Every code format_error may be asked to render.
@@ -70,6 +76,16 @@ def _compile(pattern):
     return re.compile(_ecma_pattern(pattern), re.ASCII)
 
 
+def _obj(where, key, value):
+    if not isinstance(value, dict):
+        raise SchemaError("%s/%s: must be an object" % (where, key))
+
+
+def _list(where, key, value):
+    if not isinstance(value, list):
+        raise SchemaError("%s/%s: must be a list" % (where, key))
+
+
 def _check_schema(schema, root, where="#"):
     if isinstance(schema, bool):
         return
@@ -81,12 +97,25 @@ def _check_schema(schema, root, where="#"):
         if key not in VALIDATING:
             raise SchemaError("%s: unsupported keyword %r" % (where, key))
         if key in ("properties", "$defs"):
+            _obj(where, key, value)
             for name, sub in value.items():
                 _check_schema(sub, root, "%s/%s/%s" % (where, key, name))
-        elif key in ("items", "propertyNames") or (
+        elif key in ("items", "propertyNames", "if", "then", "else") or (
             key == "additionalProperties" and not isinstance(value, bool)
         ):
             _check_schema(value, root, "%s/%s" % (where, key))
+        elif key == "allOf":
+            _list(where, key, value)
+            if not value:
+                raise SchemaError("%s/allOf: must not be empty" % where)
+            for i, sub in enumerate(value):
+                _check_schema(sub, root, "%s/allOf/%d" % (where, i))
+        elif key == "enum":
+            _list(where, key, value)
+        elif key == "required":
+            _list(where, key, value)
+            if not all(isinstance(n, str) for n in value):
+                raise SchemaError("%s/required: must be a list of strings" % where)
         elif key == "type":
             names = value if isinstance(value, list) else [value]
             for name in names:
@@ -98,21 +127,50 @@ def _check_schema(schema, root, where="#"):
             except (re.error, TypeError) as exc:
                 raise SchemaError("%s: invalid pattern %r: %s" % (where, value, exc))
         elif key == "$ref":
-            if not (isinstance(value, str) and value.startswith("#/")):
-                raise SchemaError("%s: only local '#/...' references are supported" % where)
-            _resolve(root, value)
+            _check_ref(root, value, where)
+
+
+def _check_ref(root, ref, where):
+    """The reference resolves and its chain of bare references is not a cycle."""
+    try:
+        node, base = _resolve(root, ref)
+        seen = {(id(root), ref)}
+        while isinstance(node, dict) and "$ref" in node:
+            key = (id(base), node["$ref"])
+            if key in seen:
+                raise SchemaError("cyclic reference %r" % ref)
+            seen.add(key)
+            node, base = _resolve(base, node["$ref"])
+    except SchemaError as exc:
+        raise SchemaError("%s: %s" % (where, exc))
 
 
 def check_schema(schema: dict) -> None:
     _check_schema(schema, schema)
 
 
-def load_schema(name: str) -> dict:
-    path = _SCHEMAS / (name + ".schema.json")
-    with open(path, encoding="utf-8") as fh:
-        schema = json.load(fh)
+@functools.lru_cache(maxsize=None)
+def _raw(filename):
+    """A sibling schema file as read; internal, never handed out (callers could mutate it)."""
+    try:
+        with open(_SCHEMAS / filename, encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError) as exc:
+        raise SchemaError("unresolved reference %r: %s" % (filename, exc))
+
+
+@functools.lru_cache(maxsize=None)
+def _loaded(name):
+    schema = _raw(name + ".schema.json")
     check_schema(schema)
     return schema
+
+
+def load_schema(name: str) -> dict:
+    """A checked schema from gvoice/schemas/. Cached; every call returns its own copy."""
+    if not isinstance(name, str) or not _NAME.match(name):
+        raise SchemaError("invalid schema name %r" % (name,))
+    return copy.deepcopy(_loaded(name))
 
 
 def _is_type(value, name):
@@ -155,27 +213,56 @@ def _error(path, code, params):
 
 
 def _resolve(root, ref):
+    """Return (node, document root) for `#/pointer` or `sibling.schema.json[#/pointer]`."""
+    if not isinstance(ref, str):
+        raise SchemaError("reference must be a string")
+    filename, sep, frag = ref.partition("#")
+    if filename:
+        if ":" not in filename and ("/" in filename or "\\" in filename or ".." in filename):
+            raise SchemaError("reference %r leaves the schemas folder" % ref)
+        if not _SIBLING.match(filename):
+            raise SchemaError(
+                "reference %r is not local: only '#/...' or a sibling schema file are supported"
+                % ref
+            )
+        root = _raw(filename)
+    elif not sep:
+        raise SchemaError("reference %r is not local: only '#/...' or a sibling schema file are supported" % ref)
+    if frag and not frag.startswith("/"):
+        raise SchemaError("reference %r: fragment must be a JSON pointer" % ref)
     node = root
-    for part in ref[2:].split("/"):
+    for part in frag[1:].split("/") if frag else []:
         part = part.replace("~1", "/").replace("~0", "~")
         if not isinstance(node, dict) or part not in node:
             raise SchemaError("unresolved reference %r" % ref)
         node = node[part]
-    return node
+    return node, root
 
 
 def _pointer(path, token):
     return "%s/%s" % (path, str(token).replace("~", "~0").replace("/", "~1"))
 
 
-def _validate(value, schema, root, path, errors):
+def _validate(value, schema, root, path, errors, seen=frozenset()):
     if schema is True:
         return
     if schema is False:
         errors.append(_error(path, "false", {}))
         return
     if "$ref" in schema:
-        _validate(value, _resolve(root, schema["$ref"]), root, path, errors)
+        key = (id(root), schema["$ref"])
+        if key in seen:
+            raise SchemaError("cyclic reference %r" % schema["$ref"])
+        node, base = _resolve(root, schema["$ref"])
+        _validate(value, node, base, path, errors, seen | {key})
+    for sub in schema.get("allOf", []):
+        _validate(value, sub, root, path, errors, seen)
+    if "if" in schema:
+        probe = []
+        _validate(value, schema["if"], root, path, probe, seen)
+        branch = schema.get("then" if not probe else "else")
+        if branch is not None:
+            _validate(value, branch, root, path, errors, seen)
 
     def add(code, **params):
         errors.append(_error(path, code, params))

@@ -159,7 +159,7 @@ class SchemaCheckTests(unittest.TestCase):
     def test_remote_ref_rejected(self):
         with self.assertRaises(S.SchemaError) as cm:
             S.check_schema({"$ref": "http://x/y"})
-        self.assertIn("local", str(cm.exception))
+        self.assertIn("not local", str(cm.exception))
 
     def test_unresolved_ref(self):
         with self.assertRaises(S.SchemaError) as cm:
@@ -179,10 +179,126 @@ class SchemaCheckTests(unittest.TestCase):
             self.assertIn("unresolved", str(cm.exception))
         S.check_schema({"$defs": {"a": {"type": "string"}}, "$ref": "#/$defs/a"})
 
+    def test_malformed_containers_name_their_path(self):
+        cases = [({"properties": []}, "#/properties"), ({"$defs": 3}, "#/$defs"),
+                 ({"properties": {"a": {"enum": "x"}}}, "#/properties/a/enum"),
+                 ({"required": "a"}, "#/required"), ({"required": [1]}, "#/required"),
+                 ({"allOf": {}}, "#/allOf"), ({"allOf": []}, "#/allOf")]
+        for sch, where in cases:
+            with self.assertRaises(S.SchemaError) as cm:
+                S.check_schema(sch)
+            self.assertIn(where, str(cm.exception), sch)
+
     def test_format_error(self):
         err = S.validate({}, {"required": ["a"]})[0]
         self.assertEqual(S.format_error(err, "en"), '/: missing required property "a"')
         self.assertIn("falta la propiedad", S.format_error(err, "es"))
+
+
+class RefTests(unittest.TestCase):
+    def test_sibling_ref_with_pointer(self):
+        sch = {"properties": {"k": {"$ref": "common.schema.json#/$defs/key"}}}
+        S.check_schema(sch)
+        self.assertEqual(codes({"k": "a/b"}, sch), [])
+        self.assertEqual(codes({"k": "../b"}, sch), [("/k", "pattern")])
+
+    def test_sibling_ref_to_whole_schema(self):
+        sch = {"properties": {"d": {"$ref": "design-sheet.schema.json"}}}
+        S.check_schema(sch)
+        self.assertEqual(codes({"d": {"age": "old"}}, sch), [])
+        self.assertEqual(codes({"d": {"age": 3, "zz": "x"}}, sch),
+                         [("/d/age", "type"), ("/d/zz", "additionalProperties")])
+
+    def test_sibling_ref_inside_sibling_uses_its_own_root(self):
+        # voice.schema.json refs design-sheet.schema.json and common.schema.json
+        self.assertEqual(codes({"reference": {"audio": "/x", "text": "t"}}, {
+            "$ref": "voice.schema.json"}).count(("/reference/audio", "pattern")), 1)
+
+    def test_ref_leaving_the_folder_is_rejected(self):
+        for ref in ("../x.schema.json", "../../etc/passwd", "/etc/passwd", "sub/a.schema.json",
+                    "..\\x.schema.json", "common.schema.json/../../x"):
+            with self.assertRaises(S.SchemaError) as cm:
+                S.check_schema({"$ref": ref})
+            self.assertIn("leaves the schemas folder", str(cm.exception), ref)
+
+    def test_non_schema_file_ref_is_rejected(self):
+        for ref in ("pack.json", "http://x/y.schema.json", "common.schema.json.bak"):
+            with self.assertRaises(S.SchemaError) as cm:
+                S.check_schema({"$ref": ref})
+            self.assertIn("not local", str(cm.exception), ref)
+
+    def test_ref_that_does_not_resolve(self):
+        for ref, why in (("nothing.schema.json", "unresolved"),
+                         ("common.schema.json#/$defs/nope", "unresolved"),
+                         ("#nope", "JSON pointer")):
+            with self.assertRaises(S.SchemaError) as cm:
+                S.check_schema({"$ref": ref})
+            self.assertIn(why, str(cm.exception), ref)
+
+    def test_cyclic_ref_is_a_schema_error_not_recursion(self):
+        for sch in ({"$defs": {"a": {"$ref": "#/$defs/b"}, "b": {"$ref": "#/$defs/a"}},
+                     "$ref": "#/$defs/a"},
+                    {"$defs": {"a": {"$ref": "#/$defs/a"}}}):
+            with self.assertRaises(S.SchemaError) as cm:
+                S.check_schema(sch)
+            self.assertIn("cyclic", str(cm.exception))
+        unchecked = {"$defs": {"a": {"allOf": [{"$ref": "#/$defs/a"}]}}, "$ref": "#/$defs/a"}
+        S.check_schema(unchecked)  # not caught by the static check...
+        with self.assertRaises(S.SchemaError) as cm:  # ...but never a RecursionError
+            S.validate(1, unchecked)
+        self.assertIn("cyclic", str(cm.exception))
+
+    def test_recursive_schema_over_finite_data_is_fine(self):
+        tree = {"$defs": {"n": {"type": "object", "properties": {"kids": {
+            "type": "array", "items": {"$ref": "#/$defs/n"}}}}}, "$ref": "#/$defs/n"}
+        S.check_schema(tree)
+        self.assertEqual(codes({"kids": [{"kids": [{}]}]}, tree), [])
+        self.assertEqual(codes({"kids": [{"kids": 1}]}, tree), [("/kids/0/kids", "type")])
+
+
+class ConditionalTests(unittest.TestCase):
+    SCH = {"allOf": [
+        {"if": {"required": ["t"], "properties": {"t": {"const": "a"}}}, "then": {"required": ["x"]}},
+        {"if": {"required": ["t"], "properties": {"t": {"const": "b"}}},
+         "then": {"properties": {"x": False}}, "else": {"required": ["y"]}},
+    ]}
+
+    def test_if_then_else(self):
+        S.check_schema(self.SCH)
+        self.assertEqual(codes({"t": "a", "x": 1, "y": 1}, self.SCH), [])
+        self.assertEqual(codes({"t": "a", "y": 1}, self.SCH), [("", "required")])
+        self.assertEqual(codes({"t": "b", "x": 1}, self.SCH), [("/x", "false")])
+        self.assertEqual(codes({"t": "b"}, self.SCH), [])
+
+    def test_else_branch_runs_when_the_condition_fails(self):
+        self.assertEqual(codes({"t": "a", "x": 1}, self.SCH), [("", "required")])
+
+    def test_all_of_collects_every_failure(self):
+        sch = {"allOf": [{"required": ["a"]}, {"required": ["b"]}]}
+        names = sorted(e.params["name"] for e in S.validate({}, sch))
+        self.assertEqual(names, ["a", "b"])
+
+
+class LoadSchemaTests(unittest.TestCase):
+    def test_cached_but_callers_get_their_own_copy(self):
+        first = S.load_schema("voice")
+        first["properties"].clear()
+        first["required"].append("zzz")
+        second = S.load_schema("voice")
+        self.assertIn("key", second["properties"])
+        self.assertNotIn("zzz", second["required"])
+        self.assertIsNot(second, S.load_schema("voice"))
+
+    def test_load_is_read_once(self):
+        S.load_schema("pack")
+        before = S._loaded.cache_info().hits
+        S.load_schema("pack")
+        self.assertEqual(S._loaded.cache_info().hits, before + 1)
+
+    def test_invalid_names_are_rejected(self):
+        for name in ("../pack", "a/b", "", "Pack"):
+            with self.assertRaises(S.SchemaError):
+                S.load_schema(name)
 
 
 if __name__ == "__main__":

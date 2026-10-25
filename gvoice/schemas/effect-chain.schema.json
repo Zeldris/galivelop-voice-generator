@@ -14,7 +14,7 @@
       "description": "Schema reference so editors can validate and complete the file."
     },
     "name": {
-      "$ref": "#/$defs/name",
+      "$ref": "common.schema.json#/$defs/name",
       "description": "Chain name."
     },
     "steps": {
@@ -27,18 +27,12 @@
     }
   },
   "$defs": {
-    "name": {
-      "type": "string",
-      "pattern": "^[a-z0-9][a-z0-9-]*$",
-      "description": "Lowercase letters, digits and hyphens."
-    },
     "step": {
       "type": "object",
-      "additionalProperties": false,
       "required": [
         "type"
       ],
-      "description": "One effect step. Which parameters each type uses is documented per parameter; the engine checks them.",
+      "description": "One effect step. Each type requires and admits only its own parameters (the allOf below).",
       "properties": {
         "type": {
           "type": "string",
@@ -79,9 +73,7 @@
           "description": "saturation: amount of soft saturation."
         },
         "impulse": {
-          "type": "string",
-          "minLength": 1,
-          "pattern": "^(?![/~])(?!.*(^|/)\\.\\.(/|$))[^\\\\\\u0000-\\u001f\\u007f]+$",
+          "$ref": "common.schema.json#/$defs/relativePath",
           "description": "reverb: impulse response file, relative to the effect chain's folder."
         },
         "wet": {
@@ -120,7 +112,196 @@
           "maximum": 24,
           "description": "pitch: shift in semitones (moves formants too)."
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "highpass"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "freqHz"
+            ],
+            "properties": {
+              "type": true,
+              "freqHz": true
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "lowpass"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "freqHz"
+            ],
+            "properties": {
+              "type": true,
+              "freqHz": true
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "equalizer"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "freqHz",
+              "widthOctaves",
+              "gainDb"
+            ],
+            "properties": {
+              "type": true,
+              "freqHz": true,
+              "widthOctaves": true,
+              "gainDb": true
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "gain"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "gainDb"
+            ],
+            "properties": {
+              "type": true,
+              "gainDb": true
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "saturation"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "drive"
+            ],
+            "properties": {
+              "type": true,
+              "drive": true
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "reverb"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "impulse"
+            ],
+            "properties": {
+              "type": true,
+              "impulse": true,
+              "wet": true,
+              "dry": true
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "chorus"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "delayMs",
+              "depth",
+              "rateHz"
+            ],
+            "properties": {
+              "type": true,
+              "delayMs": true,
+              "depth": true,
+              "rateHz": true,
+              "wet": true
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "pitch"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "semitones"
+            ],
+            "properties": {
+              "type": true,
+              "semitones": true
+            },
+            "additionalProperties": false
+          }
+        }
+      ]
     }
   }
 }

@@ -1,6 +1,5 @@
 {
   "$schema": "../gvoice/schemas/voice.schema.json",
-  "formatVersion": 1,
   "key": "narrator",
   "designSheet": {
     "gender": "male",
@@ -19,6 +18,7 @@
       "breathing": "audible between sentences"
     }
   },
+  "device": "Vulkan0",
   "seed": 1234,
   "testText": "The law of the obelisks admits no exceptions.",
   "reference": {
@@ -27,9 +27,9 @@
   },
   "prints": {
     "0.6b-base": {
+      "device": "Vulkan0",
       "spk": "prints/0.6b-base.spk",
       "rvq": "prints/0.6b-base.rvq"
     }
-  },
-  "effects": "orc"
+  }
 }

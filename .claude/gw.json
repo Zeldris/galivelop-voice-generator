@@ -12,7 +12,8 @@
   "pushToProtected": "pr",
   "install": [],
   "check": [
-    "bash -n .githooks/pre-commit .githooks/pre-push",
+    "bash -n .githooks/pre-commit",
+    "bash -n .githooks/pre-push",
     "python3 -m unittest discover -s tests -t ."
   ],
   "reviewMark": "docs/registros/revisado.txt",

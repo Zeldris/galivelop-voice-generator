@@ -46,6 +46,91 @@ Cada fase es una rama y un pull request a `main`, con las tres fases de revisió
 | F6 Piloto WMF | Configuración de ejemplo con narrador y orco; propuesta para el repo de WMF (integración y corrección de su documento 02 con lo aprendido aquí) | WMF reproduce una voz del paquete sin el generador |
 | F7 Fauna | Pedidos `sound`, registro de licencias CC0 por archivo, cadenas por especie | Una especie con sus variantes por acción |
 
+## F1 en detalle
+
+Contrato de F1 (lo implementan los pasos de abajo; un cambio de este contrato se apunta aquí en el mismo commit). Todo
+en `gvoice/`, Python stdlib, identificadores en inglés, textos visibles por `i18n.t` en es y en. **Modelo:** el F1 de
+`galivelop-image-generator` (su `docs/plan.md`, «F1 en detalle», y los módulos de `gimg/` en `4365f9a`). Lo que no
+cambia aquí se copia de allí con el origen anotado (D7) y se adapta a estos nombres; este apartado solo dice lo que
+difiere.
+
+**Carpetas** (`paths`, copiado). Configuración: `$GVOICE_CONFIG_HOME`, si no `$XDG_CONFIG_HOME/galivelop-voice`, si
+no `~/.config/galivelop-voice`. Datos: `$GVOICE_DATA_HOME`, si no `$XDG_DATA_HOME/galivelop-voice`, si no
+`~/.local/share/galivelop-voice` (D9). La guardia `inside(root, rel)` igual que en `gimg`.
+
+**Escritura** (`fsutil`) y **errores** (`errors`, `GvoiceError` con código, parámetros y errores de esquema): copiados.
+
+**Proyectos** (`projects`, copiado): registro en `<config>/projects.json`; `project add <ruta>` lee
+`<ruta>/galivelop-voices.json`. `projects.print_models(config)` devuelve `printModels` o, si falta, los modelos Base de
+`common.schema.json` en su orden (D14: hoy 0.6B y 1.7B).
+
+**Pedidos e intentos** (`orders`). Dos tipos (D10) con el mismo ciclo que `gimg` (intentos `new`/`candidate`/
+`discarded`, notas, elegida con pila para deshacer, reenviar conserva los intentos). Carpeta:
+`<datos>/projects/<proyecto>/orders/<tipo>/<key>/` con `order.json` y `attempts/<id>.wav` (o `q<entrada>.wav`).
+- `voice`: la clave es una voz de `voices` del proyecto (si no, `order.unknown_voice`). Cada intento es una **toma**:
+  `{id, state, seed, instruct, testText, model, device, audio, note, createdAt, queueEntry?, engine, engineVersion}`.
+  La elegida es la **referencia** de la voz.
+- `line`: `voice` (clave de voz del proyecto), `text` y `model` (opcional, un `baseModel` de `printModels`; por
+  defecto el primero). Cada intento guarda además `voiceReference`: el id de la referencia con la que se generó.
+- El esquema del pedido gana `model` (solo `line`) y `count` (1-20, por defecto 1, intentos que se encolan).
+- Semillas como en `gimg`: `seed + i` con semilla; aleatoria en `[0, 2^32)` sin ella.
+
+**Ficha de diseño** (`sheet`, D11). `build_instruct(sheet) -> str`: las claves presentes, en el orden fijo de
+`design-sheet.schema.json`, en una frase en inglés, más `extra` al final. `warnings(sheet) -> [{code, params}]`:
+`sheet.age_missing` / `sheet.age_minor` y `sheet.banned_word` (por cada palabra vetada de D11, con su sugerencia).
+Avisan; nunca bloquean. La CLI los imprime al enviar un pedido `voice`.
+
+**Motor** (`engine`). Tres operaciones, todas con `should_cancel` y `timeout_s`: `design(DesignJob)` (instruct, texto,
+semilla, modelo de diseño, dispositivo, salida `.wav`), `speak(SpeakJob)` (texto, semilla, modelo Base, huella
+`.spk`+`.rvq`, salida `.wav`) y `extract_print(PrintJob)` (referencia `.wav` y su texto, modelo Base, salidas
+`.spk`/`.rvq`). `EngineResult`: `duration_ms`, `load_ms`, `audio_ms` (duración del audio, si hay), `engine_version`,
+`device`. `FakeEngine` (`GVOICE_ENGINE=fake`, el único en F1) escribe un WAV PCM válido (un tono que sale de la
+semilla, duración proporcional al texto) y huellas de prueba; `GVOICE_FAKE_DELAY` y `GVOICE_FAKE_FAIL` como los de
+`gimg`, y `EngineTimeout`. El dispositivo sale del perfil de máquina (`engine.device`).
+
+**Perfil de máquina** (`machine`, de `limits` de `gimg`): `GVOICE_MACHINE_PROFILE` o `machineProfile` de
+`<config>/config.json`, por defecto `steam-deck`. En F1 solo aporta `timeoutS`, el dispositivo y los modelos; la
+memoria la vigila el motor real (F2).
+
+**Candado de la máquina** (`machinelock`, D8): `flock` exclusivo sobre `$XDG_STATE_HOME/galivelop/gpu.lock` (por
+defecto `~/.local/state/galivelop/gpu.lock`; la carpeta se crea con 700) mientras corre cualquier operación del
+motor. Si otro generador lo tiene, el trabajador espera (la entrada sigue `running`, cancelable mientras espera).
+
+**Registro** (`log`, D16): como en `gimg`, `gen_ai.operation.name` = `speech_generation`, `app.task` = `design`,
+`speak` o `print`, y `app.audio.*`: `key`, `seed`, `device`, `text_chars`, `audio_ms`, `engine_version`, `rtf`
+(`duration_ms / audio_ms`). Estimado: mediana con el mismo motor, tarea, modelo y dispositivo.
+
+**Cola y trabajador** (`queue`, `worker`, copiados): una cola para todo el generador con las mismas reglas de
+recuperación, cancelación y errores. La entrada gana `kind`: `attempt` (un intento de un pedido) o `print` (una huella:
+`project`, `voice`, `model`, `reference`). El trabajador toma el candado de la máquina solo alrededor de la llamada al
+motor.
+
+**Fijar y desfasadas** (`voices`, D10). Elegir una referencia (`voices.choose`/`undo`, que envuelven a `orders`)
+copia la toma a `<datos>/projects/<proyecto>/voices/<voz>/reference.wav` + `reference.txt` (temporal y
+`os.replace`) y encola una entrada `print` por modelo de `print_models`; cada una escribe
+`voices/<voz>/prints/<modelo>.spk/.rvq` y su `print.json` (`reference`, `device`, `engineVersion`, `createdAt`).
+Deshacer hasta `null` borra la referencia y las huellas. `voices.status(proyecto, voz)` devuelve la referencia, las
+huellas al día (su `reference` es la actual) y las frases **desfasadas**: las elegidas cuyo `voiceReference` no es la
+referencia actual. Desfasada se calcula, no se guarda; nada se regenera solo. Un pedido `line` se encola solo si su
+voz tiene huella al día para su modelo (si no, `line.voice_not_fixed`); el trabajador lo comprueba otra vez al
+ejecutar. Elegir una frase no entrega nada: el paquete lo exporta F3.
+
+**CLI** (`cli`, `python3 -m gvoice`), como la de `gimg` con estos cambios: `order submit|list|show` y `attempt
+new|mark|note`, `choose`, `undo` llevan `<proyecto> <tipo> <key>` en vez de `<key> <perfil>`; `attempt new` admite
+`--seed`, `--count` y, en `voice`, `--test-text`; nueva `voice status <proyecto> <voz>`; `queue list|cancel`,
+`work [--once]`, `project add|remove|list`, `version`, `--lang`, `--json`. Errores y salidas como en `gimg`.
+
+### Pasos de F1
+
+| Paso | Qué | Hecho cuando |
+|---|---|---|
+| F1.1 | `paths`, `fsutil`, `errors`, `projects` (con `print_models`) | Tests de la guardia, del registro y de la carga de la configuración |
+| F1.2 | `orders` (`voice` y `line`, `model` y `count` en el esquema) y `sheet` (instruct y avisos) | Tests de reenvío, estados, pila de elegidas, orden del instruct y cada aviso |
+| F1.3 | `engine` (`FakeEngine`), `machine`, `machinelock` y `log` con estimado | Tests del WAV, las huellas de prueba, el perfil, el candado entre dos procesos y el registro |
+| F1.4 | `queue` y `worker` con entradas `attempt` y `print` | Tests de orden, cancelar, reinicio, un solo trabajador y espera del candado |
+| F1.5 | `voices`: fijar, huellas, deshacer, desfasadas y la comprobación de `line` | Tests de fijar, cambiar la referencia (frases desfasadas) y deshacer |
+| F1.6 | `cli` y prueba del ciclo completo; README es/en con el uso | Extremo a extremo: proyecto, diseñar, elegir, fijar, frase, cambiar referencia, ver desfasadas |
+
 ## Pendiente
 
 - **Escucha del banco** (la persona, en la Deck): si el español suena natural y si la voz se mantiene entre frases,

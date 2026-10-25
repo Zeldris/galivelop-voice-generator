@@ -1,4 +1,4 @@
-<!-- galivelop-workflow v0.1.0 -->
+<!-- galivelop-workflow v0.3.0 -->
 # Glosario
 
 Vocabulario de galivelop-voice-generator. Primero van los términos del flujo; el proyecto añade debajo los de su dominio y los
@@ -12,15 +12,15 @@ mantiene al día (skill `domain-modeling`). El flujo nunca sobrescribe este arch
 - **Punto estable**: un estado con el check en verde, con commit y subido.
 - **Check**: las órdenes del proyecto que tienen que pasar en cada commit que se sube: `true`.
 - **Commit `WIP:`**: un commit subido con algo a medias o en rojo; la bitácora dice qué falla y por qué.
-- **Rama protegida**: `main`, lo publicado; solo recibe trabajo revisado, con confirmación del
-  usuario.
+- **Rama protegida**: `main`, lo publicado; solo recibe trabajo revisado, con confirmación
+  de la persona.
 - **Marca de revisión**: `docs/registros/revisado.txt`, el archivo versionado con el sha del último commit revisado; los ganchos
   aceptan código hasta él.
 - **Contenido frente a código**: el contenido (lo que casa con `content` de `.claude/gw.json`) no necesita revisión
   de código; todo lo demás es código.
 - **Encargo a un subagente**: lo que recibe un subagente: objetivo, rutas, restricciones, el check que debe pasar y
   qué tiene que devolver.
-- **Retro**: la retrospectiva de la sesión antes de ir a la rama protegida; sus propuestas se presentan al usuario y
+- **Retro**: la retrospectiva de la sesión antes de ir a la rama protegida; sus propuestas se presentan a la persona y
   lo que confirme se aplica en la rama.
 - **Propuesta (`.gw-nuevo`)**: un archivo del flujo que la actualización no pudo aplicar sin perder cambios locales;
   se fusiona a mano y luego se borra.

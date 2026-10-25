@@ -1,19 +1,27 @@
 #!/usr/bin/env bash
-# galivelop-workflow v0.1.0
+# galivelop-workflow v0.3.0
 # Claude Code PreToolUse hook: no pull request reaches the protected branch without /code-review of the same code,
 # and none is merged with CI not green (plan §5.2). Reads the hook JSON (tool_name, tool_input) on stdin.
 #   - Create: mcp__github__create_pull_request, mcp__github__update_pull_request that sets `base` to the protected
 #     branch, and `gh pr create` typed in Bash (no --base = the default branch, taken as protected). The PR head is
 #     the branch on GitHub, read with `git ls-remote origin` (never the local HEAD; nothing written under refs/).
 #     Its commit must carry the config's `reviewMark` naming an ancestor with no code after it (es-codigo.sh). A head
-#     that brings no code against the protected branch needs no mark.
+#     that brings no code against the protected branch needs no mark. The base is protected when the working tree's
+#     config or the base's own tip on origin names it so; `content` and `reviewMark` come from that tip's config (the
+#     PR head's only when the base has none yet), so a PR cannot relax the rule that judges it.
 #   - Merge: mcp__github__merge_pull_request, mcp__github__enable_pr_auto_merge, and in Bash `gh pr merge` (also
 #     `gh -R o/r pr merge`, inside `bash -c`/`eval`, after `xargs`) and `gh api` PUT on repos/<o>/<r>/pulls/<n>/merge
 #     (-R/--repo and GH_REPO= name the repo). Same mark rule on the PR head, plus CI green: every check-run completed with success/neutral/skipped and every
 #     commit status success (a commit with no CI reported at all is not green).
 #   - Anything else (other tools, update_pull_request_branch, other bases, Bash that only mentions `gh pr`) exits 0
 #     silently. pushToProtected does not matter: a PR is another way into the protected branch.
-# GitHub API: `gh api` when gh is on PATH and authenticated, else curl with $GITHUB_TOKEN or $GH_TOKEN, decided once
+#   - A PR that is already closed or merged: blocked with that fact (and `gh pr view`), no config is asked of its branch;
+#     an update_pull_request that itself reopens a closed PR (state: open) is judged like any other call on it.
+#   - Before python3 starts, a bash pre-filter lets through everything that has no PR tool name and no word `gh` followed
+#     by the word `pr`/`pulls` ("github", "projects" do not count). Without python3, a PR create/merge call is blocked
+#     with the command that checks it (python3 --version); any other call, `gh pr view` included, passes.
+# GitHub API: `gh api` when gh is on PATH and `gh api repos/<owner>/<repo>` answers (a GitHub App token cannot read
+# /user but can read the repo), else curl with $GITHUB_TOKEN or $GH_TOKEN, decided once
 # per run. No way to ask, or any API error: blocked (fail closed), as is any missing commit, config or script, and a
 # Bash command that cannot be parsed but looks like `gh … pr merge|create`.
 # Decision: exit 2 with the reason on stderr (Claude Code shows it to the agent); the last line is the command that
@@ -260,7 +268,7 @@ def classify(event):
         if not data.get("base"):
             return []  # editing title/body/state takes nothing to another branch
         return [{"kind": "retarget", "base": data["base"], "head": None, "repo": repo, "number": number,
-                 "how": "update_pull_request"}]
+                 "how": "update_pull_request", "reopens": data.get("state") == "open"}]
     if name in ("merge_pull_request", "enable_pr_auto_merge"):
         return [{"kind": "merge", "base": None, "head": None, "repo": repo, "number": number, "how": name}]
     return []  # update_pull_request_branch and the rest bring nothing new to the protected branch
@@ -333,14 +341,19 @@ def origin_repo(root):
 _BACKEND = []  # decided once per run: ("gh", None) or ("curl", token); never mixed within a run
 
 
-def backend():
+def backend(path):
     if not _BACKEND:
-        if shutil.which("gh") and run(["gh", "auth", "status"]).returncode == 0:
+        # Reading the repo itself proves the token works for it: `gh api user` answers 403 to a GitHub App
+        # installation token that can still read the repo, and `gh auth status` also fails over an unrelated stale
+        # account or host.
+        m = re.match(r"repos/([^/?]+)/([^/?]+)", path)
+        probe = f"repos/{m.group(1)}/{m.group(2)}" if m else path
+        if shutil.which("gh") and run(["gh", "api", probe]).returncode == 0:
             _BACKEND.append(("gh", None))
         else:
             token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
             if not token:
-                raise ApiError("gh is not installed or not authenticated, and neither GITHUB_TOKEN nor GH_TOKEN is set")
+                raise ApiError(f"gh is not installed or cannot read {probe}, and neither GITHUB_TOKEN nor GH_TOKEN is set")
             if not shutil.which("curl"):
                 raise ApiError("gh is not authenticated and curl is not installed")
             _BACKEND.append(("curl", token))
@@ -348,7 +361,7 @@ def backend():
 
 
 def api(path):
-    kind, token = backend()
+    kind, token = backend(path)
     if kind == "gh":
         r, how = run(["gh", "api", path]), "gh api " + path
     else:
@@ -369,7 +382,8 @@ def pr_info(repo, number):
     try:
         info = api(f"repos/{repo}/pulls/{number}")
         return {"base": info["base"]["ref"], "sha": info["head"]["sha"], "ref": info["head"]["ref"],
-                "url": info.get("html_url") or f"https://github.com/{repo}/pull/{number}"}
+                "url": info.get("html_url") or f"https://github.com/{repo}/pull/{number}",
+                "state": info.get("state") or "open", "merged": bool(info.get("merged") or info.get("merged_at"))}
     except ApiError as exc:
         block(f"cannot read PR #{number} of {repo}: {exc}",
               "authenticate (gh auth login, or export GITHUB_TOKEN) and retry; blocked because it could not be checked")
@@ -397,30 +411,70 @@ def ci_problems(repo, sha):
 
 
 # ---- the rules ---------------------------------------------------------------------------------------------------
-def es_codigo(root, scripts, a, b):
-    r = run(["bash", os.path.join(scripts, "es-codigo.sh"), a, b], cwd=root)
+def es_codigo(root, scripts, a, b, rev):
+    r = run(["bash", os.path.join(scripts, "es-codigo.sh"), "--rev", rev, a, b], cwd=root)
     if r.returncode != 0:
         block(f"cannot tell code from content: {r.stderr.strip()[:400]}",
               f"fix the error above and retry: git -C {root} fetch origin")
     return [line for line in r.stdout.splitlines() if line.strip()]
 
 
-def check_mark(cfg, root, scripts, head, refs, what):
-    protected, mark_file = cfg["protectedBranch"], cfg["reviewMark"]
-    fix = (f"run /code-review of the diff against origin/{protected}, push the fixes, then mark and push: "
-           f"bash {os.path.join(scripts, 'revisado.sh')} && git push")
+_configs = {}
+
+
+def config_at(root, rev, strict=True):
+    """The config as commit `rev` has it, or None when that commit has no .claude/gw.json. An invalid one blocks, or
+    with strict=False is None too (it names no protected branch). Loaded once per commit."""
+    import config  # on sys.path since project()
+    if rev not in _configs:
+        if git(root, "cat-file", "-e", f"{rev}:.claude/gw.json").returncode != 0:
+            _configs[rev] = (None, None)
+        else:
+            try:
+                _configs[rev] = (config.load(root, rev=rev), None)
+            except config.ConfigError as exc:
+                _configs[rev] = (None, exc)
+    cfg, error = _configs[rev]
+    if error is not None and strict:
+        block(f"cannot read the config of {rev[:12]}: {error}",
+              f"fix it on that branch and retry: python3 {os.path.join(HERE, 'config.py')} --rev {rev[:12]} validate")
+    return cfg
+
+
+def protected_tip(cfg, root, base):
+    """The origin tip of `base` when the PR goes to a protected branch, as the working tree's config or that tip's own
+    config names it (a PR cannot unprotect its base by renaming protectedBranch); None when the base is not protected.
+    Returns (protected, tip): tip is None for a protected branch not on origin yet."""
+    tip = remote_sha(root, base)
+    if base == cfg["protectedBranch"]:
+        return True, tip
+    if tip and ensure(root, tip, [base]):
+        remote = config_at(root, tip, strict=False)  # an invalid one there must not block a PR to an open branch
+        if remote is not None and remote["protectedBranch"] == base:
+            return True, tip
+    return False, tip
+
+
+def check_mark(cfg, root, scripts, head, refs, what, protected, tip):
     if not ensure(root, head, refs):
         block(f"the PR head {head[:12]} ({what}) is not in this clone and could not be fetched from origin.",
               f"fetch it and retry: git -C {root} fetch origin {refs[0] if refs else ''}".rstrip())
-    tip = remote_sha(root, protected)
-    base = ""
+    base, policy = "", head
     if tip:
         if not ensure(root, tip, [protected]):
             block(f"origin/{protected} is at {tip[:12]}, which this clone cannot fetch.",
                   f"fetch it and retry: git -C {root} fetch origin {protected}")
         mb = git(root, "merge-base", tip, head)
         base = mb.stdout.strip() if mb.returncode == 0 else ""
-    code = es_codigo(root, scripts, base, head)
+        if config_at(root, tip) is not None:
+            policy = tip  # what is content and where the mark lives: the protected branch decides, not the PR
+    if policy == head and config_at(root, head) is None:
+        block(f"neither origin/{protected} nor the PR head {head[:12]} ({what}) has a .claude/gw.json.",
+              "commit a valid one on the PR branch and retry: git add .claude/gw.json && git commit && git push")
+    mark_file = config_at(root, policy)["reviewMark"]
+    fix = (f"run /code-review of the diff against origin/{protected}, push the fixes, then mark and push: "
+           f"bash {os.path.join(scripts, 'revisado.sh')} && git push")
+    code = es_codigo(root, scripts, base, head, policy)
     if not code:
         return  # only content against the protected branch: no review needed
     mark = "".join(git(root, "show", f"{head}:{mark_file}").stdout.split())
@@ -431,7 +485,7 @@ def check_mark(cfg, root, scripts, head, refs, what):
     elif git(root, "merge-base", "--is-ancestor", mark, head).returncode != 0:
         reason = f"the review mark ({mark[:12]}) is not an ancestor of the PR head {head[:12]} ({what})"
     else:
-        after = es_codigo(root, scripts, mark, head)
+        after = es_codigo(root, scripts, mark, head, policy)
         if not after:
             return
         reason, code = f"code changed after the review mark ({mark[:12]}) on the PR head {head[:12]} ({what})", after
@@ -457,9 +511,11 @@ def need_repo(action, root):
 
 
 def handle(action, cfg, root, scripts):
-    protected = cfg["protectedBranch"]
-    if action["kind"] in ("create", "retarget") and action["base"] and action["base"] != protected:
-        return
+    if action["kind"] in ("create", "retarget"):
+        protected = action["base"] or cfg["protectedBranch"]  # no base: the default branch, guarded as protected
+        guarded, tip = protected_tip(cfg, root, protected)
+        if not guarded:
+            return
     if action["kind"] == "create":
         branch = action["head"]
         if not branch:
@@ -468,7 +524,7 @@ def handle(action, cfg, root, scripts):
                 block(f"{action['how']}: no --head given and the checkout is not on a branch.",
                       "switch to the PR branch and retry: git switch <branch>")
         sha, branch = head_from_branch(root, branch, action["how"])
-        check_mark(cfg, root, scripts, sha, [branch], f"origin/{branch}")
+        check_mark(cfg, root, scripts, sha, [branch], f"origin/{branch}", protected, tip)
         return
     repo = need_repo(action, root)
     number = action["number"]
@@ -486,10 +542,18 @@ def handle(action, cfg, root, scripts):
     if number is None:
         block(f"{action['how']} without a PR number; cannot check it.", "pass pullNumber and retry")
     info = pr_info(repo, number)
-    if action["kind"] == "merge" and info["base"] != protected:
-        return
+    reopened = action.get("reopens") and not info["merged"]  # the call itself reopens it: judge it as open
+    if info["state"] != "open" and not reopened:  # nothing to guard: say so instead of asking for a gw.json on a finished branch
+        done = "already merged" if info["merged"] else "closed"
+        block(f"PR #{number} of {repo} is {done}, so {action['how']} has nothing to do.",
+              f"check it: gh pr view {number} -R {repo}" + ("" if info["merged"] else " (reopen it if it should still be merged)"))
+    if action["kind"] == "merge":
+        protected = info["base"]
+        guarded, tip = protected_tip(cfg, root, protected)
+        if not guarded:
+            return
     refs = [info["ref"], f"refs/pull/{number}/head"]
-    check_mark(cfg, root, scripts, info["sha"], refs, f"PR #{number}")
+    check_mark(cfg, root, scripts, info["sha"], refs, f"PR #{number}", protected, tip)
     if action["kind"] != "merge":
         return
     try:
@@ -531,16 +595,34 @@ except Exception as exc:  # fail closed on anything unexpected
     sys.exit(2)
 PY
 input="$(cat)"
-# Cheap pre-filter: the matcher includes every Bash call, so anything that cannot be a PR action leaves here without
-# needing python3 (a missing python3 must not block unrelated commands). Only PR tools or text with "gh" and "pr" go on.
-case "$input" in
-  *pull_request*|*auto_merge*|*gh*pr*|*gh*pull*) ;;
-  *) exit 0 ;;
-esac
+# Cheap pre-filter, in bash with no external tools: the matcher includes every Bash call, so what cannot be a PR action
+# leaves here without python3 (a missing python3 must not block unrelated commands). It goes on for the PR tools, and
+# for text with the word `gh` (not "github") followed by the word `pr` or `pulls` (not "projects").
+word='[^[:alnum:]_-]'
+tool='"tool_name"[[:space:]]*:[[:space:]]*'
+pr_tools="${tool}\"mcp__[^\"]*(create_pull_request|update_pull_request|merge_pull_request|enable_pr_auto_merge)\""
+bash_tool="${tool}\"Bash\""
+gh="(^|$word|\\\\[nt])gh$word(.*$word)?"
+end="($word|\$)"
+any_pr="${gh}(pr|pulls)${end}"
+do_pr="${gh}(pr$word(.*$word)?(create|merge)|pulls/[^[:space:]]*merge)${end}"
+own=""  # 1 when the call is one this hook decides on (a PR tool, or gh creating/merging), for the python3-missing case
+if [[ $input =~ $pr_tools ]]; then own=1
+elif [[ $input =~ $bash_tool && $input =~ $any_pr ]]; then
+  if [[ $input =~ $do_pr ]]; then own=1; else own=0; fi
+else exit 0
+fi
+if ! command -v python3 >/dev/null 2>&1; then
+  if [ "$own" = "1" ]; then
+    echo "revision-antes-de-main: python3 is missing, so this PR call cannot be checked; blocked. Install python3 3.8+ and retry: python3 --version" >&2
+    exit 2
+  fi
+  exit 0  # gh pr view/list/…: not a call this hook decides on
+fi
 printf '%s' "$input" | python3 -I -c "$prog" "$here"
 status=$?
-if [ "$status" -ne 0 ] && [ "$status" -ne 2 ]; then  # python3 missing or crashed: still fail closed
-  echo "revision-antes-de-main: the check could not run (exit $status); blocked. Install python3 3.8+ and retry: python3 --version" >&2
+if [ "$status" -ne 0 ] && [ "$status" -ne 2 ]; then  # python3 crashed: still fail closed
+  echo "revision-antes-de-main: the check could not run (exit $status); blocked. Check python3 3.8+ and retry: python3 --version" >&2
   exit 2
 fi
 exit "$status"

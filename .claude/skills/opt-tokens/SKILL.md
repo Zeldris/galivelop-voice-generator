@@ -4,7 +4,7 @@ description: Token-spend retrospective: measures where a session's tokens went a
 license: MIT
 compatibility: Claude Code or any Agent Skills agent; git; python3 for scripts/medir.py (standard library only)
 metadata:
-  version: "0.1.0"
+  version: "0.3.0"
   source: "Galivelop workshop; generalised from the Tarkor, installer, portal and VeriNews opt-tokens"
 ---
 
@@ -36,7 +36,8 @@ retries and redone work.
 
    **The curve first** (`Average context`, `Stretches between compactions`): average context × calls is almost all
    of the spend, and a ceiling far above the floor says compaction comes late. That is the first proposal when it
-   holds, before any tool. When one figure does not match another (more calls than responses, usage that doubles),
+   holds, before any tool. If `medir.py` warns that the session mixes compaction windows, the averages blend two
+   regimes: measure the current one with `--since`. When one figure does not match another (more calls than responses, usage that doubles),
    fix `medir.py` before proposing anything from it.
 2. **Read project notes.** If `.claude/gw/opt-tokens.md` exists in the project, read it: the tools that already
    save and the known costs, so you do not propose what is there. Read the project's skill list too: a cost a skill
@@ -44,7 +45,9 @@ retries and redone work.
    "use or improve it", not as a new rule; what a skill itself spent (its loaded `SKILL.md`) is measured like any
    other context.
 3. **Hunt the waste**, heaviest first:
-   - **Long context.** Every call rereads the whole history (at cache price, but whole). If the average is high:
+   - **Long context.** Every call rereads the whole history (at cache price, but whole). If the main session's average
+     context passed ~150k (the `orchestrate-dealer` threshold), say so in the report and list the big reads
+     (`BY FILE`, `BY TOOL`) a subagent should have made. If the average is high:
      close tasks with a written handover and start fresh (`/clear`), or compact at task boundaries
      (`/compact <what to keep>`), instead of stretching one session.
    - **Number of calls.** With a long context each call costs the average context. Steps that belong together

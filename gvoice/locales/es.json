@@ -43,6 +43,7 @@
   "error.order.unknown_voice": "la voz «{voice}» no está en el proyecto «{project}»",
   "error.order.model_not_allowed": "el modelo «{model}» no está en los modelos de huella del proyecto ({allowed})",
   "error.order.count_invalid": "el número de intentos debe estar entre {min} y {max}",
+  "error.order.seed_overflow": "el pedido no cabe: la semilla {seed} con {count} intentos pasa del máximo {max}",
   "error.order.unknown": "no existe el pedido {type} «{order}» en el proyecto «{project}»",
   "error.order.corrupt": "el pedido está dañado: {path}",
   "error.order.attempt_unknown": "el pedido {type} «{order}» no tiene el intento {attempt}",
@@ -56,5 +57,5 @@
   "error.sheet.invalid": "la ficha de diseño no es válida",
   "warning.sheet.age_missing": "la ficha no dice la edad: sin ella el modelo puede derivar a una voz infantil",
   "warning.sheet.age_minor": "la edad «{age}» no es adulta: el modelo puede derivar a una voz infantil",
-  "warning.sheet.banned_word": "«{word}» en «{field}» tiende a una voz infantil; prueba «{suggestion}»"
+  "warning.sheet.banned_word": "«{word}» en «{field}» tiende a una voz infantil; prueba con: {suggestions}"
 }

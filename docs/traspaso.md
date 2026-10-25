@@ -10,9 +10,9 @@
 |---|---|
 | **Rama** | `claude/voces-f1` |
 | **Fase / tarea** | F1 Núcleo (`docs/plan.md`, «F1 en detalle», pasos F1.1-F1.6). Compactaciones: 0 de 1 presupuestada |
-| **Último punto estable** | F1.2 (`orders` con `voice` y `line`, `model` y `count` en el esquema de pedido, `sheet` con `build_instruct` y `warnings`; 190 tests). Antes, F1.1 (`paths`, `fsutil`, `errors`, `projects` con `print_models`) |
+| **Último punto estable** | F1.2 (`orders` con `voice` y `line`, `model` y `count` en el esquema de pedido, `sheet` con `build_instruct` y `warnings`; 192 tests). Antes, F1.1 (`paths`, `fsutil`, `errors`, `projects` con `print_models`) |
 | **Siguiente paso** | F1.3: `engine` (`FakeEngine`), `machine`, `machinelock` y `log` |
-| **Check** | verde (`bash -n` de cada gancho y `unittest`, 190 tests) |
+| **Check** | verde (`bash -n` de cada gancho y `unittest`, 192 tests) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con
 la forma ``| **Tarea en curso · `<rama>`** | tarea, qué falta y siguiente paso |``; el push lo comprueba.
@@ -31,6 +31,7 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 
 ## Pendiente
 
+- F1.4: el trabajador comprueba otra vez que la voz del pedido sigue en el proyecto (`orders.add_attempt` no lo hace).
 - Leve de la revisión corta de F1.1: `projects._version` confía en el patrón del esquema (seguro hoy, porque siempre se valida antes).
 - Hallazgos leves de la revisión de F0, sin arreglar en este PR: el mensaje de `propertyNames` sale con «()» vacío cuando el motivo no es un `pattern` (p. ej. un `enum`) y solo cuenta el primer motivo (`gvoice/schema.py`); `i18n.t()` lanza `KeyError` si a un idioma le falta un parámetro del texto y no mira `LANGUAGE`; los commits `81d76f1` y `7cebd24` de F0 tienen `Siguiente:` separado de la atribución por una línea en blanco.
 - Escucha del banco y registro del núcleo tras Vulkan: los dos, de la persona (ver «Pendiente» en `docs/plan.md`).

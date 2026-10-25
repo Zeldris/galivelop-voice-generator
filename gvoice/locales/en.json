@@ -43,6 +43,7 @@
   "error.order.unknown_voice": "voice \"{voice}\" is not in project \"{project}\"",
   "error.order.model_not_allowed": "model \"{model}\" is not among the project's print models ({allowed})",
   "error.order.count_invalid": "the number of attempts must be between {min} and {max}",
+  "error.order.seed_overflow": "the order does not fit: seed {seed} with {count} attempts exceeds the maximum {max}",
   "error.order.unknown": "there is no {type} order \"{order}\" in project \"{project}\"",
   "error.order.corrupt": "the order is corrupt: {path}",
   "error.order.attempt_unknown": "{type} order \"{order}\" has no attempt {attempt}",
@@ -56,5 +57,5 @@
   "error.sheet.invalid": "the design sheet is not valid",
   "warning.sheet.age_missing": "the sheet gives no age: without it the model may drift to a childlike voice",
   "warning.sheet.age_minor": "age \"{age}\" is not adult: the model may drift to a childlike voice",
-  "warning.sheet.banned_word": "\"{word}\" in \"{field}\" tends towards a childlike voice; try \"{suggestion}\""
+  "warning.sheet.banned_word": "\"{word}\" in \"{field}\" tends towards a childlike voice; try: {suggestions}"
 }

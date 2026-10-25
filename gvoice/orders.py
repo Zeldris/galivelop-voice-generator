@@ -125,12 +125,16 @@ def _read(project: str, type_: str, key: str) -> dict:
     return _shape(data, path, type_, key)
 
 
+_REQUIRED = {"voice": ("designSheet", "testText"), "line": ("voice", "text")}
+
+
 def _shape(data, path, type_=None, key=None) -> dict:
     """`data` must look like an order and, when given, match the type and key of its folder."""
     if (not isinstance(data, dict) or not isinstance(data.get("attempts"), list)
             or data.get("type") not in TYPES or not isinstance(data.get("key"), str)
             or "chosen" not in data or not isinstance(data.get("chosenHistory"), list)
-            or (type_ is not None and data["type"] != type_) or (key is not None and data["key"] != key)):
+            or (type_ is not None and data["type"] != type_) or (key is not None and data["key"] != key)
+            or not all(k in data for k in _REQUIRED[data["type"]])):
         raise GvoiceError("order.corrupt", path=str(path))
     return data
 
@@ -198,7 +202,8 @@ def attempt_specs(project: str, type_: str, key: str, count: int = 1, *, seed=No
     The voice (and, for a line, the model) is checked again against the project's current configuration.
     Each spec is ``{"seed", "instruct", "testText"}`` for ``voice`` (the instruct is `sheet.build_instruct` of the
     order's design sheet) and ``{"seed", "text", "model", "voice"}`` for ``line`` (``model`` resolved).
-    Seeds: `seed` if given, else the order's seed, then ``seed + i`` for attempt i (0-based); with neither, a
+    Seeds: `seed` if given, else the order's seed, then ``seed + i`` for attempt i (0-based), which must stay within the ``seed`` maximum of the common schema
+    (``order.seed_overflow`` otherwise); with neither, a
     random integer in ``[0, 2**32)`` per attempt (`random.SystemRandom`)."""
     low, high = _count_limits()
     if not isinstance(count, int) or isinstance(count, bool) or not low <= count <= high:
@@ -211,6 +216,9 @@ def attempt_specs(project: str, type_: str, key: str, count: int = 1, *, seed=No
     config = projects.get(project)["config"]
     _check_target(project, order, config)
     base = order["seed"] if seed is None else seed
+    top = _common("seed")["maximum"]
+    if base is not None and base + count - 1 > top:
+        raise GvoiceError("order.seed_overflow", seed=base, count=count, max=top)
     specs = []
     for i in range(count):
         spec = {"seed": _rng.randrange(SEED_LIMIT) if base is None else base + i}

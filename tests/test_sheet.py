@@ -15,6 +15,9 @@ def codes(s):
     return [(w["code"], w["params"]) for w in sheet.warnings(s)]
 
 
+SUG = "airy, breathy, soft-spoken, whispering"
+
+
 class InstructTests(unittest.TestCase):
     def test_keys_come_from_the_schema(self):
         props = list(schema.load_schema("design-sheet")["properties"])
@@ -73,24 +76,25 @@ class WarningTests(unittest.TestCase):
 
     def test_banned_words_whole_words_any_case(self):
         self.assertEqual(codes({"age": "adult", "tone": "Bright"}), [(
-            "sheet.banned_word", {"word": "bright", "suggestion": "airy", "field": "tone"})])
+            "sheet.banned_word", {"word": "bright", "suggestions": SUG, "field": "tone"})])
         for ok in ("brightness", "delight", "smaller", "lighthouse", "accuter", "cuteness", "highly pitched"):
             self.assertEqual(codes({"age": "adult", "tone": ok}), [], ok)
         self.assertEqual(len(codes({"age": "adult", "tone": "light-hearted"})), 1)
         self.assertEqual(len(codes({"age": "adult", "pitch": "HIGH-PITCHED"})), 1)
 
-    def test_each_banned_word_has_its_warning_with_a_suggestion(self):
-        for word, suggestion in sheet.BANNED_WORDS.items():
+    def test_each_banned_word_has_its_warning_with_the_suggestions(self):
+        for word in sheet.BANNED_WORDS:
             self.assertEqual(codes({"age": "adult", "texture": "very %s sound" % word}), [
-                ("sheet.banned_word", {"word": word, "suggestion": suggestion, "field": "texture"})], word)
+                ("sheet.banned_word", {"word": word, "suggestions": SUG, "field": "texture"})], word)
         self.assertEqual(set(sheet.BANNED_WORDS), {"bright", "cute", "small", "light", "childlike", "high-pitched"})
-        self.assertEqual(set(sheet.BANNED_WORDS.values()) - {"airy", "breathy", "soft-spoken", "whispering"}, set())
+        self.assertEqual(sheet.SUGGESTIONS, ("airy", "breathy", "soft-spoken", "whispering"))
+        self.assertEqual(SUG, "airy, breathy, soft-spoken, whispering")
 
     def test_banned_word_once_per_sheet_with_first_field_and_extra_is_scanned(self):
         result = codes({"age": "adult", "tone": "cute", "emotion": "cute", "extra": {"x": "small voice"}})
         self.assertEqual(result, [
-            ("sheet.banned_word", {"word": "cute", "suggestion": "soft-spoken", "field": "emotion"}),
-            ("sheet.banned_word", {"word": "small", "suggestion": "soft-spoken", "field": "x"})])
+            ("sheet.banned_word", {"word": "cute", "suggestions": SUG, "field": "emotion"}),
+            ("sheet.banned_word", {"word": "small", "suggestions": SUG, "field": "x"})])
 
     def test_age_and_words_together_age_first(self):
         result = codes({"age": "childlike teen", "tone": "bright"})

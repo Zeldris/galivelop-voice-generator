@@ -11,9 +11,9 @@ schema, not repeated here), as one English sentence ``A voice with gender: male;
 - ``sheet.age_minor`` (params ``age``): the age is not an adult one. Decided here: it is not adult if, as whole
   words and ignoring case, it contains one of `MINOR_WORDS` (child, kid, teen, ...), or any whole number below 18
   (``12``, ``under 16``). ``young``, ``adult``, ``young adult`` and ``30s`` are not flagged.
-- ``sheet.banned_word`` (params ``word``, ``suggestion``, ``field``): one per distinct word of `BANNED_WORDS` found
+- ``sheet.banned_word`` (params ``word``, ``suggestions``, ``field``): one per distinct word of `BANNED_WORDS` found
   in any value of the sheet (including ``extra``), whole words and ignoring case: ``bright`` matches ``Bright``
-  and ``bright-eyed``, not ``brightness``. ``field`` is the first key where it appears, in instruct order.
+  and ``bright-eyed``, not ``brightness``. ``suggestions`` is `SUGGESTIONS` joined with ``, `` (D11 gives them as a set, not one per word). ``field`` is the first key where it appears, in instruct order.
   Words come in the order of `BANNED_WORDS`.
 """
 from __future__ import annotations
@@ -23,16 +23,10 @@ import re
 from . import i18n, schema
 from .errors import GvoiceError
 
-# D11: words that push the model towards a childlike voice, each with the suggestion that replaces it.
+# D11: words that push the model towards a childlike voice, and the set of suggestions offered instead.
 # The only place they are written down.
-BANNED_WORDS = {
-    "bright": "airy",
-    "cute": "soft-spoken",
-    "small": "soft-spoken",
-    "light": "airy",
-    "childlike": "breathy",
-    "high-pitched": "whispering",
-}
+BANNED_WORDS = ("bright", "cute", "small", "light", "childlike", "high-pitched")
+SUGGESTIONS = ("airy", "breathy", "soft-spoken", "whispering")
 MINOR_WORDS = (
     "child", "children", "kid", "kids", "boy", "girl", "teen", "teens", "teenage", "teenager", "adolescent",
     "minor", "juvenile", "infant", "baby", "toddler", "preteen", "tween", "schoolboy", "schoolgirl",
@@ -85,11 +79,11 @@ def warnings(sheet: dict) -> list:
         found.append({"code": "sheet.age_missing", "params": {}})
     elif _is_minor(age):
         found.append({"code": "sheet.age_minor", "params": {"age": age}})
-    for word, suggestion in BANNED_WORDS.items():
+    for word in BANNED_WORDS:
         for field, text in entries:
             if _words(text, [word]):
                 found.append({"code": "sheet.banned_word",
-                              "params": {"word": word, "suggestion": suggestion, "field": field}})
+                              "params": {"word": word, "suggestions": ", ".join(SUGGESTIONS), "field": field}})
                 break
     return found
 

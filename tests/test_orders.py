@@ -435,6 +435,28 @@ class OrderTests(unittest.TestCase):
             file.write_text(json.dumps(bad))
             self.assertEqual(self.code(orders.list_orders, "proj"), "order.corrupt")
 
+    def test_corrupt_order_without_the_fields_of_its_type(self):
+        for type_, key, new, fields in (("voice", "narrator", self.new_voice, ("designSheet", "testText")),
+                                        ("line", "narrator/intro", self.new_line, ("voice", "text"))):
+            new()
+            file = paths.data_dir() / "projects/proj/orders" / type_ / key / "order.json"
+            good = json.loads(file.read_text())
+            for field in fields:
+                file.write_text(json.dumps({k: v for k, v in good.items() if k != field}))
+                self.assertEqual(self.code(orders.get, "proj", type_, key), "order.corrupt", field)
+                self.assertEqual(self.code(orders.attempt_specs, "proj", type_, key), "order.corrupt", field)
+
+    def test_seed_overflow(self):
+        top = 4294967295
+        self.new_voice(seed=top)
+        self.assertEqual([s["seed"] for s in orders.attempt_specs("proj", "voice", "narrator")], [top])
+        with self.assertRaises(GvoiceError) as cm:
+            orders.attempt_specs("proj", "voice", "narrator", 2)
+        self.assertEqual(cm.exception.code, "order.seed_overflow")
+        self.assertEqual(self.code(orders.attempt_specs, "proj", "voice", "narrator", 3, seed=top - 1),
+                         "order.seed_overflow")
+        self.assertEqual(len(orders.attempt_specs("proj", "voice", "narrator", 2, seed=top - 1)), 2)
+
     def test_messages_in_both_languages(self):
         self.new_voice(attempts=2)
         orders.choose("proj", "voice", "narrator", 1)

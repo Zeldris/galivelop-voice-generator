@@ -78,7 +78,7 @@ no `~/.config/galivelop-voice`. Datos: `$GVOICE_DATA_HOME`, si no `$XDG_DATA_HOM
 
 **Ficha de diseño** (`sheet`, D11). `build_instruct(sheet) -> str`: las claves presentes, en el orden fijo de
 `design-sheet.schema.json`, en una frase en inglés, más `extra` al final. `warnings(sheet) -> [{code, params}]`:
-`sheet.age_missing` / `sheet.age_minor` y `sheet.banned_word` (por cada palabra vetada de D11, con su sugerencia).
+`sheet.age_missing` / `sheet.age_minor` y `sheet.banned_word` (por cada palabra vetada de D11, con el conjunto de sugerencias).
 Avisan; nunca bloquean. La CLI los imprime al enviar un pedido `voice`.
 
 **Motor** (`engine`). Tres operaciones, todas con `should_cancel` y `timeout_s`: `design(DesignJob)` (instruct, texto,

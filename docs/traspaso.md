@@ -8,10 +8,10 @@
 
 | Campo | Valor |
 |---|---|
-| **Rama** | `ccr-a6c4dde9-3qadwv` |
-| **Fase / tarea** | Fase 0: flujo Galivelop-workflow v0.3.0 aplicado y llevado a `main` por PR; aún no hay código |
-| **Último punto estable** | Commit «Flujo Galivelop-workflow v0.3.0»: actualiza skills, ganchos, CI y plantillas desde la v0.1.0 |
-| **Siguiente paso** | Elegir el stack del generador de voz y sustituir el check provisional `true` en `.claude/gw.json` por el real (tests + linter) |
+| **Rama** | `claude/voces-diseno` |
+| **Fase / tarea** | Diseño del generador de voz a partir de `World-Maker-Fantasy/docs/arquitectura/reutilizables/02-voces-y-sonidos-locales.md`, con `grilling`; luego implementación. Presupuesto: 1 compactación para el diseño (llevadas: 0) |
+| **Último punto estable** | Investigación del estado actual del motor y las licencias: `docs/investigacion/2026-10-25-estado-voz.md` |
+| **Siguiente paso** | Ronda 1 de `grilling` con la persona: relación con `galivelop-image-generator`, alcance desarrollo/juego, sin dominio, motor, fauna y banco de pruebas en la Deck |
 | **Check** | `true`: verde (provisional, no comprueba nada) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con
@@ -19,14 +19,14 @@ la forma ``| **Tarea en curso · `<rama>`** | tarea, qué falta y siguiente paso
 
 ## Para la próxima publicación
 
-La aplicación del flujo, por pull request desde `ccr-a6c4dde9-3qadwv`, confirmada por la persona. El CI de GitHub está
-agotado: se corrieron en local los pasos de `comprobar.yml` en un clon limpio (validar config, install, check), en verde.
+Nada todavía: la aplicación del flujo ya está en `main` (`8216893`).
 
 ## Hecho (5 últimas)
 
-1. 2026-10-25 — Revisión, `opt-tokens` y retro (`docs/registros/retro-2026-10-25-aplicar-flujo.md`) antes de `main`.
-2. 2026-10-25 — Flujo actualizado a v0.3.0 (se había aplicado la v0.1.0 de la rama por defecto del repo del flujo).
-3. 2026-10-25 — Aplicado Galivelop-workflow con todas las skills (incluidas `opt-ai` y `scout-updates`).
+1. 2026-10-25 — Investigación de actualizaciones del documento de voces (motor activo sin binarios, español confirmado, Piper ahora GPL, riesgo Vulkan en APU AMD).
+2. 2026-10-25 — Revisión, `opt-tokens` y retro (`docs/registros/retro-2026-10-25-aplicar-flujo.md`) antes de `main`.
+3. 2026-10-25 — Flujo actualizado a v0.3.0 (se había aplicado la v0.1.0 de la rama por defecto del repo del flujo).
+4. 2026-10-25 — Aplicado Galivelop-workflow con todas las skills (incluidas `opt-ai` y `scout-updates`).
 
 ## Pendiente
 

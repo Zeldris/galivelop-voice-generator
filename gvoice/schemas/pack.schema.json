@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Voice pack",
+  "description": "pack.json at the root of the voice pack delivered to a project.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "formatVersion",
+    "engine",
+    "models"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Schema reference so editors can validate and complete the file."
+    },
+    "formatVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Pack format version."
+    },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commit"
+      ],
+      "properties": {
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,40}$",
+          "description": "Engine commit the pack was made with."
+        }
+      }
+    },
+    "models": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Models the pack was made with.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "sha256"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9.-]*$",
+            "description": "Model identifier, for example 0.6b-base."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "SHA-256 in lowercase hexadecimal."
+          }
+        }
+      }
+    }
+  }
+}

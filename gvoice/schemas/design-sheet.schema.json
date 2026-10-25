@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "description": "How a voice should sound: the 12 template keys (all optional) plus free-form extra attributes. The instruct is built from it in a fixed order.",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Schema reference so editors can validate and complete the file."
+    },
+    "gender": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Design attribute: gender."
+    },
+    "age": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Design attribute: age."
+    },
+    "pitch": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Design attribute: pitch."
+    },
+    "speed": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Design attribute: speed."
+    },
+    "volume": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Design attribute: volume."
+    },
+    "clarity": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Design attribute: clarity."
+    },
+    "fluency": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Design attribute: fluency."
+    },
+    "accent": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Design attribute: accent."
+    },
+    "texture": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Design attribute: texture."
+    },
+    "emotion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Design attribute: emotion."
+    },
+    "tone": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Design attribute: tone."
+    },
+    "personality": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Design attribute: personality."
+    },
+    "extra": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Free-form extra attributes, name to text."
+    }
+  },
+  "title": "Design sheet",
+  "required": []
+}

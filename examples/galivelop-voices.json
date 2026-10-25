@@ -1,0 +1,21 @@
+{
+  "$schema": "../gvoice/schemas/project-config.schema.json",
+  "minVersion": "0.1.0",
+  "name": "example-world",
+  "voices": {
+    "narrator": {
+      "description": "Main narrator"
+    },
+    "orc": {
+      "description": "Orc warchief",
+      "effects": "orc"
+    }
+  },
+  "printModels": [
+    "0.6b-base",
+    "1.7b-base"
+  ],
+  "delivery": {
+    "dir": "uploads/voices"
+  }
+}

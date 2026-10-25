@@ -1,0 +1,24 @@
+{
+  "$schema": "../gvoice/schemas/order.schema.json",
+  "key": "narrator",
+  "type": "voice",
+  "seed": 1234,
+  "testText": "The law of the obelisks admits no exceptions.",
+  "designSheet": {
+    "gender": "male",
+    "age": "middle-aged adult",
+    "pitch": "low",
+    "speed": "slow",
+    "volume": "moderate",
+    "clarity": "clear",
+    "fluency": "measured, deliberate pauses",
+    "accent": "neutral",
+    "texture": "dry, slightly rough",
+    "emotion": "calm",
+    "tone": "authoritative",
+    "personality": "precise and formal",
+    "extra": {
+      "breathing": "audible between sentences"
+    }
+  }
+}

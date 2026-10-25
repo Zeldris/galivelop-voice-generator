@@ -2,14 +2,18 @@
   "$schema": "gw/schema/gw.schema.json",
   "version": "0.3.0",
   "language": "es",
-  "visibleLanguages": [],
+  "visibleLanguages": [
+    "es",
+    "en"
+  ],
   "log": "docs/traspaso.md",
   "logRows": false,
   "protectedBranch": "main",
   "pushToProtected": "pr",
   "install": [],
   "check": [
-    "true"
+    "bash -n .githooks/pre-commit .githooks/pre-push",
+    "python3 -m unittest discover -s tests -t ."
   ],
   "reviewMark": "docs/registros/revisado.txt",
   "requireRetro": true,

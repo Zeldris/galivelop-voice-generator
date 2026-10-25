@@ -1,0 +1,45 @@
+{
+  "$schema": "../gvoice/schemas/effect-chain.schema.json",
+  "name": "orc",
+  "steps": [
+    {
+      "type": "highpass",
+      "freqHz": 80
+    },
+    {
+      "type": "equalizer",
+      "freqHz": 200,
+      "widthOctaves": 1,
+      "gainDb": 4
+    },
+    {
+      "type": "pitch",
+      "semitones": -3
+    },
+    {
+      "type": "saturation",
+      "drive": 0.3
+    },
+    {
+      "type": "reverb",
+      "impulse": "impulses/cave.wav",
+      "wet": 0.25,
+      "dry": 0.8
+    },
+    {
+      "type": "chorus",
+      "delayMs": 20,
+      "depth": 0.2,
+      "rateHz": 0.5,
+      "wet": 0.3
+    },
+    {
+      "type": "lowpass",
+      "freqHz": 9000
+    },
+    {
+      "type": "gain",
+      "gainDb": -2
+    }
+  ]
+}

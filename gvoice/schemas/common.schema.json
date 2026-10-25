@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Common definitions",
+  "description": "Definitions shared by the other schemas through $ref: one fact, one place.",
+  "$defs": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "Lowercase letters, digits and hyphens."
+    },
+    "key": {
+      "type": "string",
+      "maxLength": 100,
+      "pattern": "^[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)*$",
+      "description": "Key; slash-separated safe segments, no leading slash and no .. segments."
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![/~])(?!.*(^|/)\\.\\.(/|$))[^\\\\\\u0000-\\u001f\\u007f]+$",
+      "description": "Relative path that cannot be absolute, start with ~, contain .. segments, backslashes or control characters."
+    },
+    "baseModel": {
+      "type": "string",
+      "enum": [
+        "0.6b-base",
+        "1.7b-base"
+      ],
+      "description": "Base (cloning) model used to produce lines."
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295,
+      "description": "Random seed: an unsigned 32-bit integer."
+    },
+    "testText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "description": "Test sentence spoken in every take of a voice."
+    },
+    "device": {
+      "type": "string",
+      "pattern": "^(cpu|[A-Za-z]+[0-9]+)$",
+      "description": "Engine device as in the machine profile, for example cpu or Vulkan0. The same seed gives different takes on different devices (D16)."
+    }
+  }
+}

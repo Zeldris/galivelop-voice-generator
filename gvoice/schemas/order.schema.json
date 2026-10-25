@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Order",
+  "description": "A request to design a voice (type voice) or generate a line (type line). Type sound is reserved for F7.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "key",
+    "type"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Schema reference so editors can validate and complete the file."
+    },
+    "key": {
+      "$ref": "common.schema.json#/$defs/key",
+      "description": "Order key: the voice key for a voice order, the line key for a line order."
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "voice",
+        "line"
+      ],
+      "description": "Order type; sound is reserved for a later phase."
+    },
+    "seed": {
+      "$ref": "common.schema.json#/$defs/seed"
+    },
+    "testText": {
+      "$ref": "common.schema.json#/$defs/testText",
+      "description": "voice: test sentence spoken in every take."
+    },
+    "designSheet": {
+      "$ref": "design-sheet.schema.json",
+      "description": "voice: design sheet the instruct is built from."
+    },
+    "voice": {
+      "$ref": "common.schema.json#/$defs/key",
+      "description": "line: key of the voice that speaks."
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000,
+      "description": "line: text to speak."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "const": "line"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "voice",
+          "text"
+        ],
+        "properties": {
+          "designSheet": false,
+          "testText": false
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "const": "voice"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "designSheet",
+          "testText"
+        ],
+        "properties": {
+          "voice": false,
+          "text": false
+        }
+      }
+    }
+  ]
+}

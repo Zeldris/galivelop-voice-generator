@@ -1,0 +1,35 @@
+{
+  "$schema": "../gvoice/schemas/voice.schema.json",
+  "key": "narrator",
+  "designSheet": {
+    "gender": "male",
+    "age": "middle-aged adult",
+    "pitch": "low",
+    "speed": "slow",
+    "volume": "moderate",
+    "clarity": "clear",
+    "fluency": "measured, deliberate pauses",
+    "accent": "neutral",
+    "texture": "dry, slightly rough",
+    "emotion": "calm",
+    "tone": "authoritative",
+    "personality": "precise and formal",
+    "extra": {
+      "breathing": "audible between sentences"
+    }
+  },
+  "device": "Vulkan0",
+  "seed": 1234,
+  "testText": "The law of the obelisks admits no exceptions.",
+  "reference": {
+    "audio": "reference.wav",
+    "text": "reference.txt"
+  },
+  "prints": {
+    "0.6b-base": {
+      "device": "Vulkan0",
+      "spk": "prints/0.6b-base.spk",
+      "rvq": "prints/0.6b-base.rvq"
+    }
+  }
+}

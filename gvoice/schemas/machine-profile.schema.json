@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Machine profile",
+  "description": "Resource limits and engine settings for a specific machine.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "minFreeMemoryMb",
+    "watchMemoryMb",
+    "timeoutS",
+    "engine",
+    "models"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Schema reference so editors can validate and complete the file."
+    },
+    "name": {
+      "$ref": "common.schema.json#/$defs/name",
+      "description": "Profile name."
+    },
+    "minFreeMemoryMb": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Minimum free memory in MB required to start."
+    },
+    "watchMemoryMb": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Abort if MemAvailable drops below this many MB during generation."
+    },
+    "timeoutS": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Timeout per attempt in seconds."
+    },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "device"
+      ],
+      "description": "Engine settings.",
+      "properties": {
+        "device": {
+          "$ref": "common.schema.json#/$defs/device",
+          "description": "Preferred device, for example Vulkan0 or cpu."
+        },
+        "fallbackDevice": {
+          "type": "string",
+          "enum": [
+            "cpu"
+          ],
+          "description": "Device used if the preferred one is unusable."
+        }
+      }
+    },
+    "models": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "design",
+        "produce"
+      ],
+      "description": "Models by use.",
+      "properties": {
+        "design": {
+          "$ref": "#/$defs/designModel"
+        },
+        "produce": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "common.schema.json#/$defs/baseModel"
+          },
+          "description": "Base models usable to produce lines on this machine."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "designModel": {
+      "type": "string",
+      "enum": [
+        "1.7b-voicedesign"
+      ],
+      "description": "Model used to design voices."
+    }
+  }
+}

@@ -1,0 +1,307 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Effect chain",
+  "description": "Effect chain defined by its meaning in ffmpeg; the generator and the game apply the same filter graph.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "steps"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Schema reference so editors can validate and complete the file."
+    },
+    "name": {
+      "$ref": "common.schema.json#/$defs/name",
+      "description": "Chain name."
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/step"
+      },
+      "description": "Steps applied in order."
+    }
+  },
+  "$defs": {
+    "step": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "description": "One effect step. Each type requires and admits only its own parameters (the allOf below).",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "highpass",
+            "lowpass",
+            "equalizer",
+            "gain",
+            "saturation",
+            "reverb",
+            "chorus",
+            "pitch"
+          ],
+          "description": "Effect type (closed vocabulary)."
+        },
+        "freqHz": {
+          "type": "number",
+          "minimum": 20,
+          "maximum": 20000,
+          "description": "highpass, lowpass, equalizer: cutoff or center frequency in Hz."
+        },
+        "widthOctaves": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 10,
+          "description": "equalizer: band width in octaves."
+        },
+        "gainDb": {
+          "type": "number",
+          "minimum": -60,
+          "maximum": 24,
+          "description": "equalizer, gain: gain in dB."
+        },
+        "drive": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "saturation: amount of soft saturation."
+        },
+        "impulse": {
+          "$ref": "common.schema.json#/$defs/relativePath",
+          "description": "reverb: impulse response file, relative to the effect chain's folder."
+        },
+        "wet": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "reverb, chorus: level of the processed signal."
+        },
+        "dry": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "reverb: level of the unprocessed signal."
+        },
+        "delayMs": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "chorus: delay in ms."
+        },
+        "depth": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "chorus: modulation depth."
+        },
+        "rateHz": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 10,
+          "description": "chorus: modulation rate in Hz."
+        },
+        "semitones": {
+          "type": "number",
+          "minimum": -24,
+          "maximum": 24,
+          "description": "pitch: shift in semitones (moves formants too)."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "highpass"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "freqHz"
+            ],
+            "properties": {
+              "type": true,
+              "freqHz": true
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "lowpass"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "freqHz"
+            ],
+            "properties": {
+              "type": true,
+              "freqHz": true
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "equalizer"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "freqHz",
+              "widthOctaves",
+              "gainDb"
+            ],
+            "properties": {
+              "type": true,
+              "freqHz": true,
+              "widthOctaves": true,
+              "gainDb": true
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "gain"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "gainDb"
+            ],
+            "properties": {
+              "type": true,
+              "gainDb": true
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "saturation"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "drive"
+            ],
+            "properties": {
+              "type": true,
+              "drive": true
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "reverb"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "impulse"
+            ],
+            "properties": {
+              "type": true,
+              "impulse": true,
+              "wet": true,
+              "dry": true
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "chorus"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "delayMs",
+              "depth",
+              "rateHz"
+            ],
+            "properties": {
+              "type": true,
+              "delayMs": true,
+              "depth": true,
+              "rateHz": true,
+              "wet": true
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "pitch"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "semitones"
+            ],
+            "properties": {
+              "type": true,
+              "semitones": true
+            },
+            "additionalProperties": false
+          }
+        }
+      ]
+    }
+  }
+}

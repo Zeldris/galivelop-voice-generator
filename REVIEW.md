@@ -2,7 +2,7 @@
 # Guía de revisión
 
 Lo que el revisor (`/code-review`, o cualquier agente que revise un diff) comprueba en cada diff de galivelop-voice-generator,
-además de los fallos de siempre. Lo mecánico ya lo hacen el check (`true`) y los ganchos de git; aquí está lo que
+además de los fallos de siempre. Lo mecánico ya lo hacen el check (`bash -n .githooks/pre-commit && bash -n .githooks/pre-push && python3 -m unittest discover -s tests -t .`) y los ganchos de git; aquí está lo que
 pide criterio. La rellena el proyecto; el flujo nunca la sobrescribe una vez creada.
 
 ## Un dato, un sitio
@@ -43,3 +43,7 @@ pide criterio. La rellena el proyecto; el flujo nunca la sobrescribe una vez cre
 ## Reglas del proyecto
 
 <!-- Las rellena el proyecto: lo que nunca se publica, reglas del dominio, accesibilidad, rendimiento, seguridad. -->
+
+- **Esquemas** (`gvoice/schemas/`): un dato que usan dos esquemas vive en `common.schema.json` (o en el esquema que lo
+  define, como la ficha de diseño) y se enlaza con `$ref`; un objeto con `type` valida los campos de cada tipo con
+  `if`/`then`, sin admitir los de otro tipo.

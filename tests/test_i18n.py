@@ -1,0 +1,118 @@
+import json
+import os
+import string
+import unittest
+from pathlib import Path
+from unittest import mock
+
+from gvoice import i18n, schema as S
+
+LOCALES = Path(__file__).resolve().parent.parent / "gvoice" / "locales"
+
+
+def load(lang):
+    with open(LOCALES / (lang + ".json"), encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def placeholders(text):
+    return {f for _, f, _, _ in string.Formatter().parse(text) if f}
+
+
+class LocaleTests(unittest.TestCase):
+    def test_same_keys_and_placeholders(self):
+        es, en = load("es"), load("en")
+        self.assertEqual(set(es), set(en))
+        for key in es:
+            self.assertEqual(placeholders(es[key]), placeholders(en[key]), key)
+
+    def test_every_validator_code_has_text(self):
+        for lang in ("es", "en"):
+            data = load(lang)
+            for code in S.CODES:
+                self.assertIn("schema." + code, data, (lang, code))
+
+    def test_codes_have_same_placeholders_in_both_languages(self):
+        es, en = load("es"), load("en")
+        for code in S.CODES:
+            key = "schema." + code
+            self.assertEqual(placeholders(es[key]), placeholders(en[key]), key)
+
+    def test_all_messages_render(self):
+        params = {"path": "/p", "name": "n", "expected": "e", "allowed": "a",
+                  "pattern": "p", "limit": 1}
+        for lang in ("es", "en"):
+            for code in S.CODES:
+                text = i18n.t("schema." + code, lang, **params)
+                self.assertIn("/p", text)
+
+
+class FallbackTests(unittest.TestCase):
+    def test_language_texts(self):
+        self.assertIn("falta", i18n.t("schema.required", "es", path="/", name="x"))
+        self.assertIn("missing", i18n.t("schema.required", "en", path="/", name="x"))
+
+    def test_unknown_language_falls_back_to_en(self):
+        self.assertIn("missing", i18n.t("schema.required", "xx", path="/", name="x"))
+
+    def test_unknown_key_returns_key(self):
+        self.assertEqual(i18n.t("no.such.key", "es"), "no.such.key")
+
+    def test_key_missing_in_lang_falls_back_to_en(self):
+        with mock.patch.dict(i18n._cache, {"es": {}, "en": {"k": "english {a}"}}):
+            self.assertEqual(i18n.t("k", "es", a=1), "english 1")
+
+
+class DefaultLangTests(unittest.TestCase):
+    def check(self, env, expected):
+        with mock.patch.dict(os.environ, env, clear=True):
+            self.assertEqual(i18n.default_lang(), expected)
+
+    def test_explicit_wins(self):
+        self.check({"GVOICE_LANG": "en", "LANG": "es_ES.UTF-8"}, "en")
+        self.check({"GVOICE_LANG": "es", "LANG": "en_US.UTF-8"}, "es")
+
+    def test_from_lang(self):
+        self.check({"LANG": "es_ES.UTF-8"}, "es")
+        self.check({"LANG": "en_US.UTF-8"}, "en")
+
+    def test_lc_all_precedes_lang(self):
+        self.check({"LC_ALL": "es_ES.UTF-8", "LANG": "en_US.UTF-8"}, "es")
+        self.check({"LC_ALL": "en_US.UTF-8", "LANG": "es_ES.UTF-8"}, "en")
+
+    def test_full_precedence_order(self):
+        env = {"GVOICE_LANG": "en", "LC_ALL": "es", "LC_MESSAGES": "es", "LANG": "es"}
+        self.check(env, "en")
+        del env["GVOICE_LANG"]
+        self.check(env, "es")
+        self.check({"LC_ALL": "en_US", "LC_MESSAGES": "es_ES", "LANG": "es_ES"}, "en")
+        self.check({"LC_MESSAGES": "es_ES", "LANG": "en_US"}, "es")
+        self.check({"LC_MESSAGES": "en_US", "LANG": "es_ES"}, "en")
+        self.check({"LC_ALL": "", "LC_MESSAGES": "", "LANG": "es_ES"}, "es")
+
+    def test_gvoice_lang_is_normalised_like_lang(self):
+        self.check({"GVOICE_LANG": "es_ES.UTF-8"}, "es")
+        self.check({"GVOICE_LANG": "EN_us"}, "en")
+        self.check({"GVOICE_LANG": "es@euro", "LANG": "en_US"}, "es")
+
+    def test_gvoice_lang_only_accepts_existing_locales(self):
+        for bad in ("../..", "../locales/es", "xx", "fr_FR.UTF-8", "/etc/passwd", "es/../en"):
+            self.check({"GVOICE_LANG": bad, "LANG": "es_ES.UTF-8"}, i18n.FALLBACK)
+
+    def test_lang_without_locale_falls_back(self):
+        self.check({"LANG": "fr_FR.UTF-8"}, i18n.FALLBACK)
+        self.check({"LANG": "C"}, i18n.FALLBACK)
+
+    def test_t_never_reads_outside_locales(self):
+        i18n.t("no.such.key", "es")  # warm the cache of the real locales
+        i18n.t("no.such.key", "en")
+        with mock.patch("builtins.open", side_effect=AssertionError("opened a file")):
+            self.assertEqual(i18n.t("no.such.key", "../../etc/passwd"), "no.such.key")
+        self.assertNotIn("../../etc/passwd", i18n._cache)
+
+    def test_default_en(self):
+        self.check({}, "en")
+
+
+if __name__ == "__main__":
+    unittest.main()

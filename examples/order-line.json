@@ -1,0 +1,8 @@
+{
+  "$schema": "../gvoice/schemas/order.schema.json",
+  "key": "narrator/intro-01",
+  "type": "line",
+  "voice": "narrator",
+  "text": "Long ago, the valley was silent.",
+  "seed": 7
+}

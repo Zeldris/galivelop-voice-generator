@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Voice",
+  "description": "voice.json of one voice inside a voice pack.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "key",
+    "designSheet",
+    "device",
+    "reference"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Schema reference so editors can validate and complete the file."
+    },
+    "key": {
+      "$ref": "common.schema.json#/$defs/key",
+      "description": "Voice key."
+    },
+    "designSheet": {
+      "$ref": "design-sheet.schema.json"
+    },
+    "seed": {
+      "$ref": "common.schema.json#/$defs/seed"
+    },
+    "testText": {
+      "$ref": "common.schema.json#/$defs/testText",
+      "description": "Test sentence of the chosen take."
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "audio",
+        "text"
+      ],
+      "properties": {
+        "audio": {
+          "$ref": "common.schema.json#/$defs/relativePath",
+          "description": "Reference audio file, relative to the voice folder."
+        },
+        "text": {
+          "$ref": "common.schema.json#/$defs/relativePath",
+          "description": "Reference transcript file, relative to the voice folder."
+        }
+      }
+    },
+    "prints": {
+      "type": "object",
+      "description": "Prints by base model id; each remembers the device it was extracted on (D16).",
+      "propertyNames": {
+        "$ref": "common.schema.json#/$defs/baseModel"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "device",
+          "spk",
+          "rvq"
+        ],
+        "properties": {
+          "device": {
+            "$ref": "common.schema.json#/$defs/device",
+            "description": "Device the print was extracted on (D16)."
+          },
+          "spk": {
+            "$ref": "common.schema.json#/$defs/relativePath"
+          },
+          "rvq": {
+            "$ref": "common.schema.json#/$defs/relativePath"
+          }
+        }
+      }
+    },
+    "effects": {
+      "$ref": "common.schema.json#/$defs/name",
+      "description": "Name of the effect chain applied at playback."
+    },
+    "device": {
+      "$ref": "common.schema.json#/$defs/device",
+      "description": "Device the reference was generated on (D16)."
+    }
+  }
+}

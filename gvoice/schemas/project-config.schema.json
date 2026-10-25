@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Project configuration",
+  "description": "Per-project configuration file (galivelop-voices.json) read by the voice generator.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "minVersion",
+    "name",
+    "voices",
+    "delivery"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Schema reference so editors can validate and complete the file."
+    },
+    "minVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Minimum generator version (semver) this project requires."
+    },
+    "name": {
+      "$ref": "common.schema.json#/$defs/name",
+      "description": "Project name."
+    },
+    "voices": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "common.schema.json#/$defs/key"
+      },
+      "description": "Voice keys of the project, each with an optional description and effect chain name.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "What the voice is for (free text)."
+          },
+          "effects": {
+            "$ref": "common.schema.json#/$defs/name",
+            "description": "Name of the effect chain the game applies to this voice."
+          }
+        }
+      }
+    },
+    "printModels": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "common.schema.json#/$defs/baseModel"
+      },
+      "description": "Base models to extract a print for when a reference is chosen. Omitted: every base model of common.schema.json."
+    },
+    "delivery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dir"
+      ],
+      "description": "Where the voice pack is delivered inside the project repository.",
+      "properties": {
+        "dir": {
+          "$ref": "common.schema.json#/$defs/relativePath",
+          "description": "Delivery directory, relative to the project root."
+        }
+      }
+    }
+  }
+}

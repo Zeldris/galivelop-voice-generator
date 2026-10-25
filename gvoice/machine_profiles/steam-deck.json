@@ -1,0 +1,18 @@
+{
+  "$schema": "../schemas/machine-profile.schema.json",
+  "name": "steam-deck",
+  "minFreeMemoryMb": 4096,
+  "watchMemoryMb": 1536,
+  "timeoutS": 900,
+  "engine": {
+    "device": "Vulkan0",
+    "fallbackDevice": "cpu"
+  },
+  "models": {
+    "design": "1.7b-voicedesign",
+    "produce": [
+      "0.6b-base",
+      "1.7b-base"
+    ]
+  }
+}

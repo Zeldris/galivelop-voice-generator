@@ -11,7 +11,7 @@
 | **Rama** | `claude/voces-f1` |
 | **Fase / tarea** | F1 Núcleo (`docs/plan.md`, «F1 en detalle», pasos F1.1-F1.6). Compactaciones: 0 de 1 presupuestada |
 | **Último punto estable** | F1.5 con los arreglos de su revisión corta (`voices`; 378 tests). Antes, F1.4 (`queue` y `worker`). Antes, F1.3 con sus arreglos (`engine`, `machine`, `machinelock`, `log`), F1.2 (`orders`, `sheet`) y F1.1 |
-| **Siguiente paso** | F1.6: `cli` (`python3 -m gvoice`, con `voice status`, `choose`, `undo`), prueba del ciclo completo y README es/en |
+| **Siguiente paso** | F1.6 (sin empezar: se paró por decisión de la persona antes de escribir nada): `cli` (`python3 -m gvoice`, desde `gimg/cli.py`@0d02f51; `project`, pedidos de `voice` y `line`, `queue`, `work`, `voice choose/undo/status`, `version`, `--lang`, `--json`), prueba de extremo a extremo por subproceso y README es/en. Luego, las tres fases de revisión de F1 antes de `main` |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`, 378 tests) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con

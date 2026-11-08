@@ -12,6 +12,7 @@
 | **Fase / tarea** | F0 Esqueleto (`docs/plan.md`), primera fase del roadmap F0-F7. Compactaciones: 0 de 1 presupuestada |
 | **Último punto estable** | F0 con los arreglos de la revisión de código: validador con `$ref` hermano, `allOf` e `if`/`then`/`else`; `common.schema.json`; pedido y pasos de efecto por tipo; D16 en `voice.json`; i18n normalizado (87 tests) |
 | **Siguiente paso** | F1 Núcleo (`docs/plan.md`) en una rama nueva desde `main` |
+| **Tarea en curso · `ccr-a6c4dde9-3qadwv`** | Apuntado VoiceStudio como repo de referencia (`docs/investigacion/2026-11-08-voicestudio.md`). Falta: localizar su URL y revisarlo con un subagente. Siguiente: lo que pida la persona; F1 sigue siendo el siguiente paso del proyecto |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`, 87 tests) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con
@@ -31,6 +32,7 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 
 ## Pendiente
 
+- Revisar VoiceStudio (AGPL-3.0; solo ideas, sin copiar código): `docs/investigacion/2026-11-08-voicestudio.md`.
 - Hallazgos leves de la revisión de F0, sin arreglar en este PR: el mensaje de `propertyNames` sale con «()» vacío cuando el motivo no es un `pattern` (p. ej. un `enum`) y solo cuenta el primer motivo (`gvoice/schema.py`); `i18n.t()` lanza `KeyError` si a un idioma le falta un parámetro del texto y no mira `LANGUAGE`; los commits `81d76f1` y `7cebd24` de F0 tienen `Siguiente:` separado de la atribución por una línea en blanco.
 - F1: `printModels` ya no tiene `default` en el esquema; el valor por defecto de D14 (0.6B y 1.7B Base) lo aplica el
   código al cargar la configuración.

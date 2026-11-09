@@ -12,7 +12,7 @@
 | **Fase / tarea** | F0 Esqueleto (`docs/plan.md`), primera fase del roadmap F0-F7. Compactaciones: 0 de 1 presupuestada |
 | **Último punto estable** | F0 con los arreglos de la revisión de código: validador con `$ref` hermano, `allOf` e `if`/`then`/`else`; `common.schema.json`; pedido y pasos de efecto por tipo; D16 en `voice.json`; i18n normalizado (87 tests) |
 | **Siguiente paso** | F1 Núcleo (`docs/plan.md`) en una rama nueva desde `main` |
-| **Tarea en curso · `ccr-a6c4dde9-3qadwv`** | Apuntado VoiceStudio como repo de referencia (`docs/investigacion/2026-11-08-voicestudio.md`). Falta: localizar su URL y revisarlo con un subagente. Siguiente: lo que pida la persona; F1 sigue siendo el siguiente paso del proyecto |
+| **Tarea en curso · `ccr-a6c4dde9-3qadwv`** | Apuntado VoiceStudio como repo de referencia (`docs/investigacion/2026-11-08-voicestudio.md`). Repo: `debpalash/VoiceStudio`. Falta: revisarlo con un subagente. Siguiente: lo que pida la persona; F1 sigue siendo el siguiente paso del proyecto |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`, 87 tests) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con

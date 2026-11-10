@@ -8,10 +8,10 @@
 
 | Campo | Valor |
 |---|---|
-| **Rama** | `claude/voces-f0` |
-| **Fase / tarea** | F0 Esqueleto (`docs/plan.md`), primera fase del roadmap F0-F7. Compactaciones: 0 de 1 presupuestada |
+| **Rama** | `ccr-60ec66f6-qbtc42` (asignada por la sesión, desde `main` en `195bb86`) |
+| **Fase / tarea** | F1 Núcleo (`docs/plan.md`), en marcha. Compactaciones: 0 de 2 presupuestadas |
 | **Último punto estable** | F0 con los arreglos de la revisión de código: validador con `$ref` hermano, `allOf` e `if`/`then`/`else`; `common.schema.json`; pedido y pasos de efecto por tipo; D16 en `voice.json`; i18n normalizado (87 tests) |
-| **Siguiente paso** | F1 Núcleo (`docs/plan.md`) en una rama nueva desde `main` |
+| **Siguiente paso** | F1: traer el núcleo de `gimg` (rutas, proyectos, pedidos, límites, registro) a `gvoice/` con `Copiado de gimg@<sha>` |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`, 87 tests) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con

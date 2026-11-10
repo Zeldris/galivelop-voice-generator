@@ -1,12 +1,12 @@
 {
   "$schema": "gw/schema/gw.schema.json",
-  "version": "0.3.0",
+  "version": "0.5.1",
+  "schemaVersion": 1,
   "language": "es",
   "visibleLanguages": [
     "es",
     "en"
   ],
-  "log": "docs/traspaso.md",
   "logRows": false,
   "protectedBranch": "main",
   "pushToProtected": "pr",
@@ -16,8 +16,8 @@
     "bash -n .githooks/pre-push",
     "python3 -m unittest discover -s tests -t ."
   ],
-  "reviewMark": "docs/registros/revisado.txt",
   "requireRetro": true,
+  "agentSignatures": false,
   "content": [
     "^docs/",
     "\\.md$",

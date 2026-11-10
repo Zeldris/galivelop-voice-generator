@@ -1,5 +1,5 @@
 {
-  "$comment": "galivelop-workflow v0.3.0",
+  "$comment": "galivelop-workflow v0.5.1",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/zeldris/Galivelop-workflow/main/schema/gw.schema.json",
   "title": "Galivelop-workflow project config (.claude/gw.json)",
@@ -9,11 +9,9 @@
   "required": [
     "version",
     "language",
-    "log",
     "protectedBranch",
     "pushToProtected",
     "check",
-    "reviewMark",
     "content"
   ],
   "properties": {
@@ -22,8 +20,13 @@
     },
     "version": {
       "type": "string",
-      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$",
+      "pattern": "^\\S+$",
       "description": "Workflow version the project was applied with."
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Version of the gw.json format; absent = 0 (written before 0.5). An older one is migrated in memory by config.py and written by /gw-update; a newer one than the workflow knows fails closed."
     },
     "language": {
       "enum": [
@@ -43,12 +46,18 @@
     "log": {
       "type": "string",
       "minLength": 1,
-      "description": "Hand-off log path, relative to the repo root."
+      "default": "docs/handoff.md",
+      "description": "Hand-off log path, relative to the repo root. Absent: docs/handoff.md, or the old docs/traspaso.md when only that exists (0.x; /gw-update moves it)."
+    },
+    "keepLegacyPaths": {
+      "type": "boolean",
+      "default": false,
+      "description": "true: the project keeps its old Spanish paths (docs/traspaso.md, docs/registros/, docs/propuestas/), written explicitly in this file; apply.py then plans no move of them. `apply.py --keep-paths` sets it."
     },
     "logRows": {
       "type": "boolean",
       "default": false,
-      "description": "One row per branch with a size limit (bitacora.py)."
+      "description": "One row per branch with a size limit (handoff.py)."
     },
     "protectedBranch": {
       "type": "string",
@@ -101,6 +110,35 @@
       "default": "",
       "description": "Prefix put before every `check` and `relatedTests` command (e.g. tools/qa/host.sh); empty for none."
     },
+    "checkLockWait": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "Seconds scripts/check.sh waits for another check that holds the lock (<git common dir>/gw/check.lock) before exiting 3 and naming its pid and sha; 0 = do not wait."
+    },
+    "checkReuseMark": {
+      "type": "boolean",
+      "default": true,
+      "description": "The pre-push skips its check on a commit that only adds or edits the reviewMark file on top of a parent whose tree is recorded green (the commit scripts/reviewed.sh makes); false runs the check on it."
+    },
+    "checkCacheInputs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^(?!/)(?!(.*/)?\\.\\.(/|$)).+$"
+      },
+      "default": [
+        ".claude/gw.local.json"
+      ],
+      "description": "Files (relative to the repo root, no '..') whose content is part of the check-cache key, for ignored files the check reads and the git tree does not see; a missing file counts as absent; [] = the key is the tree alone."
+    },
+    "checkOutputGrace": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 5,
+      "description": "Seconds scripts/check.sh waits, after a command ends, for the output it was copying to the log; a command that leaves a background process holding the output cannot hang the check longer than this."
+    },
     "worktreeLinks": {
       "type": "array",
       "items": {
@@ -122,12 +160,105 @@
     "reviewMark": {
       "type": "string",
       "minLength": 1,
-      "description": "Committed file holding the reviewed commit sha."
+      "default": "docs/records/reviewed.txt",
+      "description": "Committed file holding the reviewed commit sha. Absent: docs/records/reviewed.txt, or the old docs/registros/revisado.txt when only that exists (0.x; /gw-update moves it)."
+    },
+    "recordsDir": {
+      "type": "string",
+      "default": "docs/records",
+      "pattern": "^(?!/)(?!(.*/)?\\.\\.(/|$)).+[^/]$",
+      "description": "Repo-relative folder where the workflow's skills write their reports (retro-*.md, opt-tokens and opt-ai reports, release texts). Absent: docs/records, or the old docs/registros when only that exists (0.x; /gw-update moves it)."
+    },
+    "proposalsDir": {
+      "type": "string",
+      "default": "docs/proposals",
+      "pattern": "^(?!/)(?!(.*/)?\\.\\.(/|$)).+[^/]$",
+      "description": "Repo-relative folder where gw-harvest writes its `# Harvest` files (and state.json), which `version.py --release` requires. Absent: docs/proposals, or the old docs/propuestas when only that exists (0.x; /gw-update moves it)."
     },
     "requireRetro": {
       "type": "boolean",
       "default": false,
-      "description": "revisado.sh requires a retro with a decided status on the branch."
+      "description": "reviewed.sh requires a retro with a decided status on the branch."
+    },
+    "agentSignatures": {
+      "type": "boolean",
+      "default": true,
+      "description": "false: the commit-msg hook rejects agent signatures (a Co-Authored-By of a Claude model or with noreply@anthropic.com, Claude-Session, lines starting with \"Generated with Claude Code\" or a claude.ai/code/session link)."
+    },
+    "commitFormat": {
+      "type": "string",
+      "enum": ["free", "conventional"],
+      "default": "free",
+      "description": "Format of the first line of a commit message: free (any) or conventional (`type(scope)!: text`, checked by the commit-msg hook; WIP: and the lines git writes itself pass)."
+    },
+    "commitRefs": {
+      "type": "boolean",
+      "default": false,
+      "description": "true: the commit-msg hook requires a `Refs: <task id>` trailer (ids separated by commas) whose ids open an entry in refsSources; merges, reverts, cherry-picks and rebases are exempt."
+    },
+    "commitNext": {
+      "type": "boolean",
+      "default": false,
+      "description": "true: the commit-msg hook requires a non-empty next-step trailer in the last paragraph (`Siguiente:` with language es, `Next:` with en); GW_NO_NEXT=1 skips it for one commit; merges, reverts, cherry-picks, rebases and fixup!/squash!/amend!/Revert lines are exempt, and merge-branch.sh requires it in its message."
+    },
+    "refsSources": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "default": [],
+      "description": "Repo-relative files or folders (their tracked .md files) whose entries (table rows or list items) give the valid ids of `Refs:`, read from the index. Empty: `plan` plus `log`."
+    },
+    "ciLocalLog": {
+      "type": "string",
+      "default": "docs/records/ci-local.md",
+      "pattern": "^(?!/)(?!(.*/)?\\.\\.(/|$)).+\\.md$",
+      "description": "Repo-relative file where `ci-local.py --record` records each local run of the GitHub CI (a Markdown file; absent: docs/records/ci-local.md, or the old docs/registros/ci-local.md when only that exists). The PR hook takes a green line of it, whose commit has only content after it, as the CI that GitHub did not start (no Actions quota, no runners); it is never code for is-code.sh."
+    },
+    "ciLocalWorkflows": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "default": [],
+      "description": "Repo-relative workflow files that `ci-local.py` runs, whatever their triggers; empty: every .github/workflows/*.yml|yaml triggered by the event."
+    },
+    "ciKeepSteps": {
+      "type": "boolean",
+      "default": true,
+      "description": "true: apply.py never replaces .github/workflows/check.yml when it has lines of the project's own (steps, Node version, cache...) that neither the template nor an earlier one has, not even with --update; it writes check.yml.gw-new and says how to merge. false: the old behaviour (an older copy is replaced)."
+    },
+    "legacyNames": {
+      "type": "boolean",
+      "default": true,
+      "description": "true: apply.py lists, as warnings with file:line, the uses of the pre-A8 Spanish names (scripts, skill folders, notes, comprobar.yml, docs/traspaso.md...) in the project's own text files. false: no listing."
+    },
+    "legacyNamesSkip": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "default": ["CHANGELOG*"],
+      "description": "Globs (fnmatch, on the repo-relative path) of files apply.py never lists old-name uses in, as history that is not renamed. The log, recordsDir and proposalsDir are always skipped."
+    },
+    "legacyNamesMax": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 50,
+      "description": "Most old-name uses apply.py lists per run (the rest is counted)."
+    },
+    "ciPython": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^\\S+$"},
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "Python versions the CI template runs as a matrix (non-empty strings without spaces, e.g. [\"3.10\", \"3.13\"]; quote them so 3.10 is not read as 3.1). Absent: one job with \"3.x\". Not [] (use no key)."
+    },
+    "ciIgnore": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "default": [],
+      "description": "Names of foreign CI checks (a check-run name or a commit status context, e.g. a deploy) that do not block the merge nor count as the project's CI. An exact name, or a name with `*` for any text (`vercel*`); case matters; no regex. An ignored check never turns a red or pending check of the project into green, and a commit where only ignored checks reported counts as no CI."
+    },
+    "nonTestExtensions": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^[a-z0-9]+$"},
+      "default": ["md", "json", "yml", "yaml", "properties", "txt", "csv"],
+      "description": "File extensions (lower case, no dot; the file's own extension is compared in lower case) of text and data files that red-without-fix.sh does not search for test code, so prose such as `improve it (URL)` is not mistaken for an `it(` test. A file with no extension is always searched. [] searches every file. Some stacks keep tests in .md/.txt (doctest) or .yml/.yaml (specs): remove those extensions from the list, otherwise an uncommitted test there is skipped and stashed with the fix."
     },
     "content": {
       "type": "array",
@@ -182,7 +313,7 @@
         "minLength": 1
       },
       "default": [],
-      "description": "Headings of the log sections recuperar.py --estado shows after a compaction or /clear (without logRows). Empty: the first section and the one named Pendiente/Pending."
+      "description": "Headings of the log sections recover.py --state shows after a compaction or /clear (without logRows). Empty: the first section and the one named Pendiente/Pending."
     },
     "designReferences": {
       "type": "array",
@@ -235,7 +366,7 @@
         }
       ],
       "default": [],
-      "description": "Case-insensitive regexes that must not appear in docs (enlaces-md.py): a list, or {\"patterns\": [...], \"skip\": [globs]} where skip lists repo-relative files or folders the check does not read (`*` stays inside a folder, `**` crosses; a trailing / means the whole folder)."
+      "description": "Case-insensitive regexes that must not appear in docs (md-links.py): a list, or {\"patterns\": [...], \"skip\": [globs]} where skip lists repo-relative files or folders the check does not read (`*` stays inside a folder, `**` crosses; a trailing / means the whole folder)."
     },
     "linkRoots": {
       "type": "array",
@@ -245,14 +376,14 @@
         "pattern": "^(?!/)(?!(.*/)?\\.\\.(/|$)).+$"
       },
       "default": [],
-      "description": "Folders (relative to the repo root, no '..') whose Markdown files write relative links from the repo root instead of from their own folder (enlaces-md.py)."
+      "description": "Folders (relative to the repo root, no '..') whose Markdown files write relative links from the repo root instead of from their own folder (md-links.py)."
     },
     "scoutDir": {
       "type": "string",
       "minLength": 1,
       "pattern": "^(?!/)(?!(.*/)?\\.\\.(/|$)).+$",
       "default": ".claude/gw/scout",
-      "description": "Folder (relative to the repo root, no '..') where scout-updates keeps its memory: architecture.md, proposals.md and the reports."
+      "description": "Folder (relative to the repo root, no '..') where gw-scout-updates keeps its memory: architecture.md, proposals.md and the reports."
     },
     "relatedTests": {
       "type": "object",
@@ -340,12 +471,77 @@
         "minLength": 1
       },
       "default": [],
-      "description": "Plan or roadmap files/folders where tasks are ticked or struck through (bitacora.py)."
+      "description": "Plan or roadmap files/folders where tasks are ticked or struck through (handoff.py)."
     },
     "taskId": {
       "type": "string",
       "minLength": 1,
-      "description": "Regex of the project's task ids (bitacora.py); default [A-Z]{2,5}-\\d+."
+      "description": "Regex of the project's task ids (handoff.py); default [A-Z]{2,5}-\\d+."
+    },
+    "agentMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!(.*/)?\\.\\.(/|$)).+$",
+          "description": "The agent map file (relative to the repo root, no '..'); agent-map.py checks the paths it cites. Absent: docs/agent-map.md, and a project without that file is not an error; a path set here that does not exist is."
+        },
+        "prefixes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!(.*/)?\\.\\.(/|$)).+$"
+          },
+          "default": {},
+          "description": "Short path prefixes the map uses, each mapped to its real folder (relative, no '..'): {\"b/\": \"backend/src/\"} reads `b/a.ts` as backend/src/a.ts."
+        },
+        "roots": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!(.*/)?\\.\\.(/|$)).+$"
+          },
+          "default": [],
+          "description": "Top-level folders whose references the map check always looks up, even when the folder is gone. By default a backtick token counts as a path when its first folder exists, it ends with `/` or its last part has a file extension."
+        }
+      },
+      "default": {},
+      "description": "The agent map (docs/agent-map.md): where each contract lives and what implements it. Read by agent-map.py."
+    },
+    "subagentCap": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 30,
+      "description": "Subagents (Agent/Task calls) one session may launch before subagent-cap.py asks the user to check they are not looping, and again every 10 after."
+    },
+    "instructionLines": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "warn": {"type": "integer", "minimum": 1, "default": 150},
+        "fail": {"type": "integer", "minimum": 1, "default": 250}
+      },
+      "default": {"warn": 150, "fail": 250},
+      "description": "Line limits of AGENTS.md and CLAUDE.md, which every session loads whole: doctor.py warns above warn and fails above fail (warn must not be above fail)."
+    },
+    "privateCheck": {
+      "anyOf": [
+        {"type": "boolean"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "emails": {"type": "boolean", "default": true},
+            "allowEmails": {"type": "array", "items": {"type": "string", "minLength": 1, "pattern": "^[^@\\s]+@[^@\\s]+$"}, "default": []}
+          }
+        }
+      ],
+      "default": {"emails": true, "allowEmails": []},
+      "description": "private-check.py (pre-push, on what each push adds): key formats, e-mail addresses (emails, default true) other than the built-in example/noreply ones and allowEmails (public; private ones go in the local .claude/gw.local.json), and the privateNames of .claude/gw.local.json. false turns it all off; true is the defaults."
     }
   }
 }

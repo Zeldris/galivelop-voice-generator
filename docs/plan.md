@@ -46,6 +46,40 @@ Cada fase es una rama y un pull request a `main`, con las tres fases de revisió
 | F6 Piloto WMF | Configuración de ejemplo con narrador y orco; propuesta para el repo de WMF (integración y corrección de su documento 02 con lo aprendido aquí) | WMF reproduce una voz del paquete sin el generador |
 | F7 Fauna | Pedidos `sound`, registro de licencias CC0 por archivo, cadenas por especie | Una especie con sus variantes por acción |
 
+## F1 en detalle
+
+Decisiones de implementación de la sesión que abre F1 (2026-11-10), dentro de D1-D17; la persona puede revisarlas
+antes del PR. Origen del núcleo: `gimg@fa1076e55825bf38d59b654341873f58322b190f` (su F1, `docs/plan.md` § «Pasos de F1»).
+
+- **Datos** en `~/.local/share/galivelop-voice/` (D9), con la variable de entorno propia que siga el patrón de `gimg`
+  para los tests. Sin entrega en F1: el paquete de voces llega en F3.
+- **Pedido `voice`:** cada intento es una toma con semilla, texto de prueba e instrucción armada desde la ficha
+  (`sheet`, D11). **Elegir** una toma la hace referencia y **fija** la voz: encola un trabajo `prints` que saca una
+  huella por modelo de `printModels` (por defecto los de D14, aplicado al cargar la configuración). Las huellas se
+  guardan junto a la toma, así **deshacer** vuelve a la referencia anterior sin repetir trabajo si ya las tiene.
+- **Pedido `line`:** exige que su voz sea un pedido `voice` del proyecto con referencia elegida; si no, se rechaza al
+  crearlo con su motivo. Cada intento apunta la toma de referencia con la que se hizo; una elegida hecha con otra
+  referencia que la vigente está **desfasada** (se calcula, no se guarda) y no se regenera sola (D10). El modelo de
+  producción sale del perfil de máquina y tiene que estar en `printModels`.
+- **Cola** persistente con un solo trabajador (como `gimg`), orden de llegada: el trabajo `prints` de una voz va antes
+  que las frases pedidas después. **Candado de la máquina** (D8): `flock` exclusivo sobre
+  `$XDG_STATE_HOME/galivelop/gpu.lock` (por defecto `~/.local/state/galivelop/gpu.lock`) mientras dura cada trabajo.
+- **Motor de pruebas** (`FakeEngine`): escribe un `.wav` PCM de 16 bits mono, determinista por semilla y texto, con
+  `wave` de la stdlib, y huellas `.spk`/`.rvq` falsas derivadas del audio y el modelo.
+- **Registro** JSONL en el formato de `opt-ai` (copiado de `gimg`), con dispositivo, semilla, commit del motor y
+  modelo (D16).
+
+### Pasos de F1
+
+| Paso | Qué | Hecho cuando |
+|---|---|---|
+| F1.1 | `errors`, `paths`, `fsutil`, `projects` copiados de `gimg` y adaptados (D9, `printModels` por defecto) | Tests de la guardia de rutas, del registro de proyectos y de la carga de la configuración |
+| F1.2 | `sheet`: instrucción en inglés en orden fijo y avisos de deriva infantil (D11) | Tests del orden, de cada aviso y de la sugerencia |
+| F1.3 | `orders`: pedidos `voice`/`line`, intentos, estados, notas, elegir y deshacer, referencia vigente y desfasadas | Tests de reenvío, estados, pila de elegidas, línea sin voz fijada y desfasada tras cambiar la referencia |
+| F1.4 | `engine` (`FakeEngine`), `limits`, `log` y estimado | Tests del `.wav`, las huellas, los límites, el formato del registro y la mediana |
+| F1.5 | `queue`, `worker` y candado de la máquina; trabajo `prints` al elegir | Tests de orden, cancelar, reinicio, un solo trabajador, candado ocupado y huellas por modelo |
+| F1.6 | `cli` `gvoice` y prueba del ciclo completo; README es/en con el uso | Test de extremo a extremo: añadir proyecto, diseñar y elegir voz, fijar, pedir frase, elegir, cambiar referencia y ver la frase desfasada |
+
 ## Pendiente
 
 - **Escucha del banco** (la persona, en la Deck): si el español suena natural y si la voz se mantiene entre frases,

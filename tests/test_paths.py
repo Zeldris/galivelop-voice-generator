@@ -144,16 +144,17 @@ class InsideTests(unittest.TestCase):
 
 
 class KeyTests(unittest.TestCase):
-    def test_ok(self):
-        self.assertEqual(paths.check_key("a/" + "b" * 100), "a/" + "b" * 100)
+    def test_limit_is_the_schema_one(self):
+        from gvoice import schema
+        self.assertEqual(paths.max_key(), 100)
+        self.assertEqual(paths.max_key(), schema.load_schema("common")["$defs"]["key"]["maxLength"])
 
-    def test_segment_too_long(self):
-        with self.assertRaises(GvoiceError) as cm:
-            paths.check_key("a/" + "b" * 101)
-        self.assertEqual(cm.exception.code, "key.segment_too_long")
+    def test_ok(self):
+        key = "a/" + "b" * 98
+        self.assertEqual(paths.check_key(key), key)
 
     def test_key_too_long(self):
-        key = "/".join(["b" * 50] * 5)  # 254 chars, segments fine
         with self.assertRaises(GvoiceError) as cm:
-            paths.check_key(key)
+            paths.check_key("a/" + "b" * 99)
         self.assertEqual(cm.exception.code, "key.too_long")
+        self.assertEqual(cm.exception.params["limit"], 100)

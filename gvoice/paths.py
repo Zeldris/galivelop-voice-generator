@@ -9,8 +9,6 @@ from pathlib import Path
 
 from .errors import GvoiceError, PathError
 
-MAX_KEY = 200
-MAX_SEGMENT = 100
 
 
 def _home_dir(own: str, xdg: str, fallback: tuple) -> Path:
@@ -95,11 +93,16 @@ def project_data_dir(name, code: str = "project.bad_name") -> Path:
     return inside(data_dir(), "projects/" + name)
 
 
+def max_key() -> int:
+    """Longest key: the ``maxLength`` of ``key`` in common.schema.json (the one place that says it)."""
+    from . import schema
+    return schema.load_schema("common")["$defs"]["key"]["maxLength"]
+
+
 def check_key(key: str) -> str:
-    """Length limits of an order key (shape is the order schema's job)."""
-    if len(key) > MAX_KEY:
-        raise GvoiceError("key.too_long", limit=MAX_KEY)
-    for segment in key.split("/"):
-        if len(segment) > MAX_SEGMENT:
-            raise GvoiceError("key.segment_too_long", limit=MAX_SEGMENT, segment=segment[:20])
+    """Length limit of an order key (shape is the order schema's job). Segments need no limit of their own:
+    a segment longer than the key limit makes the whole key longer."""
+    limit = max_key()
+    if len(key) > limit:
+        raise GvoiceError("key.too_long", limit=limit)
     return key

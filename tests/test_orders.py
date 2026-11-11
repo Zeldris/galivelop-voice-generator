@@ -480,6 +480,64 @@ class StaleTests(Base):
         self.assertEqual((err.code, err.params["expected"]), ("order.wrong_type", "line"))
         self.assertEqual(self.code(orders.reference, self.p, "narrator/intro-01").code, "order.voice_unknown")
 
+    def test_resubmitted_with_another_voice_is_stale_even_with_the_same_take_id(self):
+        n1 = self.made_line()
+        orders.choose(self.p, "narrator/intro-01", n1)
+        orders.submit(self.p, self.voice(key="orc"))
+        orc_take = self.take("orc", seed=4)
+        self.assertEqual(orc_take, self.ref1)  # same take id, other voice
+        orders.choose(self.p, "orc", orc_take)
+        self.assertFalse(orders.is_stale(self.p, "narrator/intro-01"))
+        orders.submit(self.p, self.line(voice="orc"))
+        self.assertTrue(orders.is_stale(self.p, "narrator/intro-01"))
+        self.assertEqual(orders.stale_lines(self.p, "orc"), ["narrator/intro-01"])
+        self.assertEqual(orders.stale_lines(self.p, "narrator"), [])
+        self.assertEqual(orders.get(self.p, "narrator/intro-01")["attempts"][0]["voice"], "narrator")
+
+    def test_attempt_reference_is_checked_against_the_specs_voice(self):
+        orders.submit(self.p, self.voice(key="orc"))
+        orc_take = self.take("orc", seed=4)
+        orders.choose(self.p, "orc", orc_take)
+        self.take("orc", seed=5)  # take 2 exists only in orc
+        orders.submit(self.p, self.line(voice="orc"))
+        spec = {"seed": 1, "text": "x", "voice": "narrator", "reference": 2}
+        err = self.code(orders.add_attempt, self.p, "narrator/intro-01", spec)
+        self.assertEqual((err.code, err.params["voice"]), ("order.reference_unknown", "narrator"))
+        spec["reference"] = self.ref1
+        attempt_id = orders.add_attempt(self.p, "narrator/intro-01", spec)
+        self.assertEqual(orders.get(self.p, "narrator/intro-01")["attempts"][attempt_id - 1]["voice"], "narrator")
+
+    def test_attempt_specs_of_a_line_carry_its_voice(self):
+        spec, = orders.attempt_specs(self.p, "narrator/intro-01")
+        self.assertEqual((spec["voice"], spec["reference"]), ("narrator", self.ref1))
+
+
+class SchemaDataTests(Base):
+    def test_limits_come_from_the_schema(self):
+        import importlib
+        from gvoice import schema
+        common = schema.load_schema("common")["$defs"]
+        self.assertEqual(orders.SEED_LIMIT, common["seed"]["maximum"] + 1)
+        self.assertEqual(list(projects.DEFAULT_PRINT_MODELS), common["baseModel"]["enum"])
+        # a changed schema changes the constants: they are read from it, not copied
+        changed = schema.load_schema("common")
+        changed["$defs"]["seed"]["maximum"] = 99
+        changed["$defs"]["baseModel"]["enum"] = ["x-base"]
+        self.addCleanup(importlib.reload, projects)
+        self.addCleanup(importlib.reload, orders)
+        with mock.patch.object(schema, "load_schema", return_value=changed):
+            importlib.reload(orders)
+            importlib.reload(projects)
+            self.assertEqual(orders.SEED_LIMIT, 100)
+            self.assertEqual(projects.DEFAULT_PRINT_MODELS, ("x-base",))
+
+    def test_check_count(self):
+        for bad in (0, 51, True, "2"):
+            self.assertEqual(self.code(orders.check_count, bad).code, "order.count_invalid")
+        err = self.code(orders.check_count, 2, orders.SEED_LIMIT - 1)
+        self.assertEqual(err.code, "order.seed_range")
+        orders.check_count(1, orders.SEED_LIMIT - 1)
+
 
 if __name__ == "__main__":
     unittest.main()

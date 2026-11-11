@@ -261,11 +261,17 @@ def _configured_engine() -> str:
     return value if isinstance(value, str) and value else "fake"
 
 
-def get_engine() -> Engine:
-    """The engine named by ``GVOICE_ENGINE`` or the config file (default ``fake``); see the module docstring."""
+def check_configured() -> None:
+    """Raise the error `get_engine` raises for an unknown configured engine, without building anything. The
+    submitting commands call it so a job is never queued for an engine that cannot run it."""
     name = _configured_engine()
     if name != "fake":
         raise GvoiceError("engine.unknown", engine=name)
+
+
+def get_engine() -> Engine:
+    """The engine named by ``GVOICE_ENGINE`` or the config file (default ``fake``); see the module docstring."""
+    check_configured()
     try:
         delay = float(os.environ.get("GVOICE_FAKE_DELAY") or 0)
     except ValueError:

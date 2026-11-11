@@ -13,8 +13,8 @@ key ``a`` (a key segment cannot hold ``@``). Beside ``order.json``, one folder p
   (`sheet.instruction`). Choosing a take makes it the voice's *reference* (it fixes the voice); `submit` also returns
   the `sheet.warnings` (never stored, never blocking).
 * ``line``: a voice (a ``voice`` order of the same project with a chosen reference) and a text. Each attempt records
-  the reference take it was made with (``reference``). A chosen line is *stale* (`is_stale`) when that take is not
-  the voice's current reference; it is computed, never stored, and nothing regenerates it by itself.
+  the voice (``voice``) and the reference take (``reference``) it was made with. A chosen line is *stale*
+  (`is_stale`) when its voice changed or that take is not the voice's current reference; it is computed, never stored, and nothing regenerates it by itself.
 
 This module neither enqueues nor runs the engine (queue and worker, F1.5): `add_attempt` and `set_prints` are what
 the worker calls with an `EngineResult`. `choose` and `undo` return the old and new chosen ids.
@@ -35,7 +35,7 @@ from . import fsutil, paths, projects, schema, sheet
 from .errors import GvoiceError
 
 STATES = ("new", "candidate", "discarded")
-SEED_LIMIT = 2 ** 32
+SEED_LIMIT = schema.load_schema("common")["$defs"]["seed"]["maximum"] + 1  # one place: common.schema.json
 TYPES = ("voice", "line")
 _ORDER_FILE = "order.json"
 _MARK = "@"
@@ -175,25 +175,33 @@ def submit(project: str, order: dict) -> dict:
     return result
 
 
+def check_count(count, base=None) -> None:
+    """`count` must be an integer in 1..50 (``order.count_invalid``) and, with a base seed, ``base + count - 1`` must
+    fit the seed range (``order.seed_range``). Raises before anything is stored."""
+    if not isinstance(count, int) or isinstance(count, bool) or not 1 <= count <= 50:
+        raise GvoiceError("order.count_invalid", min=1, max=50)
+    if isinstance(base, int) and not isinstance(base, bool) and base + count - 1 >= SEED_LIMIT:
+        raise GvoiceError("order.seed_range", seed=base, count=count, max=SEED_LIMIT - 1)
+
+
 def attempt_specs(project: str, key: str, count: int = 1, *, seed=None) -> list:
     """Specs of `count` attempts to enqueue; never changes the stored order.
 
     A spec is ``{"seed", "text"}`` plus, for a ``voice``, ``"instruction"`` (from the design sheet) and, for a
-    ``line``, ``"reference"`` (the voice's current reference attempt id; ``order.voice_not_fixed`` without one).
+    ``line``, ``"voice"`` (the line's current voice) and ``"reference"`` (that voice's current reference attempt id;
+    ``order.voice_not_fixed`` without one).
     Seed: `seed` if given, else the order's, then ``seed + i`` for attempt i (0-based); with neither, a random
     integer in ``[0, 2**32)`` per attempt."""
     if seed is not None:
         _check_fields_of({"key": "x", "type": "line", "voice": "x", "text": "x", "seed": seed})
     order = get(project, key)
-    if not isinstance(count, int) or isinstance(count, bool) or not 1 <= count <= 50:
-        raise GvoiceError("order.count_invalid", min=1, max=50)
     base = order.get("seed") if seed is None else seed
-    if base is not None and base + count - 1 >= SEED_LIMIT:
-        raise GvoiceError("order.seed_range", seed=base, count=count, max=SEED_LIMIT - 1)
+    check_count(count, base)
     if order["type"] == "voice":
         extra = {"instruction": sheet.instruction(order["designSheet"]), "text": order["testText"]}
     else:
-        extra = {"reference": _fixed_voice(project, order["voice"])[1], "text": order["text"]}
+        extra = {"voice": order["voice"], "reference": _fixed_voice(project, order["voice"])[1],
+                 "text": order["text"]}
     return [dict(extra, seed=_rng.randrange(SEED_LIMIT) if base is None else base + i) for i in range(count)]
 
 
@@ -254,7 +262,8 @@ def add_attempt(project: str, key: str, spec: dict, entry_id=None) -> int:
     """Append an attempt in state ``new`` (used by the worker after generating); returns its id.
 
     Ids are sequential from 1. `spec` needs ``seed`` and ``text`` plus ``instruction`` (voice) or ``reference``
-    (line: the attempt id of the voice's reference take it was made with, which must exist in that voice).
+    (line: the attempt id of the reference take it was made with, which must exist in the spec's ``voice``, the voice
+    it was made for; recorded on the attempt, and the line's current voice when the spec has none).
     The audio is ``<dir>/audio.wav`` (``attempts/<id>`` or, with `entry_id`, ``attempts/q<entry>``); with `entry_id`
     the attempt records ``queueEntry`` and the call is idempotent per entry (an existing one's id is returned).
     ``result``, an `EngineResult` (or its dict), is stored as the D16 metadata: ``device``, ``engineVersion``,
@@ -272,9 +281,12 @@ def add_attempt(project: str, key: str, spec: dict, entry_id=None) -> int:
     if not isinstance(spec["text"], str) or (kind == "voice" and not isinstance(spec["instruction"], str)):
         raise GvoiceError("order.spec_invalid", missing="text")
     if kind == "line":
-        voice = _voice_order(project, current["voice"])
+        line_voice = spec.get("voice", current["voice"])  # the voice the take was made for, not the current one
+        if not isinstance(line_voice, str):
+            raise GvoiceError("order.spec_invalid", missing="voice")
+        voice = _voice_order(project, line_voice)
         if type(spec["reference"]) is not int or not any(a["id"] == spec["reference"] for a in voice["attempts"]):
-            raise GvoiceError("order.reference_unknown", reference=str(spec["reference"]), voice=current["voice"])
+            raise GvoiceError("order.reference_unknown", reference=str(spec["reference"]), voice=line_voice)
     result = spec.get("result")
     if result is not None and not isinstance(result, dict):
         result = dict(vars(result))
@@ -292,6 +304,7 @@ def add_attempt(project: str, key: str, spec: dict, entry_id=None) -> int:
             record["instruction"] = spec["instruction"]
             record["prints"] = {}
         else:
+            record["voice"] = line_voice
             record["reference"] = spec["reference"]
         if entry_id is not None:
             record["queueEntry"] = entry_id
@@ -418,25 +431,27 @@ def reference(project: str, voice: str):
 
 
 def is_stale(project: str, key: str) -> bool:
-    """Whether the chosen attempt of line `key` is stale (D10): the reference take it was made with is not the
-    voice's current reference. Calculated each time, never stored. ``False`` when the line has no chosen attempt."""
+    """Whether the chosen attempt of line `key` is stale (D10): it was made for another voice than the line's
+    current one, or the reference take it was made with is not that voice's current reference. Calculated each time, never stored. ``False`` when the line has no chosen attempt."""
     order = get(project, key)
     _is_type(order, "line")
     if order["chosen"] is None:
         return False
-    return _attempt(order, order["chosen"]).get("reference") != reference(project, order["voice"])
+    return _stale(order, reference(project, order["voice"]))
+
+
+def _stale(order: dict, current) -> bool:
+    """`order` (a line with a chosen attempt) against the current reference `current` of its voice: stale if the
+    attempt was made for another voice (an old attempt without ``voice`` counts as the line's) or with another take."""
+    attempt = _attempt(order, order["chosen"])
+    return attempt.get("voice", order["voice"]) != order["voice"] or attempt.get("reference") != current
 
 
 def stale_lines(project: str, voice: str) -> list:
-    """Keys (sorted) of the lines of voice `voice` whose chosen attempt is stale."""
+    """Keys (sorted) of the lines whose current voice is `voice` and whose chosen attempt is stale."""
     current = reference(project, voice)
-    found = []
-    for record in list_orders(project, type="line"):
-        if record["voice"] != voice or record["chosen"] is None:
-            continue
-        if _attempt(record, record["chosen"]).get("reference") != current:
-            found.append(record["key"])
-    return found
+    return [r["key"] for r in list_orders(project, type="line")
+            if r["voice"] == voice and r["chosen"] is not None and _stale(r, current)]
 
 
 def list_orders(project: str, type: str | None = None, chosen: bool | None = None) -> list:

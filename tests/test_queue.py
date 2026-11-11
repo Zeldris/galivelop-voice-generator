@@ -325,6 +325,41 @@ class ServiceTests(QueueBase):
         self.assertEqual([e["seed"] for e in entries], [1234, 1235])
         self.assertIn("warnings", record)
 
+    def test_invalid_count_leaves_the_stored_order_unchanged(self):
+        orders.submit(self.p, self.voice())
+        before = orders.get(self.p, "narrator")
+        for bad in (0, 51):
+            err = self.code(queue.submit_order, self.p, self.voice(testText="Changed."), bad)
+            self.assertEqual(err.code, "order.count_invalid")
+        err = self.code(queue.submit_order, self.p, self.voice(testText="Changed.", seed=2 ** 32 - 1), 2)
+        self.assertEqual(err.code, "order.seed_range")
+        self.assertEqual(orders.get(self.p, "narrator"), before)
+        self.assertEqual(queue.list_entries(), [])
+
+    def test_queued_line_keeps_the_voice_it_was_made_for(self):
+        orders.submit(self.p, self.voice())
+        orders.choose(self.p, "narrator", self.take())
+        orders.submit(self.p, self.voice(key="orc"))
+        orders.choose(self.p, "orc", self.take("orc", seed=4))
+        orders.submit(self.p, self.line())
+        entry, = queue.new_takes(self.p, "narrator/intro-01")
+        self.assertEqual((entry["voice"], entry["reference"]), ("narrator", 1))
+        orders.submit(self.p, self.line(voice="orc"))
+        self.assertEqual(queue.get(entry["id"])["voice"], "narrator")
+
+    def test_unknown_engine_queues_nothing(self):
+        orders.submit(self.p, self.voice())
+        take = self.take()
+        before = orders.get(self.p, "narrator")
+        with mock.patch.dict(os.environ, {"GVOICE_ENGINE": "nope"}):
+            for call in (lambda: queue.submit_order(self.p, self.voice(testText="Changed."), 1),
+                         lambda: queue.new_takes(self.p, "narrator", 1),
+                         lambda: queue.choose(self.p, "narrator", take)):
+                err = self.code(call)
+                self.assertEqual((err.code, err.params["engine"]), ("engine.unknown", "nope"))
+        self.assertEqual(orders.get(self.p, "narrator"), before)  # not even chosen
+        self.assertEqual(queue.list_entries(), [])
+
     def test_new_takes(self):
         orders.submit(self.p, self.voice())
         self.assertEqual([e["seed"] for e in queue.new_takes(self.p, "narrator", 2, seed=50)], [50, 51])

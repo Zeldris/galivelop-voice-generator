@@ -9,9 +9,9 @@
 | Campo | Valor |
 |---|---|
 | **Rama** | `ccr-60ec66f6-qbtc42` (asignada por la sesión, desde `main` en `195bb86`) |
-| **Fase / tarea** | F1 Núcleo (`docs/plan.md`) completa; falta su revisión antes de `main`. Compactaciones: 0 de 2 presupuestadas |
-| **Último punto estable** | F1 completa: F1.6 `cli` y prueba de extremo a extremo; antes F1.5 `queue`/`worker`, F1.3 `orders`, F1.4 `engine`/`limits`/`log`, F1.2 `sheet` |
-| **Siguiente paso** | Revisión de F1 antes de `main`, fase 1 de `AGENTS.md`: `git fetch origin main` y `/code-review --max-findings all` del diff contra `origin/main` con el criterio de `REVIEW.md`; luego fases 2 y 3 |
+| **Fase / tarea** | F1 Núcleo (`docs/plan.md`): revisión antes de `main`, fase 1 (código) hecha; faltan fases 2 y 3. Compactaciones: 0 de 2 presupuestadas |
+| **Último punto estable** | Fase 1 de la revisión de F1: 17 hallazgos, arreglados los medios (voz de la frase en cola e intento, `--count` antes de guardar, semilla y modelos base leídos del esquema, registro si falla `set_prints`, motor desconocido antes de encolar); F1 completa: F1.6 `cli` y prueba de extremo a extremo; antes F1.5 `queue`/`worker`, F1.3 `orders`, F1.4 `engine`/`limits`/`log`, F1.2 `sheet` |
+| **Siguiente paso** | Fase 2 de la revisión de F1 (`AGENTS.md`): skill `opt-tokens` y luego `retro`, presentando sus propuestas a la persona; después fase 3 (`revisado.sh`, skill `pr`) |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con
@@ -31,7 +31,13 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 
 ## Pendiente
 
-- Para la revisión de F1: `GVOICE_ENGINE` con un valor desconocido solo falla en `work`, tras encolar (en `gimg` falla antes de encolar). El CI de GitHub vuelve a arrancar: F1.3 y F1.5 en verde.
+- Hallazgos leves de la revisión de F1, sin arreglar en este PR (no vuelven a revisarse en él):
+  - `queue.json` borrado o rehecho reinicia `nextId`, y una entrada nueva casa con un intento viejo por `queueEntry` (`worker._take`, carpeta `attempts/q<id>`).
+  - Al recuperar una entrada cancelada que ya movió `audio.wav`, el audio queda huérfano (`queue._recover`).
+  - Tener audio se decide por `audioMs` y no por el archivo: el motor real de F2 debe dar siempre `audio_ms`.
+  - Rendimiento: `order list` hace `list_orders` por voz (cuadrático); `list_orders` recorre también `attempts/`; `FakeEngine` arma las muestras en una lista; `should_cancel` abre una transacción de cola cada 20-50 ms; `production_model` se comprueba dos veces; `_check_key` valida el esquema varias veces.
+  - Sin uso en `gvoice/`: `queue.next_queued`, `clear`, `worker_alive`, `machine_lock.busy`, `limits.timeout_s`/`check_memory`/`must_abort`/`available_memory_mb`, `log.estimate`. El vigilante de memoria (D15) es de F2.
+  - Las lecturas de la cola toman `worker.lock` compartido, y un sondeo muy seguido puede impedir arrancar `gvoice work` (`worker.already_running`).
 - Hallazgos leves de la revisión de F0, sin arreglar en este PR: el mensaje de `propertyNames` sale con «()» vacío cuando el motivo no es un `pattern` (p. ej. un `enum`) y solo cuenta el primer motivo (`gvoice/schema.py`); `i18n.t()` lanza `KeyError` si a un idioma le falta un parámetro del texto y no mira `LANGUAGE`; los commits `81d76f1` y `7cebd24` de F0 tienen `Siguiente:` separado de la atribución por una línea en blanco.
 - Escucha del banco y registro del núcleo tras Vulkan: los dos, de la persona (ver «Pendiente» en `docs/plan.md`).
 - Para la persona, en `galivelop-image-generator`: su check `bash -n a b c` solo comprueba `a` (R3 de la retro de F0).

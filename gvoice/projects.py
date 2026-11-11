@@ -11,7 +11,7 @@ from . import __version__, fsutil, paths, schema
 from .errors import GvoiceError
 
 CONFIG_FILE = "galivelop-voices.json"
-DEFAULT_PRINT_MODELS = ("0.6b-base", "1.7b-base")  # D14
+DEFAULT_PRINT_MODELS = tuple(schema.load_schema("common")["$defs"]["baseModel"]["enum"])  # D14; one place: the schema
 
 
 def registry_path() -> Path:

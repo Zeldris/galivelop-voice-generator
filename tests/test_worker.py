@@ -350,6 +350,19 @@ class PrintsTests(WorkerBase):
         self.assertEqual(queue.get(1)["error"]["code"], "worker.take_without_audio")
 
 
+    def test_set_prints_failure_is_logged(self):
+        orders.submit(self.p, self.voice())
+        take = self.take()
+        queue.choose(self.p, "narrator", take)
+        boom = GvoiceError("order.attempt_unknown", attempt=take, order="narrator")
+        with mock.patch.object(orders, "set_prints", side_effect=boom):
+            self.run_worker()
+        self.assertEqual(queue.get(1)["state"], "failed")
+        line, = log_lines()
+        self.assertEqual(line["gen_ai.operation.name"], log.OP_PRINT)
+        self.assertIn(queue.error_text(queue.make_error(boom.code, **boom.params), "en"), line["app.error"])
+
+
 class LineTests(WorkerBase):
     def test_line_take_uses_the_print_of_the_production_model(self):
         self.voice_done()
@@ -363,6 +376,18 @@ class LineTests(WorkerBase):
         line = log_lines()[-1]
         self.assertEqual((line["gen_ai.operation.name"], line["gen_ai.request.model"], line["app.task"]),
                          (log.OP_LINE, "0.6b-base", "line"))
+
+    def test_line_uses_the_voice_it_was_queued_for(self):
+        self.voice_done()
+        orders.submit(self.p, self.voice(key="orc"))
+        orders.choose(self.p, "orc", self.take("orc", seed=4))  # same take id 1, no prints
+        orders.submit(self.p, self.line())
+        entry, = queue.new_takes(self.p, "narrator/intro-01")
+        orders.submit(self.p, self.line(voice="orc"))  # resubmitted before the worker runs
+        self.run_worker()
+        self.assertEqual(queue.get(entry["id"])["state"], "done")
+        attempt = orders.get(self.p, "narrator/intro-01")["attempts"][0]
+        self.assertEqual((attempt["voice"], attempt["reference"]), ("narrator", 1))
 
     def test_line_fails_with_its_reason_without_the_print(self):
         orders.submit(self.p, self.voice())

@@ -8,7 +8,7 @@ trabajos son de tres clases (``kind``).
 ``attemptId``, ``cancelRequested`` and, by kind:
 
 * ``voice``: a take of a voice (``instruction`` from the design sheet; the engine's ``design``);
-* ``line``: a take of a line (``reference``: the take of the voice it is made with; the engine's ``line`` with the
+* ``line``: a take of a line (``voice`` and ``reference``: the voice it was made for and the take of it it is made with; the engine's ``line`` with the
   voice print of the production model, `production_model`);
 * ``prints``: the voice prints (one per model that `orders.missing_prints` says the take lacks) of take ``take`` of a
   voice; ``attemptId`` is that take when done.
@@ -38,7 +38,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import fsutil, i18n, limits, orders, paths, projects, schema
+from . import engine, fsutil, i18n, limits, orders, paths, projects, schema
 from .errors import GvoiceError
 
 KEEP_TERMINAL = 200
@@ -223,6 +223,7 @@ def enqueue(project: str, key: str, specs: list) -> list:
     ``printModels`` (`production_model`); nothing is queued if anything fails."""
     order = orders.get(project, key)
     kind = order["type"]
+    engine.check_configured()
     if kind == "line":
         production_model(project)
     needed = ("seed", "text", "instruction" if kind == "voice" else "reference")
@@ -235,7 +236,8 @@ def enqueue(project: str, key: str, specs: list) -> list:
     def change(data):
         return [_entry(data, kind, project, key, now, seed=spec["seed"], text=spec["text"],
                        **({"instruction": spec["instruction"]} if kind == "voice"
-                          else {"reference": spec["reference"]})) for spec in specs]
+                          else {"voice": spec.get("voice", order["voice"]), "reference": spec["reference"]}))
+                for spec in specs]
 
     return _txn(change, recover=True)
 
@@ -245,6 +247,7 @@ def enqueue_prints(project: str, key: str, take: int):
     its prints (`orders.missing_prints` is empty) or a ``prints`` job for it is already queued or running."""
     if not orders.missing_prints(project, key, take):
         return None
+    engine.check_configured()
     now = _now()
 
     def change(data):
@@ -392,8 +395,11 @@ def entry_view(entry: dict, lang: str | None = None) -> dict:
 def submit_order(project: str, order: dict, count: int = 1) -> tuple:
     """Store the order and queue `count` takes of it. Returns ``(record, entries)``; the record of a ``voice`` has
     the `sheet` warnings. A line whose machine cannot make it (`production_model`) is refused before it is stored."""
-    if isinstance(order, dict) and order.get("type") == "line":
-        production_model(project)
+    engine.check_configured()
+    if isinstance(order, dict):
+        orders.check_count(count, order.get("seed"))
+        if order.get("type") == "line":
+            production_model(project)
     record = orders.submit(project, order)
     specs = orders.attempt_specs(project, record["key"], count)
     return record, enqueue(project, record["key"], specs)
@@ -409,6 +415,8 @@ def choose(project: str, key: str, attempt_id: int) -> dict:
     ``{"old", "new", "entries"}`` (``entries``: the job queued, if any). Choosing the take that is already chosen
     queues the job again when prints are still missing and none is queued, so a failed enqueue can be repeated."""
     kind = orders.get(project, key)["type"]
+    if kind == "voice":  # only a voice queues a job
+        engine.check_configured()
     result = orders.choose(project, key, attempt_id)
     job = enqueue_prints(project, key, attempt_id) if kind == "voice" else None
     return dict(result, entries=[job] if job else [])
@@ -417,6 +425,8 @@ def choose(project: str, key: str, attempt_id: int) -> dict:
 def undo(project: str, key: str) -> dict:
     """`orders.undo` and, for a voice that goes back to a take without all its prints, the ``prints`` job of it."""
     kind = orders.get(project, key)["type"]
+    if kind == "voice":
+        engine.check_configured()
     result = orders.undo(project, key)
     job = enqueue_prints(project, key, result["new"]) if kind == "voice" and result["new"] is not None else None
     return dict(result, entries=[job] if job else [])

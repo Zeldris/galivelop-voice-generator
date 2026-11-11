@@ -141,7 +141,7 @@ def _take(entry: dict, eng, machine: dict, state: dict, should_cancel):
     else:
         model = queue.production_model(project, machine)
         limits.check_model("produce", model, machine)
-        voice = orders.get(project, key)["voice"]
+        voice = entry.get("voice") or orders.get(project, key)["voice"]  # old queue files have no voice
         voice_order = orders.get(project, voice)
         reference = next((a for a in voice_order["attempts"] if a["id"] == entry["reference"]), None)
         if reference is None:
@@ -152,6 +152,7 @@ def _take(entry: dict, eng, machine: dict, state: dict, should_cancel):
         job = engine_mod.LineJob(
             spk=str(spk), rvq=str(rvq), text=entry["text"], seed=entry["seed"], output=str(tmp), model=model,
             machine=machine, timeout_s=machine.get("timeoutS"))
+        spec["voice"] = voice
         spec["reference"] = entry["reference"]
         state["spec"] = {"model": model, "text": entry["text"]}
         state["result"] = eng.line(job, should_cancel)
@@ -193,7 +194,12 @@ def _prints(entry: dict, eng, machine: dict, state: dict, should_cancel, provide
             _log_line(entry, machine, provider, error=queue.error_text(_error_for(exc), "en"), model=model,
                       text=attempt["text"])
             raise
-        orders.set_prints(project, key, take, model, result)
+        try:
+            orders.set_prints(project, key, take, model, result)
+        except Exception as exc:
+            _log_line(entry, machine, provider, error=queue.error_text(_error_for(exc), "en"), model=model,
+                      text=attempt["text"])
+            raise
         _log_line(entry, machine, provider, result=result, model=model, text=attempt["text"])
     return take
 

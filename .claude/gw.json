@@ -14,6 +14,7 @@
   "check": [
     "bash -n .githooks/pre-commit",
     "bash -n .githooks/pre-push",
+    "bash -n instalar.sh",
     "python3 -m unittest discover -s tests -t ."
   ],
   "reviewMark": "docs/registros/revisado.txt",

@@ -64,7 +64,7 @@ Ejemplo de configuración de proyecto: [`examples/galivelop-voices.json`](exampl
 ## Desarrollo
 
 ```sh
-bash -n .githooks/pre-commit && bash -n .githooks/pre-push && python3 -m unittest discover -s tests -t .
+bash -n .githooks/pre-commit && bash -n .githooks/pre-push && bash -n instalar.sh && python3 -m unittest discover -s tests -t .
 ```
 
 El flujo de trabajo del repo (relevos, ramas, revisión) está en [`AGENTS.md`](AGENTS.md). Todavía no hay licencia.

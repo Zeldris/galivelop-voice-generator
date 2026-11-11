@@ -32,6 +32,19 @@ python3 -m gvoice queue list                         # also `queue cancel <entry
 D10). `--json` gives machine-readable output and `--lang es|en` the language; the rest with `--help`. Variables:
 `GVOICE_CONFIG_HOME`, `GVOICE_DATA_HOME`, `GVOICE_STATE_HOME`, `GVOICE_ENGINE` (only `fake` for now) and `GVOICE_LANG`.
 
+### Engine diagnosis and bench
+
+```sh
+python3 -m gvoice doctor            # install, binaries, models with their sha256 and profile; starts no engine
+python3 -m gvoice doctor --quick    # model sizes only (the sha256 of 2-4 GB is slow)
+python3 -m gvoice bench             # design, fix and produce (short and long) on the device and its fallback
+python3 -m gvoice bench --quick --seed 11   # only the profile's device and the first production model
+```
+
+`doctor` exits 1 if anything fails (a warning does not count). `bench` takes the machine lock, writes the wavs,
+`bench.md` and `bench.json` in `<data>/bench/<date>/` and can be cancelled with Ctrl-C (130). `--rapido` and
+`--semilla` also work.
+
 ## Structure
 
 ```text

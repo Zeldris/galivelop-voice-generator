@@ -8,12 +8,14 @@ interrupted. ``--json`` prints the data instead of text; ``--lang`` picks the la
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import os
 import sys
 import traceback
 
-from . import __version__, i18n, orders, projects, queue, sheet, worker
+from . import (__version__, bench, doctor, engine as engine_mod, i18n, limits, machine_lock, orders, paths,
+               projects, queue, sheet, worker)
 from .errors import GvoiceError
 
 LANGS = ("es", "en")
@@ -89,6 +91,11 @@ def _build(lang: str) -> argparse.ArgumentParser:
     leaf(g, "cancel", "cli.cmd.queue_cancel", arg("entry", "cli.arg.entry", type=int))
 
     leaf(top, "work", "cli.cmd.work", opt("--once", "cli.arg.once", action="store_true"))
+    leaf(top, "doctor", "cli.cmd.doctor", (("--quick", "--rapido"), dict(
+        action="store_true", dest="quick", help=t("cli.arg.quick"))))
+    leaf(top, "bench", "cli.cmd.bench",
+         (("--seed", "--semilla"), dict(type=int, default=11, help=t("cli.arg.bench_seed"))),
+         (("--quick", "--rapido"), dict(action="store_true", dest="quick", help=t("cli.arg.bench_quick"))))
     leaf(top, "version", "cli.cmd.version")
     return parser
 
@@ -244,6 +251,61 @@ def _queue(args, sub, out: _Out) -> None:
             out.line("cli.out.cancelled", id=entry["id"])
 
 
+def _doctor(args, out: _Out) -> int:
+    checks = doctor.run(quick=args.quick, lang=out.lang)
+    for c in checks:
+        c["message"] = out.t("doctor." + c["code"], **c["params"])
+    failures = sum(1 for c in checks if not c["ok"])
+    warnings = sum(1 for c in checks if c["ok"] and c["warning"])
+    if out.as_json:
+        out.data([dict({k: v for k, v in c.items() if k != "params"}, **c["params"]) for c in checks])
+    else:
+        for c in checks:
+            level = "fail" if not c["ok"] else "warn" if c["warning"] else "ok"
+            out.line("doctor.line_" + level, text=c["message"])
+        if failures:
+            out.line("doctor.summary_fail", failures=failures)
+        elif warnings:
+            out.line("doctor.summary_warn", warnings=warnings)
+        else:
+            out.line("doctor.summary_ok")
+    return 1 if failures else 0
+
+
+def _bench_dir():
+    base = paths.data_dir() / "bench"
+    stamp = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
+    base.mkdir(parents=True, exist_ok=True)
+    for n in range(1, 100):
+        target = base / (stamp if n == 1 else "%s-%d" % (stamp, n))
+        try:
+            target.mkdir()
+            return target
+        except FileExistsError:
+            continue
+    raise GvoiceError("cli.bench_dir", path=str(base))
+
+
+def _bench(args, out: _Out) -> int:
+    eng = engine_mod.get_engine()
+    with machine_lock.hold():
+        machine = limits.load_machine()
+        target = _bench_dir()
+        rows = bench.run(eng, machine, target, seed=args.seed, quick=args.quick)
+        info = {"engine": eng.provider, "machine": machine.get("name"), "seed": args.seed, "quick": args.quick,
+                "path": str(target)}
+        bench.write(target, rows, info)
+    if out.as_json:
+        out.data(dict(info, rows=rows))
+        return 0
+    out.line("bench.done", path=target)
+    print(bench.markdown(rows), end="")
+    failed = sum(1 for r in rows if r["error"])
+    if failed:
+        out.line("bench.failed_rows", count=failed)
+    return 0
+
+
 def _run(args, out: _Out) -> int:
     cmd, sub = args.cmd, getattr(args, "sub", None)
     if cmd == "version":
@@ -272,6 +334,10 @@ def _run(args, out: _Out) -> int:
         _choose_undo(args, out)
     elif cmd == "queue":
         _queue(args, sub, out)
+    elif cmd == "doctor":
+        return _doctor(args, out)
+    elif cmd == "bench":
+        return _bench(args, out)
     elif cmd == "work":
         handled = worker.run(once=args.once, lang=out.lang)
         out.data({"processed": handled}) if out.as_json else out.line("cli.out.processed", count=handled)

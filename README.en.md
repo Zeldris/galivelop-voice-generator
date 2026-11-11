@@ -64,7 +64,7 @@ Example project configuration: [`examples/galivelop-voices.json`](examples/galiv
 ## Development
 
 ```sh
-bash -n .githooks/pre-commit && bash -n .githooks/pre-push && python3 -m unittest discover -s tests -t .
+bash -n .githooks/pre-commit && bash -n .githooks/pre-push && bash -n instalar.sh && python3 -m unittest discover -s tests -t .
 ```
 
 The repo's workflow (handoffs, branches, review) is in [`AGENTS.md`](AGENTS.md) (Spanish). There is no license yet.

@@ -164,5 +164,9 @@
   "cli.out.cancel_requested": "Entry {id}: cancellation requested.",
   "cli.out.processed": "Processed {count} entries.",
   "cli.unexpected": "unexpected error: {message}",
-  "error.cli.order_unreadable": "could not read the order \"{path}\": {reason}"
+  "error.cli.order_unreadable": "could not read the order \"{path}\": {reason}",
+  "error.install.unknown_model": "unknown model \"{model}\"; use one of: {models}",
+  "error.install.unknown_device": "unknown device \"{device}\": it must be CPU or start with Vulkan",
+  "error.install.unknown_binary": "unknown engine program \"{binary}\"; use one of: {binaries}",
+  "error.install.unreadable": "cannot read the engine install record {path}: {reason}"
 }

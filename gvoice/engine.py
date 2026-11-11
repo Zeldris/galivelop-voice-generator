@@ -45,6 +45,7 @@ class DesignJob:
     device: Optional[str] = None
     machine: dict = field(default_factory=dict)
     timeout_s: Optional[float] = None
+    language: str = "auto"  # label for ``qwen-tts --lang``, from the project config
 
 
 @dataclass
@@ -58,6 +59,8 @@ class LineJob:
     device: Optional[str] = None
     machine: dict = field(default_factory=dict)
     timeout_s: Optional[float] = None
+    language: str = "auto"  # label for ``qwen-tts --lang``, from the project config
+    ref_text: str = ""  # what the reference take says (``qwen-tts --ref-text``)
 
 
 @dataclass

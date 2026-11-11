@@ -41,7 +41,7 @@ import threading
 import time
 
 from . import engine as engine_mod
-from . import i18n, limits, log, machine_lock, orders, queue
+from . import i18n, limits, log, machine_lock, orders, projects, queue
 from .errors import GvoiceError
 
 LOCK_RETRY_S = 0.3  # how long `_single_worker` keeps trying the lock before it says another worker is alive
@@ -130,11 +130,12 @@ def _take(entry: dict, eng, machine: dict, state: dict, should_cancel):
     state["tmp"] = tmp
     tmp.parent.mkdir(parents=True, exist_ok=True)
     spec = {"seed": entry["seed"], "text": entry["text"]}
+    language = projects.get(project)["config"]["language"]
     if entry["kind"] == "voice":
         model = _model_of(machine, "design")
         job = engine_mod.DesignJob(
             instruction=entry["instruction"], text=entry["text"], seed=entry["seed"], output=str(tmp), model=model,
-            machine=machine, timeout_s=machine.get("timeoutS"))
+            machine=machine, timeout_s=machine.get("timeoutS"), language=language)
         spec["instruction"] = entry["instruction"]
         state["spec"] = {"model": model, "text": entry["text"]}
         state["result"] = eng.design(job, should_cancel)
@@ -151,7 +152,7 @@ def _take(entry: dict, eng, machine: dict, state: dict, should_cancel):
             raise GvoiceError("worker.print_missing", model=model, voice=voice, take=reference["id"])
         job = engine_mod.LineJob(
             spk=str(spk), rvq=str(rvq), text=entry["text"], seed=entry["seed"], output=str(tmp), model=model,
-            machine=machine, timeout_s=machine.get("timeoutS"))
+            machine=machine, timeout_s=machine.get("timeoutS"), language=language, ref_text=reference["text"])
         spec["voice"] = voice
         spec["reference"] = entry["reference"]
         state["spec"] = {"model": model, "text": entry["text"]}

@@ -82,6 +82,44 @@ antes del PR. Origen del núcleo: `gimg@fa1076e55825bf38d59b654341873f58322b190f
 
 **F1 hecha** (F1.1-F1.6, 2026-11-11): `tests/test_e2e.py` recorre el ciclo por la CLI (`tests/test_cli.py` cubre las órdenes). Pendiente: revisión de F1 antes de `main` (fases de `AGENTS.md`).
 
+## F2 en detalle
+
+Decisiones de implementación de la sesión que abre F2 (2026-11-11), dentro de D1-D17; la persona puede revisarlas
+antes del PR. La **escucha del banco sigue pendiente** (ver «Pendiente»): F2 avanza con lo que vale para cualquier
+motor, y si la escucha no convence se revisa D4 antes de cerrar F2. CLI del motor leída en `qwentts.cpp@5916bf7`
+(`tools/qwen-tts.cpp`, `tools/qwen-codec.cpp`).
+
+- **Idioma** de síntesis: `language` opcional en `galivelop-voices.json` (por proyecto), por defecto `auto` (lo que
+  hace `qwen-tts` sin `--lang`); se pasa tal cual a `--lang`.
+- **Instalación** en `<data>/engine/`: `bin-vulkan/` y `bin-cpu/` con `rpath $ORIGIN` y `install.json` (commit del
+  motor, dispositivos compilados, fecha); modelos en `<data>/models/` con el nombre del árbol de HF y sha256 de
+  `docs/investigacion/2026-10-25-banco-deck.md`. Nombre de modelo → archivo: `0.6b-base` →
+  `qwen-talker-0.6b-base-Q8_0.gguf`; códec siempre `qwen-tokenizer-12hz-Q8_0.gguf`.
+- **Motor `qwentts`** (`GVOICE_ENGINE` o `engine` de `config.json`): un proceso por intento (D15), texto por la
+  entrada estándar. `design`: `qwen-tts` con `--instruct`; `line`: `--ref-spk`, `--ref-rvq` y `--ref-text` (ruta de un
+  archivo con el texto de la toma de referencia, que ahora va en `LineJob`); `voiceprint`: `qwen-codec --talker` sobre
+  una copia de la toma en una carpeta temporal (escribe `.spk`/`.rvq` junto a la entrada) y se mueven a su sitio.
+  `audio_ms` sale siempre de la cabecera del `.wav` (cierra el leve de F1).
+- **Vigilante** (proceso aparte por grupo): antes de lanzar, `minFreeMemoryMb` (`limit.memory`); durante, sondeo de
+  `MemAvailable` cada 250 ms: por debajo de `watchMemoryMb` mata el grupo (`limit.memory_abort`); también mata por
+  tiempo (`timeoutS`) y por cancelación. Apunta mínimo de memoria libre y pico de RSS (`VmHWM`).
+- **Respaldo de dispositivo** (D15): si el intento falla en `device` (salida distinta de 0, no por tiempo, memoria ni
+  cancelación) se repite una vez en `fallbackDevice`; el registro guarda el dispositivo que lo hizo (D16).
+- **`gvoice bench`**: repite las medidas del banco (diseño 1.7B VoiceDesign, fijar con 0.6B y 1.7B Base, producir
+  frase corta y larga con cada uno, en `device` y en el de respaldo) con el candado de la máquina, y escribe la tabla
+  Markdown y su JSON en `<data>/bench/<fecha>/`. **`gvoice doctor`**: motor instalado, modelos con su sha256, perfil.
+
+### Pasos de F2
+
+| Paso | Qué | Hecho cuando |
+|---|---|---|
+| F2.1 | `language` en la configuración; `LineJob.ref_text` desde el trabajador; `gvoice/install.py` (rutas de binarios y modelos, `install.json`) | Tests de la configuración, del trabajador con el texto de referencia y de las rutas |
+| F2.2 | `gvoice/runner.py`: proceso vigilado (memoria al empezar y durante, tiempo, cancelar, RSS pico) | Tests con procesos falsos de cada motivo de parada |
+| F2.3 | `QwenEngine` (`design`, `line`, `voiceprint`) con respaldo de dispositivo | Tests con binarios falsos que comprueban las órdenes y los archivos |
+| F2.4 | `instalar.sh` (D17) | `bash -n` en el check y tests de su modo de prueba (`--plan`) |
+| F2.5 | `gvoice bench` y `gvoice doctor` | Tests con binarios falsos: tabla, JSON y diagnóstico |
+| F2.6 | README es/en; comprobación en la Deck | La persona diseña, fija y produce una voz real (manual) |
+
 ## Pendiente
 
 - **Escucha del banco** (la persona, en la Deck): si el español suena natural y si la voz se mantiene entre frases,

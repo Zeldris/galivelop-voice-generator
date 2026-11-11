@@ -8,10 +8,10 @@
 
 | Campo | Valor |
 |---|---|
-| **Rama** | `ccr-60ec66f6-qbtc42` (asignada por la sesión, desde `main` en `195bb86`) |
-| **Fase / tarea** | F1 Núcleo (`docs/plan.md`) cerrada: revisada (fases 1, 2 y 3) y fusionada en `main` por el pull request #4, con confirmación de la persona (2026-11-11). Compactaciones: 0 de 2 presupuestadas |
-| **Último punto estable** | Fase 3 de la revisión de F1: los commits de la fase 2 son todo contenido (`.md`, `content` de `gw.json`), sin código que revisar; marca de revisión con `revisado.sh`. Antes, fase 2 (retro aprobada y aplicada) y fase 1 (17 hallazgos, los medios arreglados); F1 completa |
-| **Siguiente paso** | `/clear` y F2 (`docs/plan.md`) en una rama nueva desde `main`, apuntada aquí nada más empezar |
+| **Rama** | `ccr-60ec66f6-qbtc42` (asignada por la sesión; reiniciada desde `main` en `5f67bd4` tras fusionar F1) |
+| **Fase / tarea** | F2 Motor real (`docs/plan.md` § «F2 en detalle»), pasos F2.1-F2.6. La escucha del banco sigue pendiente de la persona: F2 avanza con lo que no depende de ella. Compactaciones: 0 de 2 presupuestadas |
+| **Último punto estable** | Plan de F2 escrito (decisiones y pasos), sin código todavía |
+| **Siguiente paso** | F2.1 (`language`, `LineJob.ref_text`, `gvoice/install.py`) |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con

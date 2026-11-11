@@ -47,6 +47,8 @@
   "error.machine.bad_path": "invalid machine profile path: {path}",
   "error.machine.config_unreadable": "cannot read {path}: {reason}",
   "error.limit.memory": "only {free} MB of memory are free and the machine profile asks for {min} MB",
+  "error.limit.memory_abort": "free memory fell to {free} MB (watched minimum: {watch} MB) and the engine was stopped",
+  "error.engine.binary_missing": "cannot run the engine: {path}",
   "error.limit.model": "the model \"{model}\" is not allowed by the machine profile for {use} (allowed: {allowed})",
   "error.engine.unknown": "unknown engine \"{engine}\"",
   "error.engine.bad_delay": "invalid fake engine delay: \"{value}\"",

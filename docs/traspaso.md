@@ -9,9 +9,9 @@
 | Campo | Valor |
 |---|---|
 | **Rama** | `ccr-60ec66f6-qbtc42` (asignada por la sesión, desde `main` en `195bb86`) |
-| **Fase / tarea** | F1 Núcleo (`docs/plan.md`): revisión antes de `main` hecha (fases 1, 2 y 3); falta el pull request a `main`, con confirmación de la persona. Compactaciones: 0 de 2 presupuestadas |
+| **Fase / tarea** | F1 Núcleo (`docs/plan.md`): revisión antes de `main` hecha (fases 1, 2 y 3) y pull request #4 a `main` abierto, con confirmación de la persona. Compactaciones: 0 de 2 presupuestadas |
 | **Último punto estable** | Fase 3 de la revisión de F1: los commits de la fase 2 son todo contenido (`.md`, `content` de `gw.json`), sin código que revisar; marca de revisión con `revisado.sh`. Antes, fase 2 (retro aprobada y aplicada) y fase 1 (17 hallazgos, los medios arreglados); F1 completa |
-| **Siguiente paso** | Con confirmación de la persona: descripción con la skill `pr` y pull request de `ccr-60ec66f6-qbtc42` a `main`; fusionar solo con el CI en verde. Después, F2 (`docs/plan.md`), con `/clear` antes |
+| **Siguiente paso** | Fusionar el pull request #4 cuando la persona lo diga, solo con el CI en verde. Después, `/clear` y F2 (`docs/plan.md`) en una rama nueva desde `main` |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con

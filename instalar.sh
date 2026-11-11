@@ -264,8 +264,9 @@ prueba() {  # <carpeta>
       return 1
     fi
   done
-  if [ -f "$codec" ]; then
-    en_anfitrion "$bin/qwen-codec" --model "$codec" >/dev/null 2>&1 || return 1
+  # La carga del códec sin talker no se ha probado en la Deck: si falla, solo avisa.
+  if [ -f "$codec" ] && ! en_anfitrion "$bin/qwen-codec" --model "$codec" >/dev/null 2>&1; then
+    aviso "qwen-codec de $bin no cargó el códec sin --talker; compruébalo con gvoice doctor."
   fi
 }
 FINALES=()

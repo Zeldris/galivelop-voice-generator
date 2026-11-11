@@ -1,5 +1,7 @@
 import json
 import os
+import tempfile
+import unittest
 from pathlib import Path
 from unittest import mock
 
@@ -166,3 +168,23 @@ class QwenBench(BenchBase):
         install_fake(devices=("Vulkan0",))
         data = self.js("bench")
         self.assertEqual({r["device"] for r in data["rows"]}, {"Vulkan0"})
+
+
+class LimitErrorTests(unittest.TestCase):
+    def test_a_memory_limit_is_a_row_and_does_not_stop_the_rest(self):
+        from gvoice import bench, engine
+        from gvoice.limits import LimitError
+
+        class Eng(engine.FakeEngine):
+            def design(self, job, should_cancel):
+                if job.device == "Vulkan0":
+                    raise LimitError("limit.memory_abort", free=100, watch=1536)
+                return super().design(job, should_cancel)
+
+        machine = {"name": "t", "timeoutS": 60, "models": {"design": "1.7b-voicedesign", "produce": ["0.6b-base"]},
+                   "engine": {"device": "Vulkan0", "fallbackDevice": "cpu"}}
+        with tempfile.TemporaryDirectory() as tmp:
+            rows = bench.run(Eng(), machine, tmp)
+        self.assertEqual(len(rows), 8)
+        self.assertIn("1536", rows[0]["error"])
+        self.assertTrue(all(r["error"] is None for r in rows if r["device"] == "cpu"))

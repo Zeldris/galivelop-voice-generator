@@ -17,6 +17,7 @@ from typing import Callable
 
 from . import engine as engine_mod, install
 from .engine import DesignJob, EngineError, LineJob, PrintJob
+from .errors import GvoiceError
 
 DESIGN_INSTRUCTION = ("A calm adult male narrator with a warm, deep voice, clear Spanish diction and a measured "
                       "pace, as in an audiobook.")
@@ -61,6 +62,9 @@ def _attempt(rows, task, model, device, call):
         result = call()
     except EngineError as exc:
         rows.append(_row(task, model, device, error=exc.message))
+        return None
+    except GvoiceError as exc:  # limits.LimitError (memory before or during the run), install errors...
+        rows.append(_row(task, model, device, error=exc.message()))
         return None
     except engine_mod.Cancelled:
         raise KeyboardInterrupt

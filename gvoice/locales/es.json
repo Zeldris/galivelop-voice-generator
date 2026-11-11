@@ -58,6 +58,7 @@
   "error.engine.reference_unreadable": "no se puede leer el audio de referencia {path}",
   "error.engine.not_installed": "el motor qwentts no está instalado (no hay registro de instalación en {path}); ejecuta instalar.sh",
   "error.engine.exit": "el motor terminó con código {returncode} en {device}: {stderr}",
+  "error.engine.device_not_installed": "ningún dispositivo de {devices} está instalado (instalados: {installed}); revisa instalar.sh o el perfil de máquina",
   "error.engine.output_missing": "el motor terminó pero no escribió {path}",
   "error.engine.bad_audio": "no se puede leer el audio que escribió el motor: {path}",
   "error.log.bad_project": "nombre de proyecto no válido: \"{project}\"",

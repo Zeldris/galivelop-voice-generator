@@ -58,6 +58,7 @@
   "error.engine.reference_unreadable": "cannot read the reference audio {path}",
   "error.engine.not_installed": "the qwentts engine is not installed (no install record in {path}); run instalar.sh",
   "error.engine.exit": "the engine exited with code {returncode} on {device}: {stderr}",
+  "error.engine.device_not_installed": "none of the devices {devices} is installed (installed: {installed}); check instalar.sh or the machine profile",
   "error.engine.output_missing": "the engine finished but did not write {path}",
   "error.engine.bad_audio": "the audio the engine wrote cannot be read: {path}",
   "error.log.bad_project": "invalid project name: \"{project}\"",

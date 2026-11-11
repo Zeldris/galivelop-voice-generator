@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import stat
 import sys
 import tempfile
@@ -192,6 +193,21 @@ class FallbackTests(QwenBase):
         self.assertEqual((res.device, res.backend), ("cpu", "cpu"))
         self.assertEqual(res.command, calls[1]["argv"])
         self.assertTrue(Path(self.out / "d.wav").is_file())
+
+    def test_skips_a_device_the_install_dropped(self):
+        install_fake(("cpu",))
+        shutil.rmtree(install.engine_dir() / "bin-vulkan")
+        res = QwenEngine().design(self.design_job(), lambda: False)
+        self.assertEqual([c["device"] for c in self.calls()], ["CPU"])
+        self.assertEqual(res.device, "cpu")
+
+    def test_no_installed_device(self):
+        install_fake(("Vulkan0",))
+        machine = dict(MACHINE, engine={"device": "cpu"})
+        with self.assertRaises(EngineError) as ctx:
+            QwenEngine().design(self.design_job(machine=machine), lambda: False)
+        self.assertEqual((ctx.exception.code, ctx.exception.params["installed"]), ("engine.device_not_installed", "vulkan0"))
+        self.assertFalse(self.log.exists())
 
     def test_failure_on_both(self):
         os.environ["FAKE_FAIL_DEVICES"] = "Vulkan0,CPU"

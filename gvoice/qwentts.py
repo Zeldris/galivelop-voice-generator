@@ -18,7 +18,8 @@ Device: ``job.device`` or the machine profile's ``engine.device``. A non-zero ex
 ``engine.fallbackDevice`` (if set and different); the timeout counts from the start of the first attempt. A timeout,
 a cancel or a `limits.LimitError` propagate untouched, with no fallback. A non-zero exit on the last device is
 ``engine.exit`` with the tail of stderr. The device is passed to the program as ggml names it: ``cpu`` (any case)
-becomes ``CPU``; ``Vulkan0`` goes as is. `EngineResult.device` keeps the name the profile uses.
+becomes ``CPU``; ``Vulkan0`` goes as is. `EngineResult.device` keeps the name the profile uses. A device that
+``install.json`` does not list is skipped (``engine.device_not_installed`` if none is left).
 
 The programs come from `install.binary`; ``LD_LIBRARY_PATH`` starts with their folder as a safety net besides rpath."""
 from __future__ import annotations
@@ -50,12 +51,19 @@ def _backend(device: str) -> str:
 
 
 def _devices(job) -> list:
+    """The job's device and the profile's fallback, keeping only those that `install.json` lists (case-insensitive):
+    instalar.sh drops Vulkan when its build does not start, and its binaries are then missing."""
     first = _device(job)
     devices = [first]
     fallback = (job.machine.get("engine") or {}).get("fallbackDevice")
     if fallback and fallback != first:
         devices.append(fallback)
-    return devices
+    installed = {str(d).lower() for d in (install.read_install() or {}).get("devices", [])}
+    usable = [d for d in devices if str(d).lower() in installed]
+    if not usable:
+        raise EngineError("no installed device among %s" % ", ".join(devices), "engine.device_not_installed",
+                          devices=", ".join(devices), installed=", ".join(sorted(installed)) or "-")
+    return usable
 
 
 def _audio_ms(path: Path) -> int:

@@ -29,6 +29,24 @@ def data_dir() -> Path:
     return _home_dir("GVOICE_DATA_HOME", "XDG_DATA_HOME", (".local", "share", "galivelop-voice"))
 
 
+def state_dir() -> Path:
+    """State shared by the Galivelop generators of one machine (D8): ``$GVOICE_STATE_HOME`` (tests), else
+    ``$XDG_STATE_HOME/galivelop``, else ``~/.local/state/galivelop``. Not ``galivelop-voice``: the folder is the
+    same for every generator, so they share the machine lock."""
+    explicit = os.environ.get("GVOICE_STATE_HOME")
+    if explicit:
+        return Path(explicit)
+    base = os.environ.get("XDG_STATE_HOME")
+    if base and os.path.isabs(base):
+        return Path(base) / "galivelop"
+    return Path.home() / ".local" / "state" / "galivelop"
+
+
+def machine_lock_path() -> Path:
+    """The machine lock (D8): ``<state>/gpu.lock``."""
+    return state_dir() / "gpu.lock"
+
+
 def models_dir() -> Path:
     """Model files folder: ``$GVOICE_MODELS_HOME`` (e.g. an SD card), else ``<data>/models``."""
     explicit = os.environ.get("GVOICE_MODELS_HOME")

@@ -75,5 +75,20 @@
   "error.order.choose_discarded": "el intento {attempt} está descartado y no se puede elegir",
   "error.order.choose_no_audio": "el intento {attempt} aún no tiene audio y no se puede elegir",
   "error.order.history_empty": "el pedido «{order}» no tiene nada que deshacer",
-  "error.order.undo_discarded": "el intento elegido antes ({attempt}) está descartado: no se puede restaurar"
+  "error.order.undo_discarded": "el intento elegido antes ({attempt}) está descartado: no se puede restaurar",
+  "worker.finish_failed": "gvoice: no se pudo cerrar la entrada {id} de la cola: {reason}",
+  "worker.log_failed": "gvoice: no se pudo escribir la línea del registro de la entrada {id}: {reason}",
+  "error.queue.corrupt": "la cola {path} está corrupta",
+  "error.queue.unknown": "no hay ninguna entrada {id} en la cola",
+  "error.queue.not_cancellable": "la entrada {id} ya terminó ({state}) y no se puede cancelar",
+  "error.queue.not_running": "la entrada {id} no está en marcha (estado: {state})",
+  "error.queue.bad_state": "estado final no válido \"{state}\"; usa uno de: {states}",
+  "error.queue.no_production_model": "el perfil de máquina «{profile}» no dice qué modelo produce las frases",
+  "error.queue.model_not_printed": "el modelo de producción «{model}» no está en los modelos de huella del proyecto «{project}» ({models}): las frases no tendrían huella con la que hablar",
+  "error.worker.already_running": "ya hay un trabajador en marcha ({path})",
+  "error.worker.unexpected": "error inesperado del trabajador: {message}",
+  "error.worker.audio_move": "no se pudo guardar el audio de la toma: {reason}",
+  "error.worker.print_missing": "la toma {take} de la voz «{voice}» no tiene la huella del modelo «{model}»: elige la voz de nuevo para que se haga",
+  "error.worker.take_without_audio": "la toma {take} de la voz «{voice}» no tiene audio del que sacar la huella",
+  "error.machine_lock.unavailable": "no se puede abrir el candado de la máquina {path}: {reason}"
 }

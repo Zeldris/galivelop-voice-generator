@@ -166,5 +166,9 @@
   "cli.out.cancel_requested": "Entrada {id}: cancelación pedida.",
   "cli.out.processed": "Procesadas {count} entradas.",
   "cli.unexpected": "error inesperado: {message}",
-  "error.cli.order_unreadable": "no se pudo leer el pedido «{path}»: {reason}"
+  "error.cli.order_unreadable": "no se pudo leer el pedido «{path}»: {reason}",
+  "error.install.unknown_model": "modelo desconocido «{model}»; usa uno de: {models}",
+  "error.install.unknown_device": "dispositivo desconocido «{device}»: debe ser CPU o empezar por Vulkan",
+  "error.install.unknown_binary": "programa del motor desconocido «{binary}»; usa uno de: {binaries}",
+  "error.install.unreadable": "no se pudo leer el registro de instalación del motor {path}: {reason}"
 }

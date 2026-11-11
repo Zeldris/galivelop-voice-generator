@@ -70,6 +70,20 @@ class ProjectTests(unittest.TestCase):
         self.assertIn("/voices", err.message("en"))
         self.assertIn("no es válido", err.message("es"))
 
+    def test_language_default_is_auto(self):
+        self.assertEqual(projects.load_config(self.make(language=None))["language"], "auto")
+
+    def test_language_is_kept(self):
+        self.assertEqual(projects.load_config(self.make(language="English"))["language"], "English")
+
+    def test_bad_language_rejected_by_schema(self):
+        for value, reason in (("", ["minLength", "pattern"]), ("x" * 33, ["maxLength"]), ("es-ES", ["pattern"]),
+                              ("a b", ["pattern"]), (3, ["type"])):
+            with self.subTest(value=value):
+                err = self.code(projects.load_config, self.make(language=value))
+                self.assertEqual(err.code, "project.config_invalid")
+                self.assertEqual([(e.path, e.code) for e in err.errors], [("/language", r) for r in reason])
+
     def test_unknown_print_model_rejected_by_schema(self):
         err = self.code(projects.load_config, self.make(printModels=["9b-base"]))
         self.assertEqual(err.code, "project.config_invalid")

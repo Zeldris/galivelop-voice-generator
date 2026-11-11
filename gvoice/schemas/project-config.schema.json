@@ -54,6 +54,13 @@
       },
       "description": "Base models to extract a print for when a reference is chosen. Omitted: every base model of common.schema.json."
     },
+    "language": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "pattern": "^[A-Za-z]+$",
+      "description": "Language label passed to qwen-tts --lang (e.g. Spanish). Omitted: auto."
+    },
     "delivery": {
       "type": "object",
       "additionalProperties": false,

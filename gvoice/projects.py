@@ -12,6 +12,7 @@ from .errors import GvoiceError
 
 CONFIG_FILE = "galivelop-voices.json"
 DEFAULT_PRINT_MODELS = tuple(schema.load_schema("common")["$defs"]["baseModel"]["enum"])  # D14; one place: the schema
+DEFAULT_LANGUAGE = "auto"  # qwen-tts --lang label when the config has no `language`
 
 
 def registry_path() -> Path:
@@ -66,6 +67,7 @@ def load_config(root) -> dict:
         )
     config = copy.deepcopy(data)
     config.setdefault("printModels", list(DEFAULT_PRINT_MODELS))
+    config.setdefault("language", DEFAULT_LANGUAGE)
     _forbidden(root, "delivery.dir", config["delivery"]["dir"])
     return config
 

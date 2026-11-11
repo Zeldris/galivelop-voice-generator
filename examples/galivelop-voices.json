@@ -11,6 +11,7 @@
       "effects": "orc"
     }
   },
+  "language": "Spanish",
   "printModels": [
     "0.6b-base",
     "1.7b-base"

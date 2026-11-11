@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -6,7 +7,7 @@ import time
 import unittest
 from unittest import mock
 
-from gvoice import engine, limits, log, machine_lock, orders, paths, queue, worker
+from gvoice import engine, limits, log, machine_lock, orders, paths, projects, queue, worker
 from gvoice.errors import GvoiceError
 from tests.test_machine_lock import HOLDER, ROOT
 from tests.test_queue import QueueBase
@@ -376,6 +377,46 @@ class LineTests(WorkerBase):
         line = log_lines()[-1]
         self.assertEqual((line["gen_ai.operation.name"], line["gen_ai.request.model"], line["app.task"]),
                          (log.OP_LINE, "0.6b-base", "line"))
+
+    def recording_engine(self):
+        jobs = []
+
+        class Recording(engine.FakeEngine):
+            def design(self_, job, should_cancel):
+                jobs.append(job)
+                return super().design(job, should_cancel)
+
+            def line(self_, job, should_cancel):
+                jobs.append(job)
+                return super().line(job, should_cancel)
+
+        return Recording(), jobs
+
+    def test_jobs_carry_the_project_language_and_the_reference_text(self):
+        eng, jobs = self.recording_engine()
+        orders.submit(self.p, self.voice())
+        queue.enqueue(self.p, "narrator", orders.attempt_specs(self.p, "narrator", seed=7))
+        self.run_worker(engine=eng)
+        take = orders.get(self.p, "narrator")["attempts"][0]["id"]
+        queue.choose(self.p, "narrator", take)
+        self.run_worker(engine=eng)
+        orders.submit(self.p, self.line())
+        queue.enqueue(self.p, "narrator/intro-01", orders.attempt_specs(self.p, "narrator/intro-01", seed=3))
+        self.run_worker(engine=eng)
+        design, line = jobs
+        self.assertEqual((design.language, line.language), ("Spanish", "Spanish"))
+        self.assertNotEqual(line.ref_text, "")
+        self.assertEqual(line.ref_text, self.attempt("narrator", take)["text"])
+
+    def test_language_defaults_to_auto(self):
+        cfg = json.loads((self.root / projects.CONFIG_FILE).read_text())
+        cfg.pop("language")
+        (self.root / projects.CONFIG_FILE).write_text(json.dumps(cfg))
+        eng, jobs = self.recording_engine()
+        orders.submit(self.p, self.voice())
+        queue.enqueue(self.p, "narrator", orders.attempt_specs(self.p, "narrator", seed=7))
+        self.run_worker(engine=eng)
+        self.assertEqual(jobs[0].language, "auto")
 
     def test_line_uses_the_voice_it_was_queued_for(self):
         self.voice_done()

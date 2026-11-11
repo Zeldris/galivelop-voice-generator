@@ -38,7 +38,7 @@ Cada fase es una rama y un pull request a `main`, con las tres fases de revisió
 | Fase | Qué trae | Hecha cuando |
 |---|---|---|
 | F0 Esqueleto | Estructura del repo; JSON Schema de la configuración del proyecto, el pedido, el perfil de máquina, la ficha de diseño, la cadena de efectos y el paquete de voces; textos es/en; README es/en; `check` real (`python3 -m unittest`) | El check corre tests y los esquemas validan los ejemplos |
-| F1 Núcleo | Núcleo copiado de `gimg` (D7) + pedidos `voice`/`line`, huellas, desfasadas, cola persistente, candado de la máquina, registro JSONL, avisos de la ficha y CLI `gvoice` básica; todo con un **motor de pruebas** que no genera de verdad | Tests en verde del ciclo completo con el motor de pruebas |
+| F1 Núcleo (**hecha**) | Núcleo copiado de `gimg` (D7) + pedidos `voice`/`line`, huellas, desfasadas, cola persistente, candado de la máquina, registro JSONL, avisos de la ficha y CLI `gvoice` básica; todo con un **motor de pruebas** que no genera de verdad | Tests en verde del ciclo completo con el motor de pruebas |
 | F2 Motor real | `instalar.sh` (D17); envoltorio de `qwen-tts`/`qwen-codec` con el perfil `steam-deck` (D15) y vigilante de memoria; **banco como orden** (`gvoice bench`) que repite las medidas de `docs/investigacion/2026-10-25-banco-deck.md` y escribe su tabla | Diseñar, fijar y producir una voz real en la Deck (comprobación manual de la persona) |
 | F3 Efectos y paquete | Cadenas de efectos compiladas a `ffmpeg` (D12) con escucha previa; exportación del paquete de voces (D13); guía de integración (`tts-server`, `ffmpeg`, Web Audio aproximado, niveles D14) | Un paquete exportado se reproduce con `tts-server` + `ffmpeg` siguiendo la guía |
 | F4 API y arranque | API HTTP (solo localhost) y arranque bajo demanda; unidad `systemd --user` opcional | Tests de la API; `gvoice` arranca el servicio solo |
@@ -79,6 +79,8 @@ antes del PR. Origen del núcleo: `gimg@fa1076e55825bf38d59b654341873f58322b190f
 | F1.4 | `engine` (`FakeEngine`), `limits`, `log` y estimado | Tests del `.wav`, las huellas, los límites, el formato del registro y la mediana |
 | F1.5 | `queue`, `worker` y candado de la máquina; trabajo `prints` al elegir | Tests de orden, cancelar, reinicio, un solo trabajador, candado ocupado y huellas por modelo |
 | F1.6 | `cli` `gvoice` y prueba del ciclo completo; README es/en con el uso | Test de extremo a extremo: añadir proyecto, diseñar y elegir voz, fijar, pedir frase, elegir, cambiar referencia y ver la frase desfasada |
+
+**F1 hecha** (F1.1-F1.6, 2026-11-11): `tests/test_e2e.py` recorre el ciclo por la CLI (`tests/test_cli.py` cubre las órdenes). Pendiente: revisión de F1 antes de `main` (fases de `AGENTS.md`).
 
 ## Pendiente
 

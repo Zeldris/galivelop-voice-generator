@@ -9,16 +9,36 @@ voz lo decide cada proyecto en su `galivelop-voices.json`.
 
 ## Estado
 
-En desarrollo, fase **F0 (esqueleto) hecha**: contrato (esquemas JSON), validador, textos es/en, ejemplos y tests.
-**Aún no genera voces**: el núcleo llega en F1 y el motor real en F2.
+En desarrollo, fase **F1 (núcleo) hecha**: contrato (esquemas JSON), pedidos, cola, trabajador y CLI `gvoice`, todo con un
+motor de pruebas. **Aún no genera voces de verdad**: el motor real llega en F2.
 
 Detalle, decisiones D1-D17 y criterios de cierre en [`docs/plan.md`](docs/plan.md); vocabulario en
 [`GLOSSARY.md`](GLOSSARY.md).
+
+## Uso
+
+```sh
+python3 -m gvoice project add <carpeta>              # carpeta con galivelop-voices.json
+python3 -m gvoice order submit <proyecto> examples/order-voice.json   # muestra los avisos de la ficha
+python3 -m gvoice work                               # procesa la cola hasta vaciarla
+python3 -m gvoice order show <proyecto> narrator     # tomas, huellas y frases desfasadas
+python3 -m gvoice choose <proyecto> narrator 1       # fija la voz y encola sus huellas
+python3 -m gvoice attempt new <proyecto> narrator    # otra toma; también `mark`, `note`
+python3 -m gvoice undo <proyecto> narrator           # vuelve a la referencia anterior
+python3 -m gvoice queue list                         # también `queue cancel <entrada>`
+```
+
+`order list` y `order show` marcan las frases elegidas con una referencia que ya no es la vigente (desfasadas, D10).
+`--json` da la salida legible por máquina y `--lang es|en` el idioma; el resto con `--help`. Variables:
+`GVOICE_CONFIG_HOME`, `GVOICE_DATA_HOME`, `GVOICE_STATE_HOME`, `GVOICE_ENGINE` (por ahora solo `fake`) y `GVOICE_LANG`.
 
 ## Estructura
 
 ```text
 gvoice/                 paquete Python (solo stdlib; código y contrato en inglés)
+  cli.py, __main__.py   orden `gvoice` (`python3 -m gvoice`)
+  orders.py, queue.py,
+  worker.py, sheet.py   pedidos y tomas, cola, trabajador, ficha de diseño (más módulos de apoyo)
   schema.py             validador del subconjunto de JSON Schema (copiado de gimg, D7)
   i18n.py, locales/     textos es/en
   schemas/              un esquema por documento

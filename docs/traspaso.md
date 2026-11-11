@@ -9,9 +9,9 @@
 | Campo | Valor |
 |---|---|
 | **Rama** | `ccr-60ec66f6-qbtc42` (asignada por la sesión, desde `main` en `195bb86`) |
-| **Fase / tarea** | F1 Núcleo (`docs/plan.md`): revisión antes de `main`, fase 1 (código) hecha; faltan fases 2 y 3. Compactaciones: 0 de 2 presupuestadas |
-| **Último punto estable** | Fase 1 de la revisión de F1: 17 hallazgos, arreglados los medios (voz de la frase en cola e intento, `--count` antes de guardar, semilla y modelos base leídos del esquema, registro si falla `set_prints`, motor desconocido antes de encolar); F1 completa: F1.6 `cli` y prueba de extremo a extremo; antes F1.5 `queue`/`worker`, F1.3 `orders`, F1.4 `engine`/`limits`/`log`, F1.2 `sheet` |
-| **Siguiente paso** | Fase 2 de la revisión de F1 (`AGENTS.md`): skill `opt-tokens` y luego `retro`, presentando sus propuestas a la persona; después fase 3 (`revisado.sh`, skill `pr`) |
+| **Fase / tarea** | F1 Núcleo (`docs/plan.md`): revisión antes de `main`, fases 1 (código) y 2 (opt-tokens y retro, aprobadas y aplicadas) hechas; falta la fase 3. Compactaciones: 0 de 2 presupuestadas |
+| **Último punto estable** | Fase 2 de la revisión de F1: retro `docs/registros/retro-2026-11-11-f1.md` aprobada entera (tipo de subagente `implementador`, notas de opt-tokens, regla de `REVIEW.md` sobre módulos copiados de `gimg`); antes, fase 1 con 17 hallazgos y los medios arreglados; F1 completa |
+| **Siguiente paso** | Fase 3 de la revisión de F1 (`AGENTS.md`): revisar solo los commits de la fase 2 (`.claude/agents/implementador.md`, regla de `REVIEW.md`), `revisado.sh`, descripción con la skill `pr` y, con confirmación de la persona, pull request a `main` |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con
@@ -41,7 +41,7 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 - Hallazgos leves de la revisión de F0, sin arreglar en este PR: el mensaje de `propertyNames` sale con «()» vacío cuando el motivo no es un `pattern` (p. ej. un `enum`) y solo cuenta el primer motivo (`gvoice/schema.py`); `i18n.t()` lanza `KeyError` si a un idioma le falta un parámetro del texto y no mira `LANGUAGE`; los commits `81d76f1` y `7cebd24` de F0 tienen `Siguiente:` separado de la atribución por una línea en blanco.
 - Escucha del banco y registro del núcleo tras Vulkan: los dos, de la persona (ver «Pendiente» en `docs/plan.md`).
 - Para la persona, en `galivelop-image-generator`: su check `bash -n a b c` solo comprueba `a` (R3 de la retro de F0).
-- Para proponer al flujo: R2-R3 de `docs/registros/retro-2026-10-25-f0.md`, R2-R4 de `docs/registros/retro-2026-10-25-diseno-voces.md`, y las aplazadas de la retro anterior: rama por defecto del flujo en 0.1.0; camino para CI
+- Para proponer al flujo: R3 de `docs/registros/retro-2026-11-11-f1.md`, R2-R3 de `docs/registros/retro-2026-10-25-f0.md`, R2-R4 de `docs/registros/retro-2026-10-25-diseno-voces.md`, y las aplazadas de la retro anterior: rama por defecto del flujo en 0.1.0; camino para CI
   agotado (`ci-local.sh`); 2 tests de `scout-updates` fallan fuera del flujo; `gw-init` debe decir que no se llame a
   `register_repo_root`.
 

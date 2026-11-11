@@ -47,6 +47,8 @@
   "error.machine.bad_path": "ruta de perfil de máquina no válida: {path}",
   "error.machine.config_unreadable": "no se puede leer {path}: {reason}",
   "error.limit.memory": "solo hay {free} MB de memoria libre y el perfil de máquina pide {min} MB",
+  "error.limit.memory_abort": "la memoria libre cayó a {free} MB (mínimo vigilado: {watch} MB) y se detuvo el motor",
+  "error.engine.binary_missing": "no se puede ejecutar el motor: {path}",
   "error.limit.model": "el perfil de máquina no admite el modelo \"{model}\" para {use} (admitidos: {allowed})",
   "error.engine.unknown": "motor desconocido \"{engine}\"",
   "error.engine.bad_delay": "espera del motor de pruebas no válida: \"{value}\"",

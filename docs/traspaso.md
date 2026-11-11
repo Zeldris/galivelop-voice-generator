@@ -31,6 +31,7 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 
 ## Pendiente
 
+- Para la revisión de F1: `GVOICE_ENGINE` con un valor desconocido solo falla en `work`, tras encolar (en `gimg` falla antes de encolar). El CI de GitHub vuelve a arrancar: F1.3 y F1.5 en verde.
 - Hallazgos leves de la revisión de F0, sin arreglar en este PR: el mensaje de `propertyNames` sale con «()» vacío cuando el motivo no es un `pattern` (p. ej. un `enum`) y solo cuenta el primer motivo (`gvoice/schema.py`); `i18n.t()` lanza `KeyError` si a un idioma le falta un parámetro del texto y no mira `LANGUAGE`; los commits `81d76f1` y `7cebd24` de F0 tienen `Siguiente:` separado de la atribución por una línea en blanco.
 - Escucha del banco y registro del núcleo tras Vulkan: los dos, de la persona (ver «Pendiente» en `docs/plan.md`).
 - Para la persona, en `galivelop-image-generator`: su check `bash -n a b c` solo comprueba `a` (R3 de la retro de F0).

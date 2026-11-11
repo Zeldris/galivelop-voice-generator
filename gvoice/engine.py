@@ -7,8 +7,8 @@ what D16 asks for the log (device, seed, engine commit and model).
 * `line`: voice print (``.spk`` + ``.rvq``) + text + seed -> the line audio (a ``.wav``).
 * `voiceprint`: reference ``.wav`` + its text + base model -> the ``.spk`` and ``.rvq`` files.
 
-Engine choice: ``GVOICE_ENGINE``, else ``"engine"`` of ``<config>/config.json``, else ``fake``; the only value for now
-is ``fake``. The fake engine reads ``GVOICE_FAKE_DELAY`` (seconds to wait) and ``GVOICE_FAKE_FAIL`` (fail with that
+Engine choice: ``GVOICE_ENGINE``, else ``"engine"`` of ``<config>/config.json``, else ``fake``; the values are ``fake`` and
+``qwentts`` (`gvoice.qwentts`). The fake engine reads ``GVOICE_FAKE_DELAY`` (seconds to wait) and ``GVOICE_FAKE_FAIL`` (fail with that
 message). Its audio is PCM 16-bit mono 24 kHz, deterministic by seed and text, and as long as the text is."""
 from __future__ import annotations
 
@@ -268,13 +268,20 @@ def check_configured() -> None:
     """Raise the error `get_engine` raises for an unknown configured engine, without building anything. The
     submitting commands call it so a job is never queued for an engine that cannot run it."""
     name = _configured_engine()
-    if name != "fake":
+    if name == "qwentts":
+        from . import install
+        if install.read_install() is None:
+            raise GvoiceError("engine.not_installed", path=str(install.engine_dir()))
+    elif name != "fake":
         raise GvoiceError("engine.unknown", engine=name)
 
 
 def get_engine() -> Engine:
     """The engine named by ``GVOICE_ENGINE`` or the config file (default ``fake``); see the module docstring."""
     check_configured()
+    if _configured_engine() == "qwentts":
+        from .qwentts import QwenEngine
+        return QwenEngine()
     try:
         delay = float(os.environ.get("GVOICE_FAKE_DELAY") or 0)
     except ValueError:

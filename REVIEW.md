@@ -47,3 +47,5 @@ pide criterio. La rellena el proyecto; el flujo nunca la sobrescribe una vez cre
 - **Esquemas** (`gvoice/schemas/`): un dato que usan dos esquemas vive en `common.schema.json` (o en el esquema que lo
   define, como la ficha de diseño) y se enlaza con `$ref`; un objeto con `type` valida los campos de cada tipo con
   `if`/`then`, sin admitir los de otro tipo.
+- **Módulos copiados de `gimg`** (cabecera `Copiado de gimg@<sha>`, D7): lo que se aparta del original sin estar
+  justificado en `docs/plan.md` se arregla en el mismo paso; dejarlo «para la revisión» es un hallazgo.

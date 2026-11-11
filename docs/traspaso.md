@@ -10,8 +10,8 @@
 |---|---|
 | **Rama** | `ccr-60ec66f6-qbtc42` (asignada por la sesión; reiniciada desde `main` en `5f67bd4` tras fusionar F1) |
 | **Fase / tarea** | F2 Motor real (`docs/plan.md` § «F2 en detalle»), pasos F2.1-F2.6. La escucha del banco sigue pendiente de la persona: F2 avanza con lo que no depende de ella. Compactaciones: 0 de 2 presupuestadas |
-| **Último punto estable** | F2.1-F2.5 fusionadas y revisadas |
-| **Siguiente paso** | F2.6: README es/en (instalar, `GVOICE_ENGINE=qwentts`); luego la persona comprueba en la Deck (`instalar.sh`, `gvoice doctor`, `gvoice bench`, una voz real) y escucha el banco |
+| **Último punto estable** | F2.1-F2.5 fusionadas y revisadas; F2.6 con el README es/en escrito. El código de F2 está hecho |
+| **Siguiente paso** | La persona, en la Deck: escuchar el banco viejo (D4), `./instalar.sh`, `gvoice doctor`, `gvoice bench` y diseñar, fijar y producir una voz real con `GVOICE_ENGINE=qwentts`, y `journalctl -k` tras Vulkan. Con eso, las tres fases de revisión antes de `main` |
 | **Check** | verde (`bash -n` de cada gancho y de `instalar.sh`, y `unittest`) |
 
 Con `logRows` en `.claude/gw.json`, cada rama escribe solo en su fila de esta tabla, como mucho 600 caracteres, con

@@ -9,11 +9,26 @@ voice are decided by each project in its `galivelop-voices.json`.
 
 ## Status
 
-In development, phase **F1 (core) done**: contract (JSON schemas), orders, queue, worker and the `gvoice` CLI, all with a
-test engine. **It does not generate real voices yet**: the real engine arrives in F2.
+In development. **F1 (core) done**: contract (JSON schemas), orders, queue, worker and the `gvoice` CLI. **F2 (real
+engine) code done**: `instalar.sh`, the `qwentts` engine with a memory and time watchdog, `gvoice doctor` and
+`gvoice bench`; still to be checked on the Steam Deck.
 
 Details, decisions D1-D17 and exit criteria in [`docs/plan.md`](docs/plan.md) (Spanish); vocabulary in
 [`GLOSSARY.md`](GLOSSARY.md) (Spanish).
+
+## Install
+
+```sh
+./instalar.sh --plan        # says where it would build and what it would download, without touching anything
+./instalar.sh               # engine (CPU and Vulkan) and models (about 5 GB) in the data folder
+./instalar.sh --solo-cpu    # no Vulkan; --sin-modelos skips the models
+python3 -m gvoice doctor    # checks what is installed
+```
+
+No root and no system packages: without a compiler it builds inside the Flatpak SDK (`--user`). It installs into
+`~/.local/share/galivelop-voice/engine/` and the models into `models/` next to it (`GVOICE_MODELS_HOME` moves them
+elsewhere, e.g. the SD card). Running it again skips what is done. To use the real engine, set `GVOICE_ENGINE=qwentts`
+or `{"engine": "qwentts"}` in `~/.config/galivelop-voice/config.json`; otherwise the test engine (`fake`) is used.
 
 ## Usage
 
@@ -30,7 +45,7 @@ python3 -m gvoice queue list                         # also `queue cancel <entry
 
 `order list` and `order show` mark the chosen lines made with a reference that is no longer the current one (stale,
 D10). `--json` gives machine-readable output and `--lang es|en` the language; the rest with `--help`. Variables:
-`GVOICE_CONFIG_HOME`, `GVOICE_DATA_HOME`, `GVOICE_STATE_HOME`, `GVOICE_ENGINE` (only `fake` for now) and `GVOICE_LANG`.
+`GVOICE_CONFIG_HOME`, `GVOICE_DATA_HOME`, `GVOICE_STATE_HOME`, `GVOICE_ENGINE` (`fake` or `qwentts`), `GVOICE_MODELS_HOME` and `GVOICE_LANG`.
 
 ### Engine diagnosis and bench
 

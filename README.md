@@ -9,11 +9,26 @@ voz lo decide cada proyecto en su `galivelop-voices.json`.
 
 ## Estado
 
-En desarrollo, fase **F1 (núcleo) hecha**: contrato (esquemas JSON), pedidos, cola, trabajador y CLI `gvoice`, todo con un
-motor de pruebas. **Aún no genera voces de verdad**: el motor real llega en F2.
+En desarrollo. **F1 (núcleo) hecha**: contrato (esquemas JSON), pedidos, cola, trabajador y CLI `gvoice`. **F2 (motor
+real) con el código hecho**: `instalar.sh`, el motor `qwentts` con vigilante de memoria y tiempo, `gvoice doctor` y
+`gvoice bench`; falta comprobarlo en la Steam Deck.
 
 Detalle, decisiones D1-D17 y criterios de cierre en [`docs/plan.md`](docs/plan.md); vocabulario en
 [`GLOSSARY.md`](GLOSSARY.md).
+
+## Instalación
+
+```sh
+./instalar.sh --plan        # dice dónde compilaría y qué bajaría, sin tocar nada
+./instalar.sh               # motor (CPU y Vulkan) y modelos (unos 5 GB) en la carpeta de datos
+./instalar.sh --solo-cpu    # sin Vulkan; --sin-modelos para no bajar los modelos
+python3 -m gvoice doctor    # comprueba lo instalado
+```
+
+Sin root ni paquetes del sistema: si no hay compilador, compila dentro del SDK de Flatpak (`--user`). Se instala en
+`~/.local/share/galivelop-voice/engine/` y los modelos en `models/` junto a él (`GVOICE_MODELS_HOME` los lleva a otro
+sitio, p. ej. la tarjeta SD). Repetirlo salta lo ya hecho. Para usar el motor real, `GVOICE_ENGINE=qwentts` o
+`{"engine": "qwentts"}` en `~/.config/galivelop-voice/config.json`; sin eso se usa el motor de pruebas (`fake`).
 
 ## Uso
 
@@ -30,7 +45,7 @@ python3 -m gvoice queue list                         # también `queue cancel <e
 
 `order list` y `order show` marcan las frases elegidas con una referencia que ya no es la vigente (desfasadas, D10).
 `--json` da la salida legible por máquina y `--lang es|en` el idioma; el resto con `--help`. Variables:
-`GVOICE_CONFIG_HOME`, `GVOICE_DATA_HOME`, `GVOICE_STATE_HOME`, `GVOICE_ENGINE` (por ahora solo `fake`) y `GVOICE_LANG`.
+`GVOICE_CONFIG_HOME`, `GVOICE_DATA_HOME`, `GVOICE_STATE_HOME`, `GVOICE_ENGINE` (`fake` o `qwentts`), `GVOICE_MODELS_HOME` y `GVOICE_LANG`.
 
 ### Diagnóstico y banco del motor
 

@@ -30,6 +30,7 @@ Tomadas con `grilling` el 2026-10-25, en tres rondas. Investigación: [estado de
 | D15 | **Perfil de máquina `steam-deck`**: `Vulkan0` con respaldo en CPU, más de 4 GB libres para empezar, aborta por debajo de 1,5 GB, tope de tiempo por intento; 1.7B VoiceDesign para diseñar, 0.6B/1.7B Base para producir. El motor se lanza **una vez por intento** (`qwen-tts`); usar `tts-server` en lotes de frases se mide después con `opt-ai` | Nada cargado en memoria entre generaciones; la carga cuesta ~3 s por frase |
 | D16 | **Reproducible solo en el mismo dispositivo**: registro y manifiesto guardan dispositivo, semilla, commit del motor y modelos; la fuente de verdad es el `.wav` elegido | La misma semilla da tomas distintas en CPU y en Vulkan |
 | D17 | **`instalar.sh` compila en el SDK de Flatpak** (`org.freedesktop.Sdk//25.08`, `flatpak --user`, sin root): motor en el commit `5916bf7`, SPIRV-Headers en local, sin BLAS, `rpath $ORIGIN`, checksum de los modelos y prueba de que el binario arranca en el anfitrión; en otras distribuciones con compilador, directo. Sin `distrobox`. Llevar el motor a la máquina del jugador es cosa del instalador del juego (lo explica la guía) | SteamOS no trae compilador; los binarios del SDK arrancan en el anfitrión (glibc 2.43); `buildcpu.sh`/`buildvulkan.sh` no compilan tal cual |
+| D18 | **Motores y modelos como candidatos enchufables**: `qwentts.cpp` + Qwen3-TTS (D4) es el primero; cada motor es una clase con las tres operaciones de `Engine` (diseñar, fijar, producir) y su **catálogo de modelos como datos** (archivo, URL, bytes, sha256, uso). `gvoice bench` mide cualquier candidato instalado con la misma tabla, para comparar y ofrecer más de uno | La persona acepta `qwentts.cpp` como candidato a probar y, al cerrar con él, se bajan más modelos para comparar (2026-11-14) |
 
 ## Fases (aprobadas el 2026-10-25)
 
@@ -82,11 +83,52 @@ antes del PR. Origen del núcleo: `gimg@fa1076e55825bf38d59b654341873f58322b190f
 
 **F1 hecha** (F1.1-F1.6, 2026-11-11): `tests/test_e2e.py` recorre el ciclo por la CLI (`tests/test_cli.py` cubre las órdenes). Pendiente: revisión de F1 antes de `main` (fases de `AGENTS.md`).
 
+## F2 en detalle
+
+Decisiones de implementación de la sesión que abre F2 (2026-11-14), dentro de D1-D18; la persona puede revisarlas
+antes del PR. Banco de referencia: [banco en la Deck](investigacion/2026-10-25-banco-deck.md) (órdenes, cifras y
+sorpresas).
+
+- **Catálogo** por motor en `gvoice/engines/<motor>.json` (esquema propio): commit del motor, y por modelo su id
+  (`0.6b-base`, `1.7b-base`, `1.7b-voicedesign`, `tokenizer-12hz`), archivo, URL, bytes, sha256 y uso (`design`,
+  `base`, `codec`). Los ids son los de los perfiles de máquina y de `printModels`.
+- **`gvoice models list|verify|fetch`**: lista lo instalado en `<datos>/models/`, comprueba tamaño y sha256, y baja
+  lo que falte con `urllib` (archivo `.part`, comprobación y renombrado atómico). Sin dependencias (D1).
+- **`QwenTtsEngine`** (`GVOICE_ENGINE=qwentts`): las órdenes del banco por `subprocess`, una vez por intento (D15):
+  `qwen-tts` para diseñar (VoiceDesign + `--instruct`) y producir (Base + `--ref-spk/--ref-rvq/--ref-text` como
+  **ruta**), `qwen-codec` para fijar (escribe `.spk/.rvq` junto al `.wav`: se trabaja en una carpeta temporal y se
+  mueve). Texto por la entrada estándar; `LD_LIBRARY_PATH` innecesario con `rpath $ORIGIN` (D17). Dispositivo del
+  perfil y, si el motor falla al abrirlo, **una** repetición en `fallbackDevice`, que queda en el resultado (D16).
+  `audio_ms` sale siempre del `.wav` (pendiente de F1). Cancelar y el tope de tiempo matan el grupo del proceso.
+- **Vigilante de memoria** (D15): antes de empezar, `minFreeMemoryMb` libres o el trabajo espera en la cola; durante
+  la ejecución, `MemAvailable` cada 0,5 s y, por debajo de `watchMemoryMb`, mata el proceso y el intento falla con
+  su motivo. Pico de RSS (`VmHWM`) y mínimo de memoria libre van al registro.
+- **`instalar.sh`** (D17): en la Deck, `flatpak --user` con `org.freedesktop.Sdk//25.08`; clona el motor en el
+  commit del catálogo, SPIRV-Headers en un prefijo local, compila CPU y Vulkan sin BLAS con `rpath $ORIGIN`, baja los
+  modelos con `gvoice models fetch` y prueba que el binario arranca en el anfitrión (`flatpak-spawn --host`). En otra
+  distribución con compilador, directo. Idempotente; `--dry-run` imprime las órdenes (lo que prueban los tests).
+- **`gvoice bench`**: repite la matriz del banco (diseñar, fijar, producir; frase corta y larga; cada modelo y
+  dispositivo pedidos) con cualquier motor instalado y escribe la tabla en Markdown con motor, commit, modelo,
+  dispositivo, pared, audio, RTF, pico de RSS, mínimo libre y estado. Los `.wav` quedan en `<datos>/bench/<fecha>/`.
+- **Tests sin motor real**: un `qwen-tts`/`qwen-codec` falso en Python dentro de `tests/` imita sus argumentos y
+  salidas (y sus fallos). Lo que necesita la Deck queda en «Pendiente» para la persona.
+
+### Pasos de F2
+
+| Paso | Qué | Hecho cuando |
+|---|---|---|
+| F2.1 | Catálogo `gvoice/engines/qwentts.json` y su esquema; `gvoice models` (`list`, `verify`, `fetch`) | Tests de verificación, descarga con servidor local, sha256 que no casa y archivo a medias |
+| F2.2 | `QwenTtsEngine` con motor falso: órdenes, carpeta temporal, `audio_ms`, respaldo de dispositivo, cancelar y tope | Tests de cada orden armada, respaldo, cancelar, tope y errores del motor con su motivo |
+| F2.3 | Vigilante de memoria en el trabajador y el motor (D15), con `limits` | Tests de espera por memoria, aborto por debajo del umbral y valores en el registro |
+| F2.4 | `instalar.sh` (D17) con `--dry-run` | Tests de las órdenes en la Deck y en otra distribución; `bash -n` en el check |
+| F2.5 | `gvoice bench` y su tabla | Tests de la matriz y de la tabla con el motor falso |
+| F2.6 | Comprobación en la Deck (la persona): instalar, diseñar, fijar y producir una voz real; `gvoice bench` | La persona lo confirma; resultados en `docs/investigacion/` |
+
 ## Pendiente
 
-- **Escucha del banco** (la persona, en la Deck): si el español suena natural y si la voz se mantiene entre frases,
+- **Escucha del banco** (la persona, en la Deck; 2026-11-14: `qwentts.cpp` se acepta como primer candidato, D18): si el español suena natural y si la voz se mantiene entre frases,
   en `~/.local/share/galivelop-voice/bench/` (`diseno-cpu-s11.wav`, `diseno-cpu-s22.wav`, `prod-vk-0.6b-larga.wav`,
-  `prod-vk-1.7b-larga.wav`). Si no convence, se revisa D4 antes de F2.
+  `prod-vk-1.7b-larga.wav`). Al cerrar F2 se bajan más modelos para comparar con `gvoice bench`.
 - **Registro del núcleo tras Vulkan** (la persona, en el anfitrión): `journalctl -k | grep -i -E "amdgpu|drm"` tras
   generar, para descartar el fallo silencioso de la issue #41.
 - Proponer al repo de imágenes el candado de la máquina (D8) y, más adelante, el núcleo común (D7).

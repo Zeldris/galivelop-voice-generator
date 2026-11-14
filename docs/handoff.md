@@ -8,10 +8,10 @@
 
 | Campo | Valor |
 |---|---|
-| **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión, desde `main` en `5f67bd4`) |
-| **Fase / tarea** | Actualización del flujo Galivelop-workflow 0.3.0 → 0.6.0 (`/gw-update`), antes de F2. F1 cerrada y en `main` (PR #4). Fases antes de `main`: 1 hecha (0 hallazgos, `SHIP`), 2 hecha (retro `docs/records/retro-2026-11-14-gw-update.md` aprobada), 3 hecha. Fusionado en `main` por el pull request #5 (`d7d5095`), con el CI en verde y confirmación de la persona |
-| **Último punto estable** | Flujo en 0.6.0: `apply.py --update`, propuestas fundidas, `doctor.py` sin avisos y `apply.py --check` en 0 |
-| **Siguiente paso** | `/clear` y F2 en una rama nueva desde `main` |
+| **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; sigue tras el PR #5, con `main` en `d7d5095`) |
+| **Fase / tarea** | F2 Motor real. `qwentts.cpp` aceptado como primer candidato (D18: motores y modelos enchufables; al cerrar F2 se bajan más para comparar). Plan detallado en `docs/plan.md` § «F2 en detalle» (pasos F2.1-F2.6). Presupuesto de compactaciones: 2 (la sesión lleva 1 antes de empezar F2) |
+| **Último punto estable** | Plan de F2 escrito; sin código de F2 todavía |
+| **Siguiente paso** | F2.1: catálogo `gvoice/engines/qwentts.json` y `gvoice models` (`list`, `verify`, `fetch`), a un subagente `implementador` |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`) |
 
 ## Para la próxima publicación

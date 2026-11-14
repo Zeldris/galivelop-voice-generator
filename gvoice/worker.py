@@ -151,7 +151,7 @@ def _take(entry: dict, eng, machine: dict, state: dict, should_cancel):
             raise GvoiceError("worker.print_missing", model=model, voice=voice, take=reference["id"])
         job = engine_mod.LineJob(
             spk=str(spk), rvq=str(rvq), text=entry["text"], seed=entry["seed"], output=str(tmp), model=model,
-            machine=machine, timeout_s=machine.get("timeoutS"))
+            machine=machine, timeout_s=machine.get("timeoutS"), reference_text=reference.get("text"))
         spec["voice"] = voice
         spec["reference"] = entry["reference"]
         state["spec"] = {"model": model, "text": entry["text"]}

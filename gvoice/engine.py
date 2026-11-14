@@ -1,4 +1,4 @@
-"""Voice engines: the interface and the fake one (F1); the real `qwen-tts` wrapper arrives in F2.
+"""Voice engines: the interface and the fake one (F1); the real wrapper of `qwen-tts` is `engine_qwentts` (F2).
 
 Copiado de gimg@fa1076e (D7); adaptado a gvoice: three operations instead of one image (D10) and the result carries
 what D16 asks for the log (device, seed, engine commit and model).
@@ -7,9 +7,9 @@ what D16 asks for the log (device, seed, engine commit and model).
 * `line`: voice print (``.spk`` + ``.rvq``) + text + seed -> the line audio (a ``.wav``).
 * `voiceprint`: reference ``.wav`` + its text + base model -> the ``.spk`` and ``.rvq`` files.
 
-Engine choice: ``GVOICE_ENGINE``, else ``"engine"`` of ``<config>/config.json``, else ``fake``; the only value for now
-is ``fake``. The fake engine reads ``GVOICE_FAKE_DELAY`` (seconds to wait) and ``GVOICE_FAKE_FAIL`` (fail with that
-message). Its audio is PCM 16-bit mono 24 kHz, deterministic by seed and text, and as long as the text is."""
+Engine choice: ``GVOICE_ENGINE``, else ``"engine"`` of ``<config>/config.json``, else ``fake``; the values
+are ``fake`` and ``qwentts`` (`engine_qwentts`). The fake engine reads ``GVOICE_FAKE_DELAY`` (seconds to wait)
+and ``GVOICE_FAKE_FAIL`` (fail with that message). Its audio is PCM 16-bit mono 24 kHz, deterministic by seed and text, and as long as the text is."""
 from __future__ import annotations
 
 import hashlib
@@ -45,6 +45,7 @@ class DesignJob:
     device: Optional[str] = None
     machine: dict = field(default_factory=dict)
     timeout_s: Optional[float] = None
+    language: Optional[str] = None  # the engine's language name (``Spanish``); the real engine defaults to Spanish
 
 
 @dataclass
@@ -58,6 +59,8 @@ class LineJob:
     device: Optional[str] = None
     machine: dict = field(default_factory=dict)
     timeout_s: Optional[float] = None
+    language: Optional[str] = None
+    reference_text: Optional[str] = None  # what the reference take says (the real engine needs it for ``--ref-text``)
 
 
 @dataclass
@@ -70,6 +73,7 @@ class PrintJob:
     device: Optional[str] = None
     machine: dict = field(default_factory=dict)
     timeout_s: Optional[float] = None
+    language: Optional[str] = None
 
 
 @dataclass
@@ -265,13 +269,19 @@ def check_configured() -> None:
     """Raise the error `get_engine` raises for an unknown configured engine, without building anything. The
     submitting commands call it so a job is never queued for an engine that cannot run it."""
     name = _configured_engine()
-    if name != "fake":
+    if name == "qwentts":
+        from . import engine_qwentts, limits
+        engine_qwentts.check_installed(limits.load_machine())
+    elif name != "fake":
         raise GvoiceError("engine.unknown", engine=name)
 
 
 def get_engine() -> Engine:
     """The engine named by ``GVOICE_ENGINE`` or the config file (default ``fake``); see the module docstring."""
     check_configured()
+    if _configured_engine() == "qwentts":
+        from . import engine_qwentts
+        return engine_qwentts.QwenTtsEngine()
     try:
         delay = float(os.environ.get("GVOICE_FAKE_DELAY") or 0)
     except ValueError:

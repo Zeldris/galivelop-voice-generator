@@ -97,8 +97,12 @@ sorpresas).
 - **`QwenTtsEngine`** (`GVOICE_ENGINE=qwentts`): las órdenes del banco por `subprocess`, una vez por intento (D15):
   `qwen-tts` para diseñar (VoiceDesign + `--instruct`) y producir (Base + `--ref-spk/--ref-rvq/--ref-text` como
   **ruta**), `qwen-codec` para fijar (escribe `.spk/.rvq` junto al `.wav`: se trabaja en una carpeta temporal y se
-  mueve). Texto por la entrada estándar; `LD_LIBRARY_PATH` innecesario con `rpath $ORIGIN` (D17). Dispositivo del
-  perfil y, si el motor falla al abrirlo, **una** repetición en `fallbackDevice`, que queda en el resultado (D16).
+  mueve). Texto por la entrada estándar; `LD_LIBRARY_PATH` innecesario con `rpath $ORIGIN` (D17). Binarios en
+  `<datos>/engine/bin-vulkan/` (dispositivo `Vulkan*`) o `bin-cpu/` (otro), con `qwen-tts` y `qwen-codec` en cada uno;
+  `GVOICE_QWENTTS_BIN` sustituye ambas carpetas (tests). Código en `gvoice/engine_qwentts.py`; idioma `Spanish` si el
+  trabajo no trae otro (los trabajos no lo traen aún). Dispositivo del
+  perfil y, si el motor falla al abrirlo (sale ≠0 sin archivo en 30 s), **una** repetición en `fallbackDevice`, que
+  queda en el resultado (D16).
   `audio_ms` sale siempre del `.wav` (pendiente de F1). Cancelar y el tope de tiempo matan el grupo del proceso.
 - **Vigilante de memoria** (D15): antes de empezar, `minFreeMemoryMb` libres o el trabajo espera en la cola; durante
   la ejecución, `MemAvailable` cada 0,5 s y, por debajo de `watchMemoryMb`, mata el proceso y el intento falla con

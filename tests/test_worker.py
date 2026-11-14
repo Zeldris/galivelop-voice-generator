@@ -377,6 +377,21 @@ class LineTests(WorkerBase):
         self.assertEqual((line["gen_ai.operation.name"], line["gen_ai.request.model"], line["app.task"]),
                          (log.OP_LINE, "0.6b-base", "line"))
 
+    def test_line_job_carries_the_text_of_the_reference_take(self):
+        take = self.voice_done()
+        orders.submit(self.p, self.line())
+        queue.enqueue(self.p, "narrator/intro-01", orders.attempt_specs(self.p, "narrator/intro-01", seed=3))
+        seen = []
+
+        class Spy(engine.FakeEngine):
+            def line(self, job, should_cancel):
+                seen.append(job)
+                return super().line(job, should_cancel)
+
+        self.run_worker(engine=Spy())
+        self.assertEqual([j.reference_text for j in seen], [self.attempt("narrator", take)["text"]])
+        self.assertTrue(seen[0].reference_text)
+
     def test_line_uses_the_voice_it_was_queued_for(self):
         self.voice_done()
         orders.submit(self.p, self.voice(key="orc"))

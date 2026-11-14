@@ -26,6 +26,7 @@ python3 -m gvoice choose <project> narrator 1        # fixes the voice and queue
 python3 -m gvoice attempt new <project> narrator     # another take; also `mark`, `note`
 python3 -m gvoice undo <project> narrator            # back to the previous reference
 python3 -m gvoice queue list                         # also `queue cancel <entry>`
+python3 -m gvoice models verify                       # also `list` and `fetch` (downloads what is missing); `--engine qwentts`
 ```
 
 `order list` and `order show` mark the chosen lines made with a reference that is no longer the current one (stale,
@@ -43,6 +44,7 @@ gvoice/                 Python package (stdlib only; code and contract in Englis
   i18n.py, locales/     es/en texts
   schemas/              one schema per document
   machine_profiles/     machine profiles (steam-deck, D15)
+  engines/              engine catalogs (qwentts: models, URL, size and sha256, D18)
 examples/               one valid example per schema (order: one voice, one line)
 tests/                  unittest
 ```
@@ -58,6 +60,7 @@ Schemas in `gvoice/schemas/`:
 | Effect chain (closed vocabulary) | `effect-chain.schema.json` |
 | Voice pack: `pack.json` and `voice.json` | `pack.schema.json`, `voice.schema.json` |
 | Shared definitions (`$ref`, one fact in one place) | `common.schema.json` |
+| Engine catalog (`gvoice/engines/<engine>.json`) | `engine-catalog.schema.json` |
 
 Example project configuration: [`examples/galivelop-voices.json`](examples/galivelop-voices.json); the other examples are in [`examples/`](examples/).
 

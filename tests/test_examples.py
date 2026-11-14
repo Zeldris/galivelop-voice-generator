@@ -14,6 +14,7 @@ EXAMPLES = {
     "pack": "examples/pack.json",
     "voice": "examples/voice.json",
     "machine-profile": "gvoice/machine_profiles/steam-deck.json",
+    "engine-catalog": "gvoice/engines/qwentts.json",
 }
 ORDERS = ("examples/order-voice.json", "examples/order-line.json")
 

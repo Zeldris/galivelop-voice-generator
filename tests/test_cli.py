@@ -1,4 +1,5 @@
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -10,7 +11,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from gvoice import __version__, cli, queue
+from gvoice import __version__, cli, models, queue
+from gvoice.errors import GvoiceError
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = (ROOT / "examples" / "galivelop-voices.json").read_text()
@@ -276,6 +278,95 @@ class LocaleCoverageTests(unittest.TestCase):
             texts = json.loads((ROOT / "gvoice" / "locales" / (lang + ".json")).read_text(encoding="utf-8"))
             for key in keys:
                 self.assertTrue(key in texts or "error." + key in texts, (lang, key))
+
+
+class ModelsTests(CliBase):
+    """`gvoice models` over a made-up catalog (a local one, two tiny files), never the real downloads."""
+
+    def setUp(self):
+        super().setUp()
+        self.files = {"a": b"a" * 100, "b": b"b" * 50}
+        self.catalog = {"engine": "qwentts", "repo": "https://example.com/e", "commit": "0" * 40, "models": [
+            {"id": i, "file": i + ".gguf", "url": "https://example.com/" + i, "bytes": len(d),
+             "sha256": hashlib.sha256(d).hexdigest(), "use": "base"} for i, d in self.files.items()]}
+        patch = mock.patch.object(models, "load", side_effect=self._load)
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.dir = self.tmp / "data" / "models"
+
+    def _load(self, engine):
+        if engine != "qwentts":
+            raise GvoiceError("models.catalog_missing", engine=engine)
+        return self.catalog
+
+    def place(self, name, data):
+        self.dir.mkdir(parents=True, exist_ok=True)
+        (self.dir / (name + ".gguf")).write_bytes(data)
+
+    def test_list_does_not_hash_and_exits_zero(self):
+        self.place("a", b"x" * 100)
+        out = self.ok("models", "list")
+        self.assertIn("a (base): size matches, sha256 not checked", out)
+        self.assertIn("b (base): missing", out)
+        self.assertEqual({i["id"]: i["state"] for i in self.js("models", "list")},
+                         {"a": "unchecked", "b": "missing"})
+
+    def test_verify_exits_one_unless_everything_is_ok(self):
+        self.place("a", self.files["a"])
+        code, out, err = self.run_cli("--json", "models", "verify")
+        self.assertEqual(code, 1)
+        self.assertEqual({i["id"]: i["state"] for i in json.loads(out)}, {"a": "ok", "b": "missing"})
+        self.place("b", b"y" * 50)
+        code, out, _ = self.run_cli("models", "verify")
+        self.assertEqual(code, 1)
+        self.assertIn("b (base): wrong sha256", out)
+        self.place("b", b"y" * 7)
+        self.assertIn("wrong size", self.run_cli("models", "verify")[1])
+        self.place("b", self.files["b"])
+        code, out, err = self.run_cli("models", "verify", "--lang", "es")
+        self.assertEqual((code, err), (0, ""))
+        self.assertIn("b (base): ok", out)
+
+    def test_verify_only_the_given_ids(self):
+        self.place("a", self.files["a"])
+        self.assertEqual(self.run_cli("models", "verify", "a")[0], 0)
+
+    def test_fetch_downloads_through_the_core(self):
+        with mock.patch.object(models, "fetch", return_value=[
+                {"id": "a", "path": "/p/a", "action": "downloaded"}, {"id": "b", "path": "/p/b", "action": "present"}
+        ]) as fetch:
+            out = self.ok("models", "fetch", "a", "b")
+            self.assertEqual(fetch.call_args.args[:2], (self.catalog, ["a", "b"]))
+            self.assertIn("a: downloaded to /p/a", out)
+            self.assertIn("b: already in /p/b", out)
+            self.assertEqual(self.js("models", "fetch")[0]["action"], "downloaded")
+
+    def test_fetch_end_to_end_from_a_local_server(self):
+        import http.server
+        import threading
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_GET(h):
+                h.send_response(200)
+                h.send_header("Content-Length", "100")
+                h.end_headers()
+                h.wfile.write(b"x" * 100)  # not the catalog content: sha256 mismatch
+
+            def log_message(h, *a):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        self.catalog["models"][0]["url"] = "http://127.0.0.1:%d/a" % server.server_address[1]
+        self.fails("models", "fetch", "a", message="sha256 different from the catalog")
+        self.fails("models", "fetch", "a", message="sha256", lang="es")
+        self.assertEqual(list(self.dir.iterdir()) if self.dir.exists() else [], [])
+
+    def test_unknown_id_and_unknown_engine(self):
+        self.fails("models", "verify", "nope", message='unknown model "nope"')
+        self.fails("models", "list", "--engine", "other", message='no catalog for the engine "other"')
 
 
 if __name__ == "__main__":

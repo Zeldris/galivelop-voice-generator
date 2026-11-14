@@ -9,7 +9,7 @@
 | Campo | Valor |
 |---|---|
 | **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión, desde `main` en `5f67bd4`) |
-| **Fase / tarea** | Actualización del flujo Galivelop-workflow 0.3.0 → 0.6.0 (`/gw-update`), antes de F2. F1 cerrada y en `main` (PR #4). Fases antes de `main`: 1 pendiente (revisión solo de lo fundido a mano: `AGENTS.md`, `CLAUDE.md`, `REVIEW.md`, `GLOSSARY.md`, `.claude/gw.json`; lo copiado tal cual del flujo no se revisa), 2 y 3 pendientes |
+| **Fase / tarea** | Actualización del flujo Galivelop-workflow 0.3.0 → 0.6.0 (`/gw-update`), antes de F2. F1 cerrada y en `main` (PR #4). Fases antes de `main`: 1 hecha (0 hallazgos, `SHIP`), 2 hecha (retro `docs/records/retro-2026-11-14-gw-update.md` aprobada), 3 en curso |
 | **Último punto estable** | Flujo en 0.6.0: `apply.py --update`, propuestas fundidas, `doctor.py` sin avisos y `apply.py --check` en 0 |
 | **Siguiente paso** | Pull request de esta rama a `main` con la skill `pr` (lista de cambios 0.4-0.6 del CHANGELOG y lo fundido a mano); la persona decide la fusión. Luego `/clear` y F2 en una rama nueva |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`) |
@@ -38,7 +38,7 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 - Hallazgos leves de la revisión de F0, sin arreglar en este PR: el mensaje de `propertyNames` sale con «()» vacío cuando el motivo no es un `pattern` (p. ej. un `enum`) y solo cuenta el primer motivo (`gvoice/schema.py`); `i18n.t()` lanza `KeyError` si a un idioma le falta un parámetro del texto y no mira `LANGUAGE`; los commits `81d76f1` y `7cebd24` de F0 tienen `Siguiente:` separado de la atribución por una línea en blanco.
 - Escucha del banco y registro del núcleo tras Vulkan: los dos, de la persona (ver «Pendiente» en `docs/plan.md`).
 - Para la persona, en `galivelop-image-generator`: su check `bash -n a b c` solo comprueba `a` (R3 de la retro de F0).
-- Para proponer al flujo: R3 de `docs/records/retro-2026-11-11-f1.md`, R2-R3 de `docs/records/retro-2026-10-25-f0.md`, R2-R4 de `docs/records/retro-2026-10-25-diseno-voces.md`, y las aplazadas de la retro anterior: rama por defecto del flujo en 0.1.0; camino para CI
+- Para proponer al flujo: R1-R5 de `docs/records/retro-2026-11-14-gw-update.md`, R3 de `docs/records/retro-2026-11-11-f1.md`, R2-R3 de `docs/records/retro-2026-10-25-f0.md`, R2-R4 de `docs/records/retro-2026-10-25-diseno-voces.md`, y las aplazadas de la retro anterior: rama por defecto del flujo en 0.1.0; camino para CI
   agotado (`ci-local.sh`); 2 tests de `scout-updates` fallan fuera del flujo; `gw-init` debe decir que no se llame a
   `register_repo_root`.
 

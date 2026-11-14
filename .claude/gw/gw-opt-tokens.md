@@ -46,3 +46,5 @@ las crea una vez; desde entonces son del proyecto.
 - 2026-11-10, F1 núcleo (`acd19f75`): 35 llamadas, contexto medio 118k (techo 143k), 0 compactaciones; 5 subagentes
   en sonnet, 88 llamadas, 9,6M de entrada, arranque medio 68k. Revisión (`8c6b4aa5`): 12 llamadas, 99k; subagentes
   3,5M (revisión en opus 1,4M).
+- 2026-11-14, `/gw-update` 0.3.0 → 0.6.0 (`6ea0a867`): 42 llamadas, contexto medio 119k (suelo 80k, techo 151k),
+  0 compactaciones, sin subagentes; la revisión de fase 1 (4 archivos de configuración) en la sesión.

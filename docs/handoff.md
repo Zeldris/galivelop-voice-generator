@@ -9,9 +9,9 @@
 | Campo | Valor |
 |---|---|
 | **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión, desde `main` en `5f67bd4`) |
-| **Fase / tarea** | Actualización del flujo Galivelop-workflow 0.3.0 → 0.6.0 (`/gw-update`), antes de F2. F1 cerrada y en `main` (PR #4). Fases antes de `main`: 1 hecha (0 hallazgos, `SHIP`), 2 hecha (retro `docs/records/retro-2026-11-14-gw-update.md` aprobada), 3 hecha (marca `fd93c75`); pull request #5 abierto |
+| **Fase / tarea** | Actualización del flujo Galivelop-workflow 0.3.0 → 0.6.0 (`/gw-update`), antes de F2. F1 cerrada y en `main` (PR #4). Fases antes de `main`: 1 hecha (0 hallazgos, `SHIP`), 2 hecha (retro `docs/records/retro-2026-11-14-gw-update.md` aprobada), 3 hecha. Fusionado en `main` por el pull request #5 (`d7d5095`), con el CI en verde y confirmación de la persona |
 | **Último punto estable** | Flujo en 0.6.0: `apply.py --update`, propuestas fundidas, `doctor.py` sin avisos y `apply.py --check` en 0 |
-| **Siguiente paso** | La persona fusiona el pull request #5 (https://github.com/Zeldris/galivelop-voice-generator/pull/5) con el CI en verde; luego `/clear` y F2 en una rama nueva |
+| **Siguiente paso** | `/clear` y F2 en una rama nueva desde `main` |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`) |
 
 ## Para la próxima publicación

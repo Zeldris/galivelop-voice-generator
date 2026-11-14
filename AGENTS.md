@@ -143,7 +143,7 @@ planea, decide y revisa. Esta línea es la autorización que piden las instrucci
   correr o comprobarse en el anfitrión va con `flatpak-spawn --host <orden>`. Detalle en
   `docs/investigacion/2026-10-25-banco-deck.md`.
 - Instalar: —.
-- **Autoría:** los commits van a nombre de la persona (`git config user.name` y `user.email` de sus commits en `main`), sin firmas del agente (`agentSignatures: false`).
+- **Autoría:** los commits van a nombre de la persona: `git config user.name "Álvaro García Graña (Zeldris)"` y `user.email` el de sus commits en `main`, sin firmas del agente (`agentSignatures: false`).
 - **Stack:** Python 3 solo con la biblioteca estándar, sin dependencias (D1); tests con `unittest`.
 - **Paquete `gvoice/`**: código y contrato en inglés (D9); esquemas JSON en `gvoice/schemas/` (uno por documento),
   perfiles de máquina en `gvoice/machine_profiles/`, textos es/en en `gvoice/locales/`. Ejemplos en `examples/`.

@@ -3,6 +3,7 @@
   "version": "0.6.0",
   "schemaVersion": 1,
   "language": "es",
+  "agentSignatures": false,
   "visibleLanguages": [
     "es",
     "en"

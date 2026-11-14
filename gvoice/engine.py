@@ -46,6 +46,7 @@ class DesignJob:
     machine: dict = field(default_factory=dict)
     timeout_s: Optional[float] = None
     language: Optional[str] = None  # the engine's language name (``Spanish``); the real engine defaults to Spanish
+    no_fallback: bool = False  # True: run on `device` only, never on the profile's ``fallbackDevice`` (the bench)
 
 
 @dataclass
@@ -61,6 +62,7 @@ class LineJob:
     timeout_s: Optional[float] = None
     language: Optional[str] = None
     reference_text: Optional[str] = None  # what the reference take says (the real engine needs it for ``--ref-text``)
+    no_fallback: bool = False
 
 
 @dataclass
@@ -74,6 +76,7 @@ class PrintJob:
     machine: dict = field(default_factory=dict)
     timeout_s: Optional[float] = None
     language: Optional[str] = None
+    no_fallback: bool = False
 
 
 @dataclass

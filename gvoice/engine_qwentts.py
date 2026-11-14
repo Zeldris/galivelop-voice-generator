@@ -19,7 +19,7 @@ Device (D16): the profile's ``engine.device``. If the process dies at startup (e
 file, within `STARTUP_WINDOW_S`) it is repeated ONCE on ``engine.fallbackDevice``, and the device that produced the
 result is in `EngineResult.device`, written as in the profile (``cpu``; `device_arg` only builds the argv). A failure
 with an output file, after the window, with exit 0 or by a signal (the OOM killer, a segfault) never falls back; with a
-memory watch the fallback also needs ``minFreeMemoryMb`` again, else the first error is reported with a note.
+memory watch the fallback also needs ``minFreeMemoryMb`` again, else the first error is reported with a note. A job with ``no_fallback`` (the bench, which measures one device) never falls back.
 
 Orphans: the process inherits the machine lock descriptor (`machine_lock.held_fds`, ``pass_fds``), so if the worker is
 killed (SIGKILL) the engine, alive in its own session, still holds the ``flock`` and no other job runs next to it.
@@ -280,7 +280,7 @@ class QwenTtsEngine(Engine):
         device = _device(job)
         fallback = (machine.get("engine") or {}).get("fallbackDevice")
         devices = [device]
-        if fallback and fallback.lower() != device.lower():
+        if fallback and fallback.lower() != device.lower() and not job.no_fallback:
             devices.append(fallback)
         timeout = job.timeout_s if job.timeout_s is not None else machine.get("timeoutS")
         deadline = None if timeout is None else time.monotonic() + timeout

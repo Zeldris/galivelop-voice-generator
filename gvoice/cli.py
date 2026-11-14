@@ -12,8 +12,9 @@ import json
 import os
 import sys
 import traceback
+from pathlib import Path
 
-from . import __version__, i18n, models, orders, projects, queue, sheet, worker
+from . import __version__, bench, engine, i18n, limits, models, orders, projects, queue, sheet, worker
 from .errors import GvoiceError
 
 LANGS = ("es", "en")
@@ -94,6 +95,10 @@ def _build(lang: str) -> argparse.ArgumentParser:
         leaf(g, name, help_key, opt("--engine", "cli.arg.engine", default="qwentts"),
              arg("ids", "cli.arg.model_ids", nargs="*"))
 
+    leaf(top, "bench", "cli.cmd.bench", opt("--models", "cli.arg.bench_models"),
+         opt("--devices", "cli.arg.bench_devices"), opt("--steps", "cli.arg.bench_steps"),
+         opt("--seed", "cli.arg.bench_seed", type=int, default=bench.DEFAULT_SEED),
+         opt("--out", "cli.arg.bench_out"))
     leaf(top, "work", "cli.cmd.work", opt("--once", "cli.arg.once", action="store_true"))
     leaf(top, "version", "cli.cmd.version")
     return parser
@@ -279,6 +284,31 @@ def _models(args, sub, out: _Out) -> int:
     return 1 if sub == "verify" and any(i["state"] != models.OK for i in found) else 0
 
 
+def _bench(args, out: _Out) -> int:
+    machine = limits.load_machine()
+    chosen = machine.get("models") or {}
+    produce = chosen.get("produce") or []
+    produce = [produce] if isinstance(produce, str) else produce
+    steps = bench.split_list(args.steps, bench.STEPS)
+    unknown = [s for s in steps if s not in bench.STEPS]
+    if unknown:
+        raise GvoiceError("bench.bad_steps", steps=", ".join(unknown), allowed=", ".join(bench.STEPS))
+    model_ids = bench.split_list(args.models, produce)
+    devices = bench.split_list(args.devices, [(machine.get("engine") or {}).get("device") or "cpu"])
+    for option, value in (("--steps", steps), ("--devices", devices),
+                          ("--models", model_ids if set(steps) & {"print", "produce"} else steps)):
+        if not value:
+            raise GvoiceError("bench.empty_list", option=option)
+    target = Path(args.out).expanduser().resolve() if args.out else bench.default_out().resolve()
+    doc = bench.run(engine.get_engine(), machine, model_ids, devices, steps, args.seed, target, out.lang)
+    if out.as_json:
+        out.data(doc)
+    else:
+        print(bench.render(doc, out.lang))
+        out.line("bench.done", out=doc["out"])
+    return 130 if doc["cancelled"] else 0 if doc["ok"] else 1
+
+
 def _run(args, out: _Out) -> int:
     cmd, sub = args.cmd, getattr(args, "sub", None)
     if cmd == "version":
@@ -309,6 +339,8 @@ def _run(args, out: _Out) -> int:
         _queue(args, sub, out)
     elif cmd == "models":
         return _models(args, sub, out)
+    elif cmd == "bench":
+        return _bench(args, out)
     elif cmd == "work":
         handled = worker.run(once=args.once, lang=out.lang)
         out.data({"processed": handled}) if out.as_json else out.line("cli.out.processed", count=handled)

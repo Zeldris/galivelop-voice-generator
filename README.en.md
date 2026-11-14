@@ -39,6 +39,7 @@ python3 -m gvoice attempt new <project> narrator     # another take; also `mark`
 python3 -m gvoice undo <project> narrator            # back to the previous reference
 python3 -m gvoice queue list                         # also `queue cancel <entry>`
 python3 -m gvoice models verify                       # also `list` and `fetch` (downloads what is missing); `--engine qwentts`
+python3 -m gvoice bench --devices Vulkan0,cpu       # times design, print and produce with the engine and writes `bench.md` (the bench table) in `<data>/bench/<date>/`; also `--models`, `--steps`, `--seed`, `--out`
 ```
 
 `order list` and `order show` mark the chosen lines made with a reference that is no longer the current one (stale,

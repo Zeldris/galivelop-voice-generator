@@ -125,11 +125,12 @@ sorpresas).
 | F2.2 | `QwenTtsEngine` con motor falso: órdenes, carpeta temporal, `audio_ms`, respaldo de dispositivo, cancelar y tope | Tests de cada orden armada, respaldo, cancelar, tope y errores del motor con su motivo |
 | F2.3 | Vigilante de memoria en el trabajador y el motor (D15), con `limits` | Tests de espera por memoria, aborto por debajo del umbral y valores en el registro |
 | F2.4 | `instalar.sh` (D17) con `--dry-run` | Tests de las órdenes en la Deck y en otra distribución; `bash -n` en el check |
-| F2.5 | `gvoice bench` y su tabla | Tests de la matriz y de la tabla con el motor falso |
+| F2.5 | `gvoice bench` y su tabla (hecho) | Tests de la matriz y de la tabla con el motor falso |
 | F2.6 | Comprobación en la Deck (la persona): instalar, diseñar, fijar y producir una voz real; `gvoice bench` | La persona lo confirma; resultados en `docs/investigacion/` |
 
 ## Pendiente
 
+- **Correr `gvoice bench` en la Deck** (la persona, F2.6): `gvoice bench --devices Vulkan0,cpu` con el motor real; su tabla (`bench.md`) va a `docs/investigacion/`. Los tests solo prueban la matriz y la tabla con el motor falso (`tests/fake_qwentts.py`). Las frases corta y larga son las de `gvoice/bench.py` (las del banco no se guardaron como texto).
 - **Correr `instalar.sh` de verdad en la Deck** (la persona, F2.6): los tests solo prueban las órdenes (`--dry-run`) y
   una ejecución con `git`/`cmake` falsos. Quedan por ver con la máquina real: dónde deja `cmake` los binarios de
   `qwentts.cpp` (el script reúne `qwen-tts`, `qwen-codec`, `tts-server` y los `.so` en la raíz de `bin-*`), que el rpath

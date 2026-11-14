@@ -34,3 +34,9 @@ revisados en la sesión, 0 hallazgos, `SHIP`. El resto es contenido o borrado de
   ya en la retro de F0). Aquí va en `.claude/gw.json` hasta que el flujo lo traiga.
 - **R5** (`gw-update`): el paso 5.4 abre el PR justo tras el commit, y `AGENTS.md` pide antes las tres fases
   (revisión, retro, marca). Que diga «el PR, tras las tres fases de `AGENTS.md`».
+- **R6** (`.githooks/pre-commit`, `check.yml`): el CI de un pull request corre el `pre-commit` de la rama base sobre
+  el rango. El de 0.3.0 tomó por secreto un comentario del de 0.6.0 (el ejemplo de la línea 93), y el pull
+  request de una actualización no se ponía en verde sin tocar el gancho copiado. Aquí se marcó con
+  `gw-allow-secret` (aprobado por la persona). En el flujo, los comentarios de ejemplo de los ganchos llevan
+  `gw-allow-secret` o evitan valores que el detector de versiones anteriores tome por secretos, y un test pasa el
+  `pre-commit` de cada versión publicada sobre el diff de una actualización.

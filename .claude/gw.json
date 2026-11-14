@@ -1,12 +1,13 @@
 {
   "$schema": "gw/schema/gw.schema.json",
-  "version": "0.3.0",
+  "version": "0.6.0",
+  "schemaVersion": 1,
   "language": "es",
+  "agentSignatures": false,
   "visibleLanguages": [
     "es",
     "en"
   ],
-  "log": "docs/traspaso.md",
   "logRows": false,
   "protectedBranch": "main",
   "pushToProtected": "pr",
@@ -16,7 +17,6 @@
     "bash -n .githooks/pre-push",
     "python3 -m unittest discover -s tests -t ."
   ],
-  "reviewMark": "docs/registros/revisado.txt",
   "requireRetro": true,
   "content": [
     "^docs/",
@@ -35,5 +35,18 @@
     "slow": []
   },
   "plan": [],
-  "taskId": "[A-Z]{2,5}-\\d+"
+  "taskId": "[A-Z]{2,5}-\\d+",
+  "doctorTestDirsIgnore": [
+    ".git",
+    "node_modules",
+    ".claude/worktrees",
+    ".claude/gw",
+    "venv",
+    ".venv",
+    "env",
+    ".tox",
+    "site-packages",
+    "__pycache__",
+    ".claude/skills/gw-*"
+  ]
 }

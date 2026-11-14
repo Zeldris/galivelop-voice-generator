@@ -1,2 +1,4 @@
 __pycache__/
 *.pyc
+# galivelop-workflow: private, never committed
+.claude/gw.local.json

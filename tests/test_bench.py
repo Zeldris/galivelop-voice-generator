@@ -178,6 +178,26 @@ class FailureTests(BenchBase):
         self.assertFalse(doc["ok"])
         self.assertEqual(sum(r["status"] == "ok" for r in doc["rows"]), 5)
 
+    def test_failed_and_cancelled_rows_keep_their_time(self):
+        class SlowFail(engine.FakeEngine):
+            def design(self, job, should_cancel):
+                time.sleep(0.02)
+                raise engine.EngineError("boom", "engine.failed")
+
+        failed = self.run_bench(SlowFail(), steps=("design",))["rows"][0]
+        self.assertEqual(failed["status"], "failed")
+        self.assertIsNotNone(failed["wall_s"])
+        self.assertGreaterEqual(failed["wall_s"], 0.02)
+
+        class SlowCancel(engine.FakeEngine):
+            def design(self, job, should_cancel):
+                time.sleep(0.02)
+                raise engine.Cancelled()
+
+        cancelled = self.run_bench(SlowCancel(), steps=("design",))["rows"][0]
+        self.assertEqual(cancelled["status"], "cancelled")
+        self.assertGreaterEqual(cancelled["wall_s"], 0.02)
+
     def test_failed_step_leaves_no_stale_file_for_the_next_one(self):
         self.run_bench(engine.FakeEngine(), steps=("design",))
         self.assertTrue((self.out / "design-Vulkan0-s7-long.wav").is_file())
@@ -379,6 +399,11 @@ class TableTests(BenchBase):
         table = (self.out / "bench.md").read_text(encoding="utf-8")
         self.assertRegex(table, r"\| Print \| 0\.6b-base \| Vulkan0 \| long take \| \d+,\d \| - \| - \| - \| - \| ok \|")
         self.assertRegex(table, r"\| Design s7 \| 1\.7b-voicedesign \| Vulkan0 \| short \| \d+,\d \| \d+,\d\d \| \d+,\d\d \|")
+
+    def test_machine_memory_comes_from_gvoice_meminfo(self):
+        self.assertEqual(bench.machine_info(self.machine)["memory_mb"], 15625)  # 16000000 kB of the fake meminfo
+        self.meminfo.write_text("MemAvailable: 8000000 kB\n")
+        self.assertIsNone(bench.machine_info(self.machine)["memory_mb"])
 
     def test_bench_texts_exist_in_both_languages(self):
         from gvoice import i18n

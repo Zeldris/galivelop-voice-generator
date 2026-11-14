@@ -159,12 +159,8 @@ def _read_first(path, prefix):
 
 def machine_info(machine: dict) -> dict:
     """What can be read without root: profile name, CPU model and total memory (``None`` when unreadable)."""
-    total = _read_first("/proc/meminfo", "MemTotal")
-    mb = None
-    if total:
-        with contextlib.suppress(ValueError, IndexError):
-            mb = int(total.split()[0]) // 1024
-    return {"profile": machine.get("name"), "cpu": _read_first("/proc/cpuinfo", "model name"), "memory_mb": mb}
+    return {"profile": machine.get("name"), "cpu": _read_first("/proc/cpuinfo", "model name"),
+            "memory_mb": limits.total_memory_mb()}
 
 
 def run(eng, machine: dict, models, devices, steps, seed, out: Path, lang=None) -> dict:
@@ -212,9 +208,9 @@ def run(eng, machine: dict, models, devices, steps, seed, out: Path, lang=None) 
                         started = time.monotonic()
                         try:
                             result = getattr(eng, method)(job, should_cancel)
-                        finally:
+                        finally:  # failed and cancelled rows keep their time too
                             wall = time.monotonic() - started
-                        row["wall_s"] = wall
+                            row["wall_s"] = wall
                         if result.audio_ms is not None and spec["step"] != "print":
                             row["audio_s"] = result.audio_ms / 1000
                             if row["audio_s"] > 0:

@@ -10,8 +10,8 @@
 |---|---|
 | **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; sigue tras el PR #5, con `main` en `d7d5095`) |
 | **Fase / tarea** | F2 Motor real. `qwentts.cpp` aceptado como primer candidato (D18: motores y modelos enchufables; al cerrar F2 se bajan más para comparar). Plan detallado en `docs/plan.md` § «F2 en detalle» (pasos F2.1-F2.6). Presupuesto de compactaciones: 2 (la sesión lleva 1 antes de empezar F2) |
-| **Último punto estable** | F2.5: `gvoice bench` con la tabla del banco (commit «F2.5: gvoice bench con la tabla del banco»); check verde |
-| **Siguiente paso** | Revisión de bloque de F2.4-F2.5 (diff `e5ec608..HEAD`: `instalar.sh`, `gvoice/bench.py`, `no_fallback`) con arreglos. En paralelo, F2.6, comprobación en la Deck (la persona): instalar, diseñar, fijar, producir y `gvoice bench --devices Vulkan0,cpu`; su tabla a `docs/investigacion/` |
+| **Último punto estable** | Arreglos de la revisión de bloque F2.4-F2.5 (commit «Arreglos de la revisión de bloque F2.4-F2.5»); check verde |
+| **Siguiente paso** | F2.6, comprobación en la Deck (la persona): instalar, diseñar, fijar, producir y `gvoice bench --devices Vulkan0,cpu`; su tabla a `docs/investigacion/` |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`) |
 
 ## Para la próxima publicación
@@ -28,6 +28,7 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 
 ## Pendiente
 
+- Hallazgos leves de la revisión de bloque F2.4-F2.5, sin arreglar en este PR: `bench._wait_for_memory` duplica `worker._wait_for_memory`; `instalar.sh --dry-run` dice «modelos: verificados»; `gvoice bench --steps design --models …` ignora `--models` sin avisar y la comprobación de lista vacía de `cli.py` ~297 es enrevesada.
 - Hallazgos leves de la revisión de bloque F2.1-F2.3, sin arreglar en este PR (no vuelven a revisarse en él):
   - stdout del motor descartado (`stdout=DEVNULL`): mejor al mismo archivo que stderr.
   - `read_wav_ms` con `wave` no lee WAV en coma flotante: comprobar en F2.6 qué escribe `qwen-tts`.

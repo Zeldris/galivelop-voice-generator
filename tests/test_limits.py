@@ -158,6 +158,15 @@ class CheckTests(unittest.TestCase):
             self.assertIsNone(limits.available_memory_mb(str(p)))
             self.assertIsNone(limits.available_memory_mb(str(Path(d) / "nope")))
 
+    def test_total_memory(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "meminfo"
+            p.write_text("MemTotal:  16384000 kB\nMemAvailable: 1024 kB\n")
+            with mock.patch.dict(os.environ, {limits.MEMINFO_ENV: str(p)}):
+                self.assertEqual(limits.total_memory_mb(), 16000)
+            p.write_text("MemAvailable: 1024 kB\n")
+            self.assertIsNone(limits.total_memory_mb(str(p)))
+
     def test_messages(self):
         for lang in ("es", "en"):
             for code, params in (("limit.memory", {"free": 1, "min": 2}),

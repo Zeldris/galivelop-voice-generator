@@ -102,13 +102,13 @@ def _error_for(exc: BaseException) -> dict:
 _OPERATION = {"voice": log.OP_DESIGN, "line": log.OP_LINE, "prints": log.OP_PRINT}
 
 
-def _log_line(entry: dict, machine: dict, provider: str, result=None, error=None, **spec) -> None:
+def _log_line(entry: dict, machine: dict, provider: str, result=None, error=None, stats=None, **spec) -> None:
     """Append the D16 line of one operation (the `spec` fields: ``model``, ``text``...); never raises."""
     try:
         spec.setdefault("seed", entry.get("seed"))
         spec.setdefault("text", entry.get("text"))
         record = log.record_for(entry["key"], entry["kind"], spec, machine, provider, result=result, error=error,
-                                operation=_OPERATION[entry["kind"]])
+                                operation=_OPERATION[entry["kind"]], stats=stats)
         log.append(entry["project"], record)
     except Exception:  # the log must never hide the real failure
         pass
@@ -236,8 +236,8 @@ def _prints(entry: dict, eng, machine: dict, state: dict, should_cancel, provide
         except engine_mod.Cancelled:
             raise
         except Exception as exc:
-            _log_line(entry, machine, provider, error=queue.error_text(_error_for(exc), "en"), model=model,
-                      text=attempt["text"])
+            _log_line(entry, machine, provider, error=queue.error_text(_error_for(exc), "en"),
+                      stats=getattr(exc, "stats", None), model=model, text=attempt["text"])
             raise
         try:
             orders.set_prints(project, key, take, model, result)
@@ -273,7 +273,7 @@ def _process(entry: dict, eng, lang=None) -> None:
         error = _error_for(exc)
         if entry["kind"] != "prints":  # a prints job logged its own failing operation
             _log_line(entry, machine, eng.provider, error=queue.error_text(error, "en") or error["code"],
-                      **state["spec"])
+                      stats=getattr(exc, "stats", None), **state["spec"])
         _finish(entry_id, "failed", lang, error=error)
         return
     finally:
@@ -326,7 +326,8 @@ def run(once: bool = False, engine=None, lang=None) -> int:
     another process holds the worker lock."""
     with _single_worker(), _exit_on_signals():
         queue.recover_orphans()
-        clean_workdirs()
+        if not machine_lock.busy():  # an engine orphaned by a killed worker still holds the lock (and its folder)
+            clean_workdirs()
         eng = engine or engine_mod.get_engine()
         handled = 0
         while True:

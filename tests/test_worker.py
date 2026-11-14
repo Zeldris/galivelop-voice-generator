@@ -558,3 +558,41 @@ class MemoryTests(WorkerBase):
             self.assertFalse(d.exists(), d)
         self.assertTrue(keep.is_file())
         self.assertTrue(other.is_dir())
+
+    def test_a_failed_job_logs_the_memory_figures_of_the_engine(self):
+        class Dies(engine.FakeEngine):
+            def design(self, job, should_cancel):
+                exc = engine.EngineError("exited with code -9")
+                exc.stats = {"min_free_mb": 1700, "peak_rss_mb": 5000}
+                raise exc
+
+        self.set_free(8000)
+        self.push()
+        self.run_worker(engine=Dies())
+        line, = log_lines()
+        self.assertIn("exited with code -9", line["app.error"])
+        self.assertEqual((line["app.voice.min_free_mb"], line["app.voice.peak_rss_mb"]), (1700, 5000))
+
+    def test_a_failed_print_logs_the_memory_figures_too(self):
+        class Dies(engine.FakeEngine):
+            def voiceprint(self, job, should_cancel):
+                exc = engine.EngineError("no gpu")
+                exc.stats = {"min_free_mb": 1800, "peak_rss_mb": 4000}
+                raise exc
+
+        orders.submit(self.p, self.voice())
+        take = self.take()
+        queue.choose(self.p, "narrator", take)
+        self.set_free(8000)
+        self.run_worker(engine=Dies())
+        line, = log_lines()
+        self.assertIn("no gpu", line["app.error"])
+        self.assertEqual((line["app.voice.min_free_mb"], line["app.voice.peak_rss_mb"]), (1800, 4000))
+
+    def test_start_keeps_the_workdirs_while_the_machine_lock_is_held(self):
+        stale = paths.project_data_dir(self.p) / "attempts" / "q3" / ".qwentts-live"
+        stale.mkdir(parents=True)
+        (stale / "out.wav").write_bytes(b"x")
+        self.foreign_holder()  # an orphaned engine (or the image generator) holds the machine
+        self.assertEqual(self.run_worker(), 0)
+        self.assertTrue(stale.is_dir())

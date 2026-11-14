@@ -94,7 +94,12 @@ class EngineResult:
 
 class EngineError(Exception):
     """The engine failed; `message` is for the log and the queue entry. With a `code` (and its `params`) the worker
-    stores that code, so the front end shows the translated ``error.<code>`` text instead of ``engine.failed``."""
+    stores that code, so the front end shows the translated ``error.<code>`` text instead of ``engine.failed``.
+
+    `stats` (optional) carries ``min_free_mb`` and ``peak_rss_mb`` of the failed run for the log (the real engine
+    fills it)."""
+
+    stats: Optional[dict] = None
 
     def __init__(self, message: str, code: Optional[str] = None, **params):
         super().__init__(message)
@@ -114,7 +119,9 @@ class EngineTimeout(EngineError):
 
 
 class Cancelled(Exception):
-    """`should_cancel()` returned true while generating."""
+    """`should_cancel()` returned true while generating. `stats` as in `EngineError`."""
+
+    stats: Optional[dict] = None
 
 
 class Engine:

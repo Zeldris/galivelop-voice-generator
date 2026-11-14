@@ -1,5 +1,8 @@
+import contextlib
 import json
 import os
+import signal
+import subprocess
 import sys
 import tempfile
 import threading
@@ -15,7 +18,7 @@ from gvoice.errors import GvoiceError
 FAKE = str(Path(__file__).resolve().parent / "fake_qwentts.py")
 NEVER = lambda: False
 VARS = ("FAKE_QT_FAIL_DEVICE", "FAKE_QT_HANG", "FAKE_QT_NOWAV", "FAKE_QT_BADWAV", "FAKE_QT_CRASH",
-        "FAKE_QT_LATE_FAIL_S", "FAKE_QT_SLEEP_S", "GVOICE_MEMINFO", "GVOICE_PROC_STATUS", "GVOICE_ENGINE", "GVOICE_MACHINE_PROFILE")
+        "FAKE_QT_LATE_FAIL_S", "FAKE_QT_SLEEP_S", "FAKE_QT_KILL_SELF", "GVOICE_MEMINFO", "GVOICE_PROC_STATUS", "GVOICE_STATE_HOME", "GVOICE_ENGINE", "GVOICE_MACHINE_PROFILE")
 
 
 def wav_ms(path):
@@ -183,14 +186,14 @@ class QwenTtsTests(unittest.TestCase):
         result = self.eng.design(self.design(), NEVER)
         devices = [c["argv"][c["argv"].index("--device") + 1] for c in self.calls()]
         self.assertEqual(devices, ["Vulkan0", "CPU"])
-        self.assertEqual(result.device, "CPU")
+        self.assertEqual(result.device, "cpu")  # as the profile writes it (common.schema.json); "CPU" only in argv
         self.assertEqual(result.command[result.command.index("--device") + 1], "CPU")
         self.assertEqual(wav_ms(self.out / "a.wav"), 500)
 
     def test_fallback_for_the_print_too(self):
         os.environ["FAKE_QT_FAIL_DEVICE"] = "Vulkan0"
         result = self.eng.voiceprint(self.make_print(), NEVER)
-        self.assertEqual((result.device, len(self.calls())), ("CPU", 2))
+        self.assertEqual((result.device, len(self.calls())), ("cpu", 2))
         self.assertTrue((self.tmp / "prints" / "0.6b-base.spk").is_file())
 
     def test_no_second_fallback_when_both_fail(self):
@@ -222,6 +225,28 @@ class QwenTtsTests(unittest.TestCase):
         self.assertIn("exited with code 1 on Vulkan0", exc.message)
         self.assertIn("boom: kaput", exc.message)
         self.assertEqual(self.leftovers(), [])
+
+    def test_no_fallback_when_the_process_dies_by_a_signal(self):
+        os.environ["FAKE_QT_KILL_SELF"] = "1"  # the OOM killer's SIGKILL, say
+        exc = self.error(lambda: self.eng.design(self.design(), NEVER))
+        self.assertEqual(len(self.calls()), 1)
+        self.assertIn("exited with code -9 on Vulkan0", exc.message)
+
+    def test_fallback_needs_the_start_memory_again(self):
+        os.environ["FAKE_QT_FAIL_DEVICE"] = "Vulkan0"
+        self.meminfo(2000)  # above watchMemoryMb (no abort), below minFreeMemoryMb
+        exc = self.error(lambda: self.watched().design(self.design(), NEVER))
+        self.assertEqual(len(self.calls()), 1)
+        self.assertIn("exited with code 3 on Vulkan0", exc.message)  # the error of the first attempt
+        self.assertIn("failed to open device Vulkan0", exc.message)
+        self.assertIn("no retry on CPU: free memory is 2000 MB, below the 4096 MB", exc.message)
+        self.assertEqual(self.leftovers(), [])
+
+    def test_fallback_with_enough_memory_and_a_watch(self):
+        os.environ["FAKE_QT_FAIL_DEVICE"] = "Vulkan0"
+        self.meminfo(6000)
+        result = self.watched().design(self.design(), NEVER)
+        self.assertEqual((result.device, len(self.calls())), ("cpu", 2))
 
     def test_no_fallback_after_the_startup_window(self):
         os.environ["FAKE_QT_LATE_FAIL_S"] = "0.3"
@@ -331,6 +356,45 @@ class QwenTtsTests(unittest.TestCase):
         self.assertDead(self.wait_pid())
         self.assertEqual(len(self.calls()), 1)  # an abort is not a device failure
 
+    # -- orphans ------------------------------------------------------------------------------------------------
+
+    def test_an_orphaned_engine_keeps_the_machine_lock(self):
+        from gvoice import machine_lock
+        os.environ["GVOICE_STATE_HOME"] = str(self.tmp / "state")
+        os.environ["FAKE_QT_HANG"] = "1"
+        code = ("from gvoice import engine, engine_qwentts, machine_lock, limits\n"
+                "job = engine.DesignJob(instruction='x', text='hi', seed=1, output=%r, machine=limits.load_machine('steam-deck'))\n"
+                "with machine_lock.hold():\n"
+                "    engine_qwentts.QwenTtsEngine().design(job, lambda: False)\n" % str(self.out / "a.wav"))
+        worker = subprocess.Popen([sys.executable, "-c", code], cwd=str(Path(__file__).resolve().parent.parent))
+        self.addCleanup(worker.wait)
+        self.addCleanup(worker.kill)
+        orphan_group = None
+        try:
+            sleeper = self.wait_pid()  # the fake's child: same session as the engine
+            orphan_group = os.getpgid(sleeper)
+            self.assertTrue(machine_lock.busy())
+            worker.kill()  # SIGKILL: no finally runs, the worker's own descriptor closes
+            worker.wait()
+            time.sleep(0.2)
+            self.assertTrue(machine_lock.busy())  # the engine, alive in its own session, still holds the lock
+            self.assertIsNone(self.waits_for_lock())
+        finally:
+            if orphan_group:
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(orphan_group, signal.SIGKILL)
+        end = time.monotonic() + 3
+        while machine_lock.busy() and time.monotonic() < end:
+            time.sleep(0.02)
+        self.assertFalse(machine_lock.busy())  # it is free again once the orphan is gone
+
+    def waits_for_lock(self):
+        """A new job asking for the lock while the orphan lives is told to wait: it gives up on cancel."""
+        from gvoice import machine_lock
+        with self.assertRaises(machine_lock.WaitCancelled):
+            with machine_lock.hold(should_cancel=lambda: True):
+                pass
+
     # -- memory watchdog (F2.3) -------------------------------------------------------------------------------------
 
     def meminfo(self, mb):
@@ -351,39 +415,125 @@ class QwenTtsTests(unittest.TestCase):
         self.assertIn("1536", exc.message)
         self.assertEqual(self.leftovers(), [])
 
+    def free_sequence(self, *values):
+        """`limits.available_memory_mb` giving these values one per sample and then the last one: no clock involved."""
+        seen = []
+
+        def read(*_args):
+            seen.append(1)
+            return values[min(len(seen), len(values)) - 1]
+
+        patch = mock.patch.object(limits, "available_memory_mb", read)
+        patch.start()
+        self.addCleanup(patch.stop)
+        return seen
+
+    def fast_watch(self):
+        patch = mock.patch.object(engine_qwentts, "WATCH_S", 0.02)
+        patch.start()
+        self.addCleanup(patch.stop)
+
     def test_aborts_when_memory_drops_while_running(self):
         os.environ["FAKE_QT_HANG"] = "1"
-        self.meminfo(5000)
-        threading.Timer(0.2, self.meminfo, args=(900,)).start()
-        started = time.monotonic()
+        self.fast_watch()
+        seen = self.free_sequence(5000, 5000, 900)
         exc = self.error(lambda: self.watched().design(self.design(), NEVER))
         self.assertEqual((exc.code, exc.params["free"]), ("engine.low_memory", 900))
-        self.assertGreater(time.monotonic() - started, 0.4)  # sampled every 0.5 s, not at the start only
+        self.assertGreaterEqual(len(seen), 3)  # sampled while running, not at the start only
         self.assertDead(self.wait_pid())
         self.assertEqual(len(self.calls()), 1)  # an abort is not a device failure: no fallback
 
-    def test_enough_memory_does_not_abort_and_reports_the_lowest_and_the_peak(self):
-        os.environ["FAKE_QT_SLEEP_S"] = "1.2"
+    def test_a_failure_carries_the_memory_figures(self):
+        os.environ["FAKE_QT_HANG"] = "1"
+        status = self.tmp / "status"
+        status.write_text("VmHWM:\t  1048576 kB\n")
+        os.environ["GVOICE_PROC_STATUS"] = str(status)
+        self.meminfo(1000)
+        exc = self.error(lambda: self.watched().design(self.design(), NEVER))
+        self.assertEqual(exc.stats, {"min_free_mb": 1000, "peak_rss_mb": 1024})
+
+    def test_timeout_and_cancel_carry_the_memory_figures(self):
+        os.environ["FAKE_QT_HANG"] = "1"
         self.meminfo(6000)
-        threading.Timer(0.3, self.meminfo, args=(3000,)).start()
-        threading.Timer(0.8, self.meminfo, args=(4000,)).start()
+        job = self.design()
+        job.timeout_s = 0.3
+        exc = self.error(lambda: self.watched().design(job, NEVER))
+        self.assertIsInstance(exc, engine.EngineTimeout)
+        self.assertEqual(exc.stats["min_free_mb"], 6000)
+        asked = iter(range(100))  # false on the first check (the first sample is taken), true after
+        with self.assertRaises(engine.Cancelled) as cm:
+            self.watched().design(self.design(), lambda: next(asked) > 1)
+        self.assertEqual(cm.exception.stats["min_free_mb"], 6000)
+
+    def test_a_failed_exit_carries_the_figures_and_unwatched_ones_none(self):
+        os.environ["FAKE_QT_CRASH"] = "1"
+        self.meminfo(6000)
+        exc = self.error(lambda: self.watched().design(self.design(), NEVER))
+        self.assertEqual(exc.stats["min_free_mb"], 6000)
+        self.assertIsNone(self.error(lambda: self.eng.design(self.design(), NEVER)).stats)
+
+    def no_wait4(self):
+        """`os.wait4` as if it gave no usage (ru_maxrss 0): the sampled VmHWM stays."""
+        real = os.wait4
+
+        def wait4(pid, options):
+            got = real(pid, options)
+            return got if got[0] == 0 else (got[0], got[1], mock.Mock(ru_maxrss=0))
+
+        patch = mock.patch.object(os, "wait4", wait4)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def test_enough_memory_does_not_abort_and_reports_the_lowest_and_the_sampled_peak(self):
+        os.environ["FAKE_QT_SLEEP_S"] = "0.6"
+        self.fast_watch()
+        self.free_sequence(6000, 3000, 4000)
+        self.no_wait4()
         status = self.tmp / "status"
         status.write_text("Name:\tqwen-tts\nVmHWM:\t  2097152 kB\nVmRSS:\t 1 kB\n")
         os.environ["GVOICE_PROC_STATUS"] = str(status)
         result = self.watched().design(self.design(), NEVER)
         self.assertEqual((result.min_free_mb, result.peak_rss_mb), (3000, 2048))
 
+    def test_peak_rss_is_the_exact_one_of_wait4(self):
+        os.environ["FAKE_QT_SLEEP_S"] = "0.3"
+        self.meminfo(6000)
+        status = self.tmp / "status"
+        status.write_text("VmHWM:\t  2097152 kB\n")  # the sampled one, lower than the real peak
+        os.environ["GVOICE_PROC_STATUS"] = str(status)
+        real = os.wait4
+
+        def wait4(pid, options):
+            got = real(pid, options)
+            return got if got[0] == 0 else (got[0], got[1], mock.Mock(ru_maxrss=3 * 1024 * 1024))
+
+        with mock.patch.object(os, "wait4", wait4):
+            result = self.watched().design(self.design(), NEVER)
+        self.assertEqual(result.peak_rss_mb, 3072)
+        self.assertEqual(len(self.calls()), 1)
+
+    def test_wait4_keeps_the_exit_code_and_signals_of_popen(self):
+        os.environ["FAKE_QT_FAIL_DEVICE"] = "Vulkan0"
+        machine = self.machine_with(engine={"device": "Vulkan0"})
+        exc = self.error(lambda: self.eng.design(self.design(machine=machine), NEVER))
+        self.assertIn("exited with code 3", exc.message)
+        os.environ["FAKE_QT_FAIL_DEVICE"] = ""
+        os.environ["FAKE_QT_KILL_SELF"] = "1"
+        exc = self.error(lambda: self.eng.design(self.design(), NEVER))
+        self.assertIn("exited with code -9", exc.message)
+
     def test_peak_rss_of_the_real_process(self):
-        os.environ["FAKE_QT_SLEEP_S"] = "0.6"
+        os.environ["FAKE_QT_SLEEP_S"] = "0.3"
         self.meminfo(6000)
         result = self.watched().design(self.design(), NEVER)
         self.assertIsInstance(result.peak_rss_mb, int)
         self.assertGreater(result.peak_rss_mb, 0)
 
     def test_unreadable_sources_give_none_and_no_abort(self):
-        os.environ["FAKE_QT_SLEEP_S"] = "0.6"
+        os.environ["FAKE_QT_SLEEP_S"] = "0.3"
         os.environ["GVOICE_MEMINFO"] = str(self.tmp / "nope")
         os.environ["GVOICE_PROC_STATUS"] = str(self.tmp / "nope2")
+        self.no_wait4()
         result = self.watched().design(self.design(), NEVER)
         self.assertEqual((result.min_free_mb, result.peak_rss_mb), (None, None))
 

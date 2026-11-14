@@ -5,6 +5,7 @@ files: a PCM ``.wav`` of 100 ms per character of stdin for ``tts`` (``-o``), and
 next to the input for ``codec`` (``-i``). Failures on demand, by environment:
 
 * ``FAKE_QT_FAIL_DEVICE=<name>[,<name>]``: with ``--device`` one of them, stderr ``failed to open device`` and exit 3, no files.
+* ``FAKE_QT_KILL_SELF=1``: SIGKILL itself right away (like the OOM killer), no files.
 * ``FAKE_QT_HANG=1``: start a ``sleep`` child (its pid in ``$FAKE_QT_PIDFILE``) and sleep, writing nothing.
 * ``FAKE_QT_NOWAV=1``: exit 0 and write nothing.
 * ``FAKE_QT_BADWAV=1``: write garbage to the output and exit 0.
@@ -13,6 +14,7 @@ next to the input for ``codec`` (``-i``). Failures on demand, by environment:
 * ``FAKE_QT_LATE_FAIL_S=<s>``: sleep, then stderr ``out of memory`` and exit 1, no files."""
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -36,6 +38,8 @@ def main(argv):
     if opts.get("--device") in os.environ.get("FAKE_QT_FAIL_DEVICE", "").split(","):
         sys.stderr.write("loading\nfailed to open device %s\n" % opts.get("--device"))
         return 3
+    if os.environ.get("FAKE_QT_KILL_SELF"):
+        os.kill(os.getpid(), signal.SIGKILL)
     if os.environ.get("FAKE_QT_HANG"):
         child = subprocess.Popen(["sleep", "30"])
         with open(os.environ["FAKE_QT_PIDFILE"], "w") as fh:

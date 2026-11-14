@@ -22,15 +22,23 @@ def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def pick_stat(result, stats: dict, name: str):
+    value = getattr(result, name, None)
+    return stats.get(name) if value is None else value
+
+
 def record_for(key: str, task: str, spec: dict, machine: dict, provider: str | None,
-               result=None, error: str | None = None, ts: str | None = None, operation: str = OP_LINE) -> dict:
+               result=None, error: str | None = None, ts: str | None = None, operation: str = OP_LINE,
+               stats: dict | None = None) -> dict:
     """The log line of one operation: from an `EngineResult` (`result`) or an error message.
     `spec` may hold ``seed``, ``model``, ``device`` and ``text``; what the result reports wins over the spec.
-    `operation` is ``gen_ai.operation.name``. Absent values are omitted, never ``null``."""
+    `operation` is ``gen_ai.operation.name``. `stats` (``min_free_mb``, ``peak_rss_mb``) are the memory figures of a
+    failed run (`EngineError.stats`); a result's own figures win. Absent values are omitted, never ``null``."""
     def pick(name):
         value = getattr(result, name, None)
         return spec.get(name) if value is None else value
 
+    stats = stats or {}
     text = spec.get("text")
     line = {
         "ts": ts or _now(),
@@ -49,8 +57,8 @@ def record_for(key: str, task: str, spec: dict, machine: dict, provider: str | N
         "app.voice.engine_version": getattr(result, "engine_version", None),
         "app.voice.text_chars": len(text) if isinstance(text, str) else None,
         "app.voice.audio_ms": getattr(result, "audio_ms", None),
-        "app.voice.min_free_mb": getattr(result, "min_free_mb", None),
-        "app.voice.peak_rss_mb": getattr(result, "peak_rss_mb", None),
+        "app.voice.min_free_mb": pick_stat(result, stats, "min_free_mb"),
+        "app.voice.peak_rss_mb": pick_stat(result, stats, "peak_rss_mb"),
         "app.voice.backend": getattr(result, "backend", None),
         "app.voice.command": getattr(result, "command", None),
     }

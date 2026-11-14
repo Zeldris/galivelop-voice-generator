@@ -15,9 +15,19 @@ paths only after the ``.wav`` was read back with `wave`: `audio_ms` always comes
 timed-out attempt leaves nothing at the job paths). The process runs in its own session: cancelling, the time limit
 (`job.timeout_s`, for the whole job including the fallback) and any error raised by `on_tick` kill its whole group.
 
-Device (D16): the profile's ``engine.device``. If the process dies at startup (exit code other than 0, no output
+Device (D16): the profile's ``engine.device``. If the process dies at startup (exit code above 0, no output
 file, within `STARTUP_WINDOW_S`) it is repeated ONCE on ``engine.fallbackDevice``, and the device that produced the
-result is in `EngineResult.device`. A failure with an output file, after the window or with exit 0 never falls back.
+result is in `EngineResult.device`, written as in the profile (``cpu``; `device_arg` only builds the argv). A failure
+with an output file, after the window, with exit 0 or by a signal (the OOM killer, a segfault) never falls back; with a
+memory watch the fallback also needs ``minFreeMemoryMb`` again, else the first error is reported with a note.
+
+Orphans: the process inherits the machine lock descriptor (`machine_lock.held_fds`, ``pass_fds``), so if the worker is
+killed (SIGKILL) the engine, alive in its own session, still holds the ``flock`` and no other job runs next to it.
+
+The child is reaped with ``os.wait4`` in the wait loop: ``ru_maxrss`` (KiB) is the exact peak RSS and wins over the
+sampled ``VmHWM``; `Popen.returncode` is set by hand from the status (``waitstatus_to_exitcode``), so a signal is a
+negative code as `Popen` would give. Where ``wait4`` gives nothing (no child, ``ru_maxrss`` 0) the sampled value stays.
+Failures carry the same figures in `EngineError.stats`/`Cancelled.stats` for the log.
 
 Memory watchdog (F2.3, D15): `on_tick(proc)` is called every `TICK_S` while the process runs; it may raise
 `EngineError`, which kills the process and ends the attempt (and, not being a startup failure, never triggers the
@@ -38,7 +48,7 @@ import wave
 from pathlib import Path
 from typing import Callable, Optional
 
-from . import fsutil, limits, models, paths
+from . import fsutil, limits, machine_lock, models, paths
 from .engine import (Cancelled, DesignJob, Engine, EngineError, EngineResult, EngineTimeout, LineJob, PrintJob,
                      _device)
 from .errors import GvoiceError
@@ -150,11 +160,20 @@ class MemoryWatch:
     `min_free_mb` (lowest ``MemAvailable`` seen) and `peak_rss_mb` (largest ``VmHWM`` of the process); both stay
     ``None`` when they cannot be read. The first call always samples."""
 
-    def __init__(self, machine: dict, interval_s: float = WATCH_S, clock=time.monotonic):
-        self.machine, self.interval_s, self.clock = machine, interval_s, clock
+    def __init__(self, machine: dict, interval_s: Optional[float] = None, clock=time.monotonic):
+        self.machine, self.clock = machine, clock
+        self.interval_s = WATCH_S if interval_s is None else interval_s
         self.min_free_mb = None
         self.peak_rss_mb = None
         self._next = None
+
+    def stats(self) -> dict:
+        return {"min_free_mb": self.min_free_mb, "peak_rss_mb": self.peak_rss_mb}
+
+    def exact_peak(self, maxrss_kib) -> None:
+        """The peak of ``wait4`` (``ru_maxrss``, KiB) replaces the sampled one; 0 or ``None`` leaves it."""
+        if maxrss_kib:
+            self.peak_rss_mb = maxrss_kib // 1024
 
     def __call__(self, proc) -> None:
         now = self.clock()
@@ -199,12 +218,12 @@ class QwenTtsEngine(Engine):
         with open(stdin_file, "rb") as sin, open(err_file, "wb") as serr:
             try:
                 proc = subprocess.Popen(argv, stdin=sin, stdout=subprocess.DEVNULL, stderr=serr,
-                                        start_new_session=True)
+                                        start_new_session=True, pass_fds=machine_lock.held_fds())
             except OSError as exc:
                 raise EngineError("cannot start %s: %s" % (argv[0], exc))
             try:
                 while True:
-                    code = proc.poll()
+                    code = self._reap(proc)
                     if code is not None:
                         break
                     if should_cancel():
@@ -223,6 +242,35 @@ class QwenTtsEngine(Engine):
                     with contextlib.suppress(ProcessLookupError, PermissionError):
                         os.killpg(proc.pid, signal.SIGKILL)
         return _Run(argv, code, time.monotonic() - started, _tail(err_file))
+
+    def _reap(self, proc) -> Optional[int]:
+        """Exit code if the process ended, else ``None``. Reaps with ``wait4`` for ``ru_maxrss``; sets
+        ``proc.returncode`` itself so `Popen` agrees (it does not know the child was collected)."""
+        if proc.returncode is not None:
+            return proc.returncode
+        try:
+            pid, status, usage = os.wait4(proc.pid, os.WNOHANG)
+        except ChildProcessError:  # collected by someone else: fall back to Popen and the sampled peak
+            return proc.poll()
+        if pid == 0:
+            return None
+        proc.returncode = os.waitstatus_to_exitcode(status)
+        if self._watch is not None:
+            self._watch.exact_peak(getattr(usage, "ru_maxrss", None))
+        return proc.returncode
+
+    def _stats(self) -> Optional[dict]:
+        return self._watch.stats() if self._watch is not None else None
+
+    @contextlib.contextmanager
+    def _stamped(self):
+        """Hang the memory figures on the errors of one operation so the worker can log them."""
+        try:
+            yield
+        except (EngineError, Cancelled) as exc:
+            if exc.stats is None:
+                exc.stats = self._stats()
+            raise
 
     def _attempts(self, job, build, stdin_text, produced, should_cancel, work: Path):
         """Run `build(device)` on the profile's device and, if the process dies at startup, once on the fallback.
@@ -244,7 +292,15 @@ class QwenTtsEngine(Engine):
                     raise EngineError("%s is not installed" % argv[0], "engine.binary_missing", path=argv[0])
                 break  # no binary for the fallback: the first failure is the one to report
             run = self._spawn_wait(argv, stdin_text, deadline, should_cancel, work)
-            startup_failure = run.code != 0 and not produced() and run.seconds <= STARTUP_WINDOW_S
+            # a signal (OOM killer, segfault) is not a device that cannot be opened
+            startup_failure = run.code > 0 and not produced() and run.seconds <= STARTUP_WINDOW_S
+            if startup_failure and position < len(devices) - 1 and self._watch is not None:
+                try:  # the second attempt needs the memory a job needs to start
+                    limits.check_memory(limits.available_memory_mb(), machine)
+                except limits.LimitError as exc:
+                    run.stderr += "\n(no retry on %s: free memory is %s MB, below the %s MB needed to start)" % (
+                        device_arg(devices[position + 1]), exc.params["free"], exc.params["min"])
+                    return run, current
             if not startup_failure or position == len(devices) - 1:
                 if note and run.code != 0:
                     run.stderr += note
@@ -255,7 +311,7 @@ class QwenTtsEngine(Engine):
 
     def _result(self, started, job, device, seed, model, run, audio_ms=None) -> EngineResult:
         return EngineResult(duration_ms=int((time.monotonic() - started) * 1000),
-                            engine_version="%s-%s" % (ENGINE, self.catalog["commit"][:7]), device=device_arg(device),
+                            engine_version="%s-%s" % (ENGINE, self.catalog["commit"][:7]), device=device,
                             seed=seed, engine_commit=self.catalog["commit"], model=model, audio_ms=audio_ms,
                             backend=ENGINE, command=list(run.argv),
                             min_free_mb=getattr(self._watch, "min_free_mb", None),
@@ -289,7 +345,7 @@ class QwenTtsEngine(Engine):
         started = time.monotonic()
         model, codec = self._model(model_id), self._model(_codec_id(self.catalog))
         language = job.language or DEFAULT_LANGUAGE
-        with self._workdir(job.output) as work:
+        with self._stamped(), self._workdir(job.output) as work:
             wav = work / "out.wav"
 
             def build(dev):
@@ -329,7 +385,7 @@ class QwenTtsEngine(Engine):
         tokenizer, talker = self._model(_codec_id(self.catalog)), self._model(job.model)
         if not Path(job.reference).is_file():
             raise EngineError("cannot read %s" % job.reference, "engine.reference_unreadable", path=job.reference)
-        with self._workdir(job.spk) as work:
+        with self._stamped(), self._workdir(job.spk) as work:
             ref = work / "ref.wav"
             try:
                 shutil.copyfile(job.reference, ref)

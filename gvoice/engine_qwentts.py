@@ -19,8 +19,12 @@ Device (D16): the profile's ``engine.device``. If the process dies at startup (e
 file, within `STARTUP_WINDOW_S`) it is repeated ONCE on ``engine.fallbackDevice``, and the device that produced the
 result is in `EngineResult.device`. A failure with an output file, after the window or with exit 0 never falls back.
 
-Memory watchdog (F2.3): `on_tick(proc)` is called every `TICK_S` while the process runs; it may raise `EngineError`,
-which kills the process and ends the attempt (and, not being a startup failure, never triggers the fallback)."""
+Memory watchdog (F2.3, D15): `on_tick(proc)` is called every `TICK_S` while the process runs; it may raise
+`EngineError`, which kills the process and ends the attempt (and, not being a startup failure, never triggers the
+fallback). With `watch_memory` the engine builds a `MemoryWatch` per job from the profile (``watchMemoryMb``): every
+`WATCH_S` it reads ``MemAvailable``, aborts with ``engine.low_memory`` below the threshold, and keeps the lowest free
+memory and the peak RSS of the process, which go to `EngineResult.min_free_mb` and `peak_rss_mb`. The temporary folders
+are named `WORKDIR_PREFIX` + random; the worker deletes the ones a killed run left (`worker.clean_workdirs`)."""
 from __future__ import annotations
 
 import contextlib
@@ -45,6 +49,8 @@ TTS_BIN, CODEC_BIN = "qwen-tts", "qwen-codec"
 DEFAULT_LANGUAGE = "Spanish"  # when neither the job nor the project says one
 DEFAULT_DESIGN_MODEL, DEFAULT_BASE_MODEL = "1.7b-voicedesign", "0.6b-base"
 TICK_S = 0.05
+WATCH_S = 0.5  # how often the watchdog reads the memory (not every tick)
+WORKDIR_PREFIX = ".qwentts-"
 KILL_GRACE_S = 1.0
 STARTUP_WINDOW_S = 30.0  # a device that cannot be opened fails fast; later deaths are not the device's fault
 STDERR_LINES, STDERR_CHARS = 15, 1500
@@ -137,6 +143,36 @@ def _kill_group(proc: subprocess.Popen) -> None:
     proc.wait()
 
 
+class MemoryWatch:
+    """The memory watchdog of one job: an ``on_tick`` hook (`__call__`) that samples every `interval_s`.
+
+    Free memory below ``watchMemoryMb`` (`limits.must_abort`) raises ``EngineError("engine.low_memory")``. It keeps
+    `min_free_mb` (lowest ``MemAvailable`` seen) and `peak_rss_mb` (largest ``VmHWM`` of the process); both stay
+    ``None`` when they cannot be read. The first call always samples."""
+
+    def __init__(self, machine: dict, interval_s: float = WATCH_S, clock=time.monotonic):
+        self.machine, self.interval_s, self.clock = machine, interval_s, clock
+        self.min_free_mb = None
+        self.peak_rss_mb = None
+        self._next = None
+
+    def __call__(self, proc) -> None:
+        now = self.clock()
+        if self._next is not None and now < self._next:
+            return
+        self._next = now + self.interval_s
+        peak = limits.peak_rss_mb(proc.pid)
+        if peak is not None and (self.peak_rss_mb is None or peak > self.peak_rss_mb):
+            self.peak_rss_mb = peak
+        free = limits.available_memory_mb()
+        if free is not None and (self.min_free_mb is None or free < self.min_free_mb):
+            self.min_free_mb = free
+        if limits.must_abort(free, self.machine):
+            raise EngineError("memory fell to %s MB, below the %s MB of the machine profile" % (
+                free, self.machine["watchMemoryMb"]), "engine.low_memory", free=free,
+                min=self.machine["watchMemoryMb"])
+
+
 class _Run:
     """The outcome of one process: exit code, how long it lived and the tail of its stderr."""
 
@@ -147,8 +183,11 @@ class _Run:
 class QwenTtsEngine(Engine):
     provider = "qwentts"
 
-    def __init__(self, on_tick: Optional[Callable[[subprocess.Popen], None]] = None):
+    def __init__(self, on_tick: Optional[Callable[[subprocess.Popen], None]] = None, watch_memory: bool = False):
         self.on_tick = on_tick
+        self.watch_memory = watch_memory
+        self.watches_memory = watch_memory  # the worker waits for ``minFreeMemoryMb`` before a job
+        self._watch = None  # the `MemoryWatch` of the job in progress
         self.catalog = models.load(ENGINE)
 
     # -- the process -------------------------------------------------------------------------------------------
@@ -172,8 +211,10 @@ class QwenTtsEngine(Engine):
                         raise Cancelled()
                     if deadline is not None and time.monotonic() >= deadline:
                         raise EngineTimeout()
+                    if self._watch is not None:
+                        self._watch(proc)  # may raise EngineError("engine.low_memory")
                     if self.on_tick is not None:
-                        self.on_tick(proc)  # F2.3: the memory watchdog; may raise EngineError
+                        self.on_tick(proc)  # a custom hook; may raise EngineError
                     time.sleep(TICK_S)
             finally:
                 if proc.poll() is None:
@@ -187,6 +228,7 @@ class QwenTtsEngine(Engine):
         """Run `build(device)` on the profile's device and, if the process dies at startup, once on the fallback.
         Returns ``(run, device)`` of the attempt that counts. `produced()` says whether outputs exist."""
         machine = job.machine or {}
+        self._watch = MemoryWatch(machine) if self.watch_memory else None
         device = _device(job)
         fallback = (machine.get("engine") or {}).get("fallbackDevice")
         devices = [device]
@@ -215,7 +257,9 @@ class QwenTtsEngine(Engine):
         return EngineResult(duration_ms=int((time.monotonic() - started) * 1000),
                             engine_version="%s-%s" % (ENGINE, self.catalog["commit"][:7]), device=device_arg(device),
                             seed=seed, engine_commit=self.catalog["commit"], model=model, audio_ms=audio_ms,
-                            backend=ENGINE, command=list(run.argv))
+                            backend=ENGINE, command=list(run.argv),
+                            min_free_mb=getattr(self._watch, "min_free_mb", None),
+                            peak_rss_mb=getattr(self._watch, "peak_rss_mb", None))
 
     def _fail(self, run, device) -> EngineError:
         return EngineError("%s exited with code %s on %s: %s" % (os.path.basename(run.argv[0]), run.code, device_arg(device),
@@ -232,7 +276,7 @@ class QwenTtsEngine(Engine):
     def _workdir(self, near):
         near = Path(near)
         near.parent.mkdir(parents=True, exist_ok=True)
-        work = Path(tempfile.mkdtemp(dir=str(near.parent), prefix=".qwentts-"))
+        work = Path(tempfile.mkdtemp(dir=str(near.parent), prefix=WORKDIR_PREFIX))
         try:
             yield work
         finally:

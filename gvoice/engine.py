@@ -86,7 +86,8 @@ class EngineResult:
     model: Optional[str] = None
     audio_ms: Optional[int] = None  # length of the audio written, if any
     load_ms: Optional[int] = None
-    min_free_mb: Optional[int] = None
+    min_free_mb: Optional[int] = None  # lowest MemAvailable (MB) seen while the process ran (memory watchdog)
+    peak_rss_mb: Optional[int] = None  # peak resident memory (VmHWM, MB) of the engine process
     command: Optional[list] = None
     backend: Optional[str] = None
 
@@ -118,6 +119,7 @@ class Cancelled(Exception):
 
 class Engine:
     provider = ""
+    watches_memory = False  # True: the worker waits for ``minFreeMemoryMb`` before a job and the engine watches it
 
     def design(self, job: DesignJob, should_cancel: Callable[[], bool]) -> EngineResult:
         raise NotImplementedError
@@ -281,7 +283,7 @@ def get_engine() -> Engine:
     check_configured()
     if _configured_engine() == "qwentts":
         from . import engine_qwentts
-        return engine_qwentts.QwenTtsEngine()
+        return engine_qwentts.QwenTtsEngine(watch_memory=True)
     try:
         delay = float(os.environ.get("GVOICE_FAKE_DELAY") or 0)
     except ValueError:

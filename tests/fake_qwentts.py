@@ -9,6 +9,7 @@ next to the input for ``codec`` (``-i``). Failures on demand, by environment:
 * ``FAKE_QT_NOWAV=1``: exit 0 and write nothing.
 * ``FAKE_QT_BADWAV=1``: write garbage to the output and exit 0.
 * ``FAKE_QT_CRASH=1``: write a garbage output, noise on stderr and exit 1.
+* ``FAKE_QT_SLEEP_S=<s>``: sleep that long before doing the work (a slow but successful run).
 * ``FAKE_QT_LATE_FAIL_S=<s>``: sleep, then stderr ``out of memory`` and exit 1, no files."""
 import json
 import os
@@ -41,6 +42,8 @@ def main(argv):
             fh.write(str(child.pid))
         time.sleep(30)
         return 0
+    if os.environ.get("FAKE_QT_SLEEP_S"):
+        time.sleep(float(os.environ["FAKE_QT_SLEEP_S"]))
     late = os.environ.get("FAKE_QT_LATE_FAIL_S")
     if late:
         time.sleep(float(late))

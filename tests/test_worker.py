@@ -1,3 +1,4 @@
+import io
 import os
 import subprocess
 import sys
@@ -436,3 +437,124 @@ class LineTests(WorkerBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MemoryTests(WorkerBase):
+    def setUp(self):
+        super().setUp()
+        patch = mock.patch.dict(os.environ, {"GVOICE_MEMINFO": str(self.tmp_meminfo())})
+        patch.start()
+        self.addCleanup(patch.stop)
+        poll = mock.patch.object(worker, "MEMORY_POLL_S", 0.05)
+        poll.start()
+        self.addCleanup(poll.stop)
+        self.set_free(2000)
+
+    def tmp_meminfo(self):
+        import tempfile
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        return os.path.join(tmp.name, "meminfo")
+
+    def set_free(self, mb):
+        with open(os.environ["GVOICE_MEMINFO"], "w") as fh:
+            fh.write("MemAvailable: %d kB\n" % (mb * 1024))
+
+    def watching_engine(self):
+        eng = engine.FakeEngine()
+        eng.watches_memory = True
+        return eng
+
+    def start(self):
+        self.push()
+        err = io.StringIO()
+        with mock.patch.object(sys, "stderr", err):
+            thread = threading.Thread(target=self.run_worker, kwargs={"engine": self.watching_engine()})
+            thread.start()
+            time.sleep(0.4)
+        return thread, err
+
+    def test_low_memory_makes_the_job_wait_and_it_starts_when_memory_rises(self):
+        thread, err = self.start()
+        self.assertEqual(queue.get(1)["state"], "running")
+        self.assertTrue(thread.is_alive())
+        self.assertEqual(orders.get(self.p, "narrator")["attempts"], [])
+        self.assertIn("waiting for memory", err.getvalue())
+        self.assertIn("2000 MB", err.getvalue())
+        self.assertIn("4096 MB", err.getvalue())
+        self.assertEqual(err.getvalue().count("waiting for memory"), 1)
+        self.set_free(8000)
+        thread.join(5)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(queue.get(1)["state"], "done")
+        self.assertEqual(len(orders.get(self.p, "narrator")["attempts"]), 1)
+
+    def test_the_wait_holds_the_machine_lock(self):
+        thread, _ = self.start()
+        self.assertTrue(machine_lock.busy())
+        queue.cancel(1)
+        thread.join(5)
+        self.assertFalse(machine_lock.busy())
+
+    def test_cancel_while_waiting_for_memory(self):
+        thread, _ = self.start()
+        queue.cancel(1)
+        thread.join(5)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(queue.get(1)["state"], "cancelled")
+        self.assertEqual(orders.get(self.p, "narrator")["attempts"], [])
+        self.assertEqual(log_lines(), [])
+
+    def test_the_fake_engine_does_not_wait(self):
+        self.push()
+        self.run_worker()
+        self.assertEqual(queue.get(1)["state"], "done")
+
+    def test_unknown_memory_does_not_wait(self):
+        os.environ["GVOICE_MEMINFO"] = os.environ["GVOICE_MEMINFO"] + ".missing"
+        self.push()
+        self.run_worker(engine=self.watching_engine())
+        self.assertEqual(queue.get(1)["state"], "done")
+
+    def test_low_memory_error_of_the_engine_is_the_reason_of_the_entry(self):
+        class Aborting(engine.FakeEngine):
+            def design(self, job, should_cancel):
+                raise engine.EngineError("memory fell", "engine.low_memory", free=900, min=1536)
+
+        self.push()
+        self.run_worker(engine=Aborting())
+        entry = queue.get(1)
+        self.assertEqual(entry["state"], "failed")
+        self.assertEqual(entry["error"]["code"], "engine.low_memory")
+        self.assertEqual(entry["error"]["params"], {"free": 900, "min": 1536})
+        self.assertIn("900 MB", queue.error_text(entry["error"], "en"))
+        self.assertIn("900 MB", queue.error_text(entry["error"], "es"))
+        self.assertIn("900 MB", log_lines()[0]["app.error"])
+
+    def test_stats_of_the_result_reach_the_log_line(self):
+        class Measured(engine.FakeEngine):
+            def design(self, job, should_cancel):
+                result = super().design(job, should_cancel)
+                result.min_free_mb, result.peak_rss_mb = 3100, 2048
+                return result
+
+        self.push()
+        self.run_worker(engine=Measured())
+        line = log_lines()[0]
+        self.assertEqual((line["app.voice.min_free_mb"], line["app.voice.peak_rss_mb"]), (3100, 2048))
+
+    def test_start_deletes_the_workdirs_a_killed_run_left(self):
+        base = paths.project_data_dir(self.p) / "attempts" / "q3"
+        stale = [base / ".qwentts-abc123", paths.project_data_dir(self.p) / "voices" / ".qwentts-zz"]
+        for d in stale:
+            d.mkdir(parents=True)
+            (d / "out.wav").write_bytes(b"x")
+        keep = base / "audio.wav"
+        keep.write_bytes(b"x")
+        other = base / "qwentts-not-hidden"
+        other.mkdir()
+        self.assertEqual(self.run_worker(), 0)
+        for d in stale:
+            self.assertFalse(d.exists(), d)
+        self.assertTrue(keep.is_file())
+        self.assertTrue(other.is_dir())

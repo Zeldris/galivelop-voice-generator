@@ -33,6 +33,14 @@ class LogTests(unittest.TestCase):
         for r in records:
             log.append("proj", r)
 
+    def test_record_carries_min_free_and_peak_rss_when_known(self):
+        res = engine.EngineResult(duration_ms=1, engine_version="v", min_free_mb=3100, peak_rss_mb=2048)
+        rec = log.record_for("voices/orc", "line", SPEC, MACHINE, "qwentts", result=res)
+        self.assertEqual((rec["app.voice.min_free_mb"], rec["app.voice.peak_rss_mb"]), (3100, 2048))
+        rec = log.record_for("voices/orc", "line", SPEC, MACHINE, "qwentts", result=engine.EngineResult(1, "v"))
+        self.assertNotIn("app.voice.peak_rss_mb", rec)
+        self.assertNotIn("app.voice.min_free_mb", rec)
+
     def test_record_success_has_the_d16_fields(self):
         res = engine.EngineResult(duration_ms=120, engine_version="fake-1", device="Vulkan0", seed=5,
                                   engine_commit="abc123", model="0.6b-base", audio_ms=300, load_ms=0, backend="fake")

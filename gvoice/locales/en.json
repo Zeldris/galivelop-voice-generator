@@ -60,6 +60,8 @@
   "error.engine.unknown": "unknown engine \"{engine}\"",
   "error.engine.bad_delay": "invalid fake engine delay: \"{value}\"",
   "error.engine.failed": "the engine failed: {message}",
+  "error.engine.low_memory": "free memory fell to {free} MB, below the {min} MB of the machine profile: the engine was stopped",
+  "worker.waiting_memory": "gvoice: entry {id} is waiting for memory: {free} MB are free and the profile asks for {min} MB",
   "error.engine.timeout": "the engine ran past the time limit",
   "error.engine.print_missing": "the voice print {path} does not exist",
   "error.engine.reference_unreadable": "cannot read the reference audio {path}",

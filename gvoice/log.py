@@ -50,6 +50,7 @@ def record_for(key: str, task: str, spec: dict, machine: dict, provider: str | N
         "app.voice.text_chars": len(text) if isinstance(text, str) else None,
         "app.voice.audio_ms": getattr(result, "audio_ms", None),
         "app.voice.min_free_mb": getattr(result, "min_free_mb", None),
+        "app.voice.peak_rss_mb": getattr(result, "peak_rss_mb", None),
         "app.voice.backend": getattr(result, "backend", None),
         "app.voice.command": getattr(result, "command", None),
     }

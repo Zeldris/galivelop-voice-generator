@@ -15,7 +15,7 @@ from gvoice.errors import GvoiceError
 FAKE = str(Path(__file__).resolve().parent / "fake_qwentts.py")
 NEVER = lambda: False
 VARS = ("FAKE_QT_FAIL_DEVICE", "FAKE_QT_HANG", "FAKE_QT_NOWAV", "FAKE_QT_BADWAV", "FAKE_QT_CRASH",
-        "FAKE_QT_LATE_FAIL_S", "GVOICE_ENGINE", "GVOICE_MACHINE_PROFILE")
+        "FAKE_QT_LATE_FAIL_S", "FAKE_QT_SLEEP_S", "GVOICE_MEMINFO", "GVOICE_PROC_STATUS", "GVOICE_ENGINE", "GVOICE_MACHINE_PROFILE")
 
 
 def wav_ms(path):
@@ -330,6 +330,82 @@ class QwenTtsTests(unittest.TestCase):
         self.assertEqual(exc.code, "limit.memory_abort")
         self.assertDead(self.wait_pid())
         self.assertEqual(len(self.calls()), 1)  # an abort is not a device failure
+
+    # -- memory watchdog (F2.3) -------------------------------------------------------------------------------------
+
+    def meminfo(self, mb):
+        path = self.tmp / "meminfo"
+        path.write_text("MemTotal: 16000000 kB\nMemAvailable: %d kB\nBuffers: 1 kB\n" % (mb * 1024))
+        os.environ["GVOICE_MEMINFO"] = str(path)
+
+    def watched(self):
+        return engine_qwentts.QwenTtsEngine(watch_memory=True)
+
+    def test_aborts_below_the_watch_threshold_with_code_and_values(self):
+        os.environ["FAKE_QT_HANG"] = "1"
+        self.meminfo(1000)
+        exc = self.error(lambda: self.watched().design(self.design(), NEVER))
+        self.assertIsInstance(exc, engine.EngineError)
+        self.assertEqual((exc.code, exc.params), ("engine.low_memory", {"free": 1000, "min": 1536}))
+        self.assertIn("1000", exc.message)
+        self.assertIn("1536", exc.message)
+        self.assertEqual(self.leftovers(), [])
+
+    def test_aborts_when_memory_drops_while_running(self):
+        os.environ["FAKE_QT_HANG"] = "1"
+        self.meminfo(5000)
+        threading.Timer(0.2, self.meminfo, args=(900,)).start()
+        started = time.monotonic()
+        exc = self.error(lambda: self.watched().design(self.design(), NEVER))
+        self.assertEqual((exc.code, exc.params["free"]), ("engine.low_memory", 900))
+        self.assertGreater(time.monotonic() - started, 0.4)  # sampled every 0.5 s, not at the start only
+        self.assertDead(self.wait_pid())
+        self.assertEqual(len(self.calls()), 1)  # an abort is not a device failure: no fallback
+
+    def test_enough_memory_does_not_abort_and_reports_the_lowest_and_the_peak(self):
+        os.environ["FAKE_QT_SLEEP_S"] = "1.2"
+        self.meminfo(6000)
+        threading.Timer(0.3, self.meminfo, args=(3000,)).start()
+        threading.Timer(0.8, self.meminfo, args=(4000,)).start()
+        status = self.tmp / "status"
+        status.write_text("Name:\tqwen-tts\nVmHWM:\t  2097152 kB\nVmRSS:\t 1 kB\n")
+        os.environ["GVOICE_PROC_STATUS"] = str(status)
+        result = self.watched().design(self.design(), NEVER)
+        self.assertEqual((result.min_free_mb, result.peak_rss_mb), (3000, 2048))
+
+    def test_peak_rss_of_the_real_process(self):
+        os.environ["FAKE_QT_SLEEP_S"] = "0.6"
+        self.meminfo(6000)
+        result = self.watched().design(self.design(), NEVER)
+        self.assertIsInstance(result.peak_rss_mb, int)
+        self.assertGreater(result.peak_rss_mb, 0)
+
+    def test_unreadable_sources_give_none_and_no_abort(self):
+        os.environ["FAKE_QT_SLEEP_S"] = "0.6"
+        os.environ["GVOICE_MEMINFO"] = str(self.tmp / "nope")
+        os.environ["GVOICE_PROC_STATUS"] = str(self.tmp / "nope2")
+        result = self.watched().design(self.design(), NEVER)
+        self.assertEqual((result.min_free_mb, result.peak_rss_mb), (None, None))
+
+    def test_without_the_watchdog_nothing_is_reported(self):
+        os.environ["FAKE_QT_SLEEP_S"] = "0.3"
+        self.meminfo(10)  # would abort if watched
+        result = self.eng.design(self.design(), NEVER)
+        self.assertEqual((result.min_free_mb, result.peak_rss_mb), (None, None))
+
+    def test_the_watch_samples_at_its_interval(self):
+        now = [0.0]
+        watch = engine_qwentts.MemoryWatch(self.machine, interval_s=0.5, clock=lambda: now[0])
+        proc = mock.Mock(pid=os.getpid())
+        self.meminfo(3000)
+        watch(proc)
+        self.meminfo(2000)
+        now[0] = 0.3
+        watch(proc)
+        self.assertEqual(watch.min_free_mb, 3000)  # not sampled yet
+        now[0] = 0.6
+        watch(proc)
+        self.assertEqual(watch.min_free_mb, 2000)
 
     # -- installed -------------------------------------------------------------------------------------------------
 

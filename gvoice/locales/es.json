@@ -60,6 +60,8 @@
   "error.engine.unknown": "motor desconocido \"{engine}\"",
   "error.engine.bad_delay": "espera del motor de pruebas no válida: \"{value}\"",
   "error.engine.failed": "el motor falló: {message}",
+  "error.engine.low_memory": "la memoria libre bajó a {free} MB, por debajo de los {min} MB del perfil de máquina: se paró el motor",
+  "worker.waiting_memory": "gvoice: la entrada {id} espera memoria: hay {free} MB libres y el perfil pide {min} MB",
   "error.engine.timeout": "el motor superó el tope de tiempo",
   "error.engine.print_missing": "la huella de voz {path} no existe",
   "error.engine.reference_unreadable": "no se puede leer el audio de referencia {path}",

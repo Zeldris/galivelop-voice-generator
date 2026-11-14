@@ -11,7 +11,7 @@
 | **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; sigue tras el PR #5, con `main` en `d7d5095`) |
 | **Fase / tarea** | F2 Motor real. `qwentts.cpp` aceptado como primer candidato (D18: motores y modelos enchufables; al cerrar F2 se bajan más para comparar). Plan detallado en `docs/plan.md` § «F2 en detalle» (pasos F2.1-F2.6). Presupuesto de compactaciones: 2 (la sesión lleva 1 antes de empezar F2) |
 | **Último punto estable** | F2.5: `gvoice bench` con la tabla del banco (commit «F2.5: gvoice bench con la tabla del banco»); check verde |
-| **Siguiente paso** | F2.6, comprobación en la Deck (la persona): instalar, diseñar, fijar, producir y `gvoice bench --devices Vulkan0,cpu`; su tabla a `docs/investigacion/` |
+| **Siguiente paso** | Revisión de bloque de F2.4-F2.5 (diff `e5ec608..HEAD`: `instalar.sh`, `gvoice/bench.py`, `no_fallback`) con arreglos. En paralelo, F2.6, comprobación en la Deck (la persona): instalar, diseñar, fijar, producir y `gvoice bench --devices Vulkan0,cpu`; su tabla a `docs/investigacion/` |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`) |
 
 ## Para la próxima publicación

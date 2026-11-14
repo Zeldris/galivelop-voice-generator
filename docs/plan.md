@@ -130,6 +130,10 @@ sorpresas).
 
 ## Pendiente
 
+- **Correr `instalar.sh` de verdad en la Deck** (la persona, F2.6): los tests solo prueban las órdenes (`--dry-run`) y
+  una ejecución con `git`/`cmake` falsos. Quedan por ver con la máquina real: dónde deja `cmake` los binarios de
+  `qwentts.cpp` (el script reúne `qwen-tts`, `qwen-codec`, `tts-server` y los `.so` en la raíz de `bin-*`), que el rpath
+  `$ORIGIN` llegue al binario (`readelf -d`) y que `qwen-tts --help` arranque en el anfitrión.
 - **Escucha del banco** (la persona, en la Deck; 2026-11-14: `qwentts.cpp` se acepta como primer candidato, D18): si el español suena natural y si la voz se mantiene entre frases,
   en `~/.local/share/galivelop-voice/bench/` (`diseno-cpu-s11.wav`, `diseno-cpu-s22.wav`, `prod-vk-0.6b-larga.wav`,
   `prod-vk-1.7b-larga.wav`). Al cerrar F2 se bajan más modelos para comparar con `gvoice bench`.

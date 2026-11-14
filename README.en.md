@@ -15,6 +15,18 @@ test engine. **It does not generate real voices yet**: the real engine arrives i
 Details, decisions D1-D17 and exit criteria in [`docs/plan.md`](docs/plan.md) (Spanish); vocabulary in
 [`GLOSSARY.md`](GLOSSARY.md) (Spanish).
 
+## Installing the real engine
+
+```sh
+bash instalar.sh               # builds CPU and Vulkan, downloads the models, checks they start (no root)
+bash instalar.sh --dry-run     # prints the commands without running them; also `--cpu-only` and `--skip-models`
+export GVOICE_ENGINE=qwentts   # or {"engine": "qwentts"} in config.json
+```
+
+On SteamOS (no compiler) it builds with the Flatpak SDK `org.freedesktop.Sdk//25.08` (`flatpak --user`, D17); inside a
+Flatpak it uses that compiler and probes the binaries on the host; on other distributions, `cmake`, `g++` and `git`.
+It leaves `qwen-tts` and `qwen-codec` in `<data>/engine/bin-cpu/` and `bin-vulkan/`.
+
 ## Usage
 
 ```sh

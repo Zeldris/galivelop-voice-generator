@@ -15,6 +15,18 @@ motor de pruebas. **Aún no genera voces de verdad**: el motor real llega en F2.
 Detalle, decisiones D1-D17 y criterios de cierre en [`docs/plan.md`](docs/plan.md); vocabulario en
 [`GLOSSARY.md`](GLOSSARY.md).
 
+## Instalar el motor real
+
+```sh
+bash instalar.sh               # compila CPU y Vulkan, baja los modelos y prueba que arrancan (sin root)
+bash instalar.sh --dry-run     # imprime las órdenes sin ejecutarlas; también `--cpu-only` y `--skip-models`
+export GVOICE_ENGINE=qwentts   # o {"engine": "qwentts"} en config.json
+```
+
+En SteamOS (sin compilador) compila con el SDK de Flatpak `org.freedesktop.Sdk//25.08` (`flatpak --user`, D17); dentro
+de un Flatpak usa su compilador y prueba los binarios en el anfitrión; en otra distribución, `cmake`, `g++` y `git`.
+Deja `qwen-tts` y `qwen-codec` en `<datos>/engine/bin-cpu/` y `bin-vulkan/`.
+
 ## Uso
 
 ```sh

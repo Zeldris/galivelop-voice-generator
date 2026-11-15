@@ -19,7 +19,7 @@ const PRINT_MARK = { done: '✓', running: '…', queued: '…', pending: '○' 
     pause, focus, destroy, audio}. `onPlay(card)` avisa de que esta toma empieza a sonar (la vista pausa las demás). */
 export function takeCard({ project, key, type, models = [], actions, onPlay = () => {}, alive = () => true }) {
   let take = null; let order = null; let entries = [];
-  let url = null; let srcReady = null; let started = false; let destroyed = false; let dirty = false; let raf = null;
+  let url = null; let srcReady = null; let peaksStarted = false; let pendingAt = null; let destroyed = false; let dirty = false; let raf = null;
   let durationMs = 0;
 
   const audio = h('audio', { preload: 'none' });
@@ -37,8 +37,8 @@ export function takeCard({ project, key, type, models = [], actions, onPlay = ()
   });
   const noAudio = h('p.hint.take-noaudio', {}, t('ui.take.noAudio'));
   const prints = type === 'voice' ? h('div.take-prints') : null;
-  const candidateBtn = h('button.btn.btn-toggle', { type: 'button', onclick: () => mark(take.state === 'candidate' ? 'new' : 'candidate') }, t('ui.take.markCandidate'));
-  const discardBtn = h('button.btn.btn-toggle.btn-danger-toggle', { type: 'button', onclick: () => mark(take.state === 'discarded' ? 'new' : 'discarded') }, h('span', { aria: { hidden: true } }, '✗ '), t('ui.take.markDiscard'));
+  const candidateBtn = h('button.btn.btn-toggle', { type: 'button', onclick: () => toggleState('candidate') }, t('ui.take.markCandidate'));
+  const discardBtn = h('button.btn.btn-toggle.btn-danger-toggle', { type: 'button', onclick: () => toggleState('discarded') }, h('span', { aria: { hidden: true } }, '✗ '), t('ui.take.markDiscard'));
   const chooseBtn = h('button.btn.btn-primary', { type: 'button', onclick: () => choose() }, icon('check'), ' ', t('ui.take.choose'));
   const why = h('p.hint.take-why');
   const noteId = `note-${Math.random().toString(36).slice(2, 8)}`;
@@ -53,11 +53,18 @@ export function takeCard({ project, key, type, models = [], actions, onPlay = ()
 
   const mark = busy(async (state) => { await actions.mark(take, state); });
   const choose = busy(async () => { await actions.choose(take); });
-  const saveNote = busy(async () => { if (await actions.note(take, noteBox.value)) { dirty = false; saveBtn.disabled = true; } });
+  const saveNote = busy(async () => {
+    const sent = noteBox.value;
+    // what was typed while the request was in flight stays dirty (and unsaved), and `update()` does not overwrite it
+    if (await actions.note(take, sent) && noteBox.value === sent) { dirty = false; saveBtn.disabled = true; }
+  });
+  /** Same path as the buttons (one request at a time per card, the current state read when it runs). */
+  const toggleState = (state) => mark(take.state === state ? 'new' : state);
+  const chooseIfAllowed = () => (take && canChoose(order, take) ? choose() : undefined);
 
   const totalMs = () => (Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration * 1000 : durationMs || (take && take.audioMs) || 0);
   function paintTime() {
-    const cur = (audio.currentTime || 0) * 1000;
+    const cur = (pendingAt !== null ? pendingAt : audio.currentTime || 0) * 1000;
     const total = totalMs();
     time.textContent = `${mmss(cur)} / ${total ? mmss(total) : '—'}`;
     wave.setProgress(total ? cur / total : 0);
@@ -79,6 +86,8 @@ export function takeCard({ project, key, type, models = [], actions, onPlay = ()
   const stopped = () => { setPlaying(false); paintTime(); if (raf !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(raf); raf = null; };
   audio.addEventListener('pause', stopped);
   audio.addEventListener('ended', () => { stopped(); });
+  // a seek asked for before the first play (no `src` yet) is applied once the audio knows its duration
+  audio.addEventListener('loadedmetadata', () => { if (pendingAt !== null) { const at = pendingAt; pendingAt = null; audio.currentTime = at; } });
   for (const ev of ['timeupdate', 'loadedmetadata', 'durationchange', 'seeked']) audio.addEventListener(ev, paintTime);
   audio.addEventListener('error', () => { if (audio.getAttribute('src')) showError(t('ui.take.audioError')); });
 
@@ -86,7 +95,8 @@ export function takeCard({ project, key, type, models = [], actions, onPlay = ()
     if (!hasAudio(take)) return;
     const total = totalMs();
     if (!total) return;
-    audio.currentTime = f * total / 1000;
+    // without `src` the browser forgets a position set now when the source is assigned: remember it
+    if (!audio.src) pendingAt = f * total / 1000; else audio.currentTime = f * total / 1000;
     paintTime();
   }
 
@@ -100,21 +110,25 @@ export function takeCard({ project, key, type, models = [], actions, onPlay = ()
     try { await audio.play(); } catch (e) { if (alive() && !destroyed) showError(t('ui.take.audioError')); }
   }
 
-  /** Pide el audio (URL para el `<audio>`) y los picos; una sola vez, con la tarjeta ya en el documento (hace falta su ancho). */
+  /** Pide el audio (URL para el `<audio>`) y los picos, con la tarjeta ya en el documento (hace falta su ancho). Se puede
+      llamar cuantas veces haga falta: cada pieza se pide una vez, y la URL se vuelve a pedir si falló. */
   function load() {
-    if (started || !take || !hasAudio(take) || destroyed) return;
-    started = true;
-    srcReady = api.audioUrl(project, key, take.id).then((u) => {
-      if (destroyed || !alive()) { api.revokeAudioUrl(u); return null; }
-      url = u; audio.src = u;
-      return u;
-    }).catch((e) => { if (alive() && !destroyed) showError(t('ui.take.audioError')); return null; });
+    if (!take || !hasAudio(take) || destroyed) return;
+    if (!srcReady) {
+      const mine = srcReady = api.audioUrl(project, key, take.id).then((u) => {
+        if (destroyed || !alive()) { api.revokeAudioUrl(u); return null; }
+        url = u; audio.src = u;
+        return u;
+      }).catch(() => { if (srcReady === mine) srcReady = null; if (alive() && !destroyed) showError(t('ui.take.audioError')); return null; });
+    }
+    if (peaksStarted) return;
+    peaksStarted = true;
     api.peaks(project, key, take.id, bucketsFor(wave.width())).then((r) => {
       if (destroyed || !alive()) return;
       durationMs = r.audioMs || durationMs;
       wave.setPeaks(r.peaks);
       paintTime();
-    }).catch(() => { if (alive() && !destroyed) replace(status, h('p.field-error', {}, '✗ ', t('ui.take.peaksError'))); });
+    }).catch(() => { if (alive() && !destroyed && !status.firstChild) replace(status, h('p.field-error', {}, '✗ ', t('ui.take.peaksError'))); }); // never over an audio error
   }
 
   function update(nextTake, view = {}) {
@@ -167,6 +181,6 @@ export function takeCard({ project, key, type, models = [], actions, onPlay = ()
     wave.destroy();
   }
 
-  const card = { node, get id() { return take && take.id; }, audio, update, load, toggle, pause, focus, destroy, play: () => (audio.paused ? toggle() : undefined), seek };
+  const card = { node, get id() { return take && take.id; }, audio, update, load, toggleState, choose: chooseIfAllowed, toggle, pause, focus, destroy, play: () => (audio.paused ? toggle() : undefined), seek };
   return card;
 }

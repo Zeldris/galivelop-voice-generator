@@ -23,32 +23,50 @@ export function createWaveform({ label, onSeek = () => {}, valueText = null }) {
   };
   const width = () => Math.max(1, Math.round(node.clientWidth || (node.getBoundingClientRect && node.getBoundingClientRect().width) || 300));
 
-  function draw() {
-    if (destroyed) return;
-    const ctx = canvas.getContext && canvas.getContext('2d');
-    if (!ctx) return;
+  // What does not change with the playback position is computed once and cached: the size (and so the canvas
+  // resize), the colours (`getComputedStyle`) and the bars. `draw()` recomputes everything (on resize, theme or peaks change);
+  // `setProgress()` only repaints, which is what runs on every animation frame while playing.
+  const hasRO = typeof ResizeObserver === 'function';
+  let cache = null; // {w, colors, bars}
+
+  function measure() {
     const w = width();
     const dpr = (typeof devicePixelRatio === 'number' && devicePixelRatio > 0) ? devicePixelRatio : 1;
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(HEIGHT * dpr);
+    const cw = Math.round(w * dpr); const ch = Math.round(HEIGHT * dpr);
+    if (canvas.width !== cw) canvas.width = cw; // assigning resets the canvas, so only when the size changed
+    if (canvas.height !== ch) canvas.height = ch;
+    cache = { w, dpr, colors: colors(), bars: barRects(peaks, w, HEIGHT) };
+  }
+
+  function paint(ctx) {
+    const { w, dpr, colors: c, bars } = cache;
     if (ctx.setTransform) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const c = colors();
     ctx.clearRect(0, 0, w, HEIGHT);
     ctx.fillStyle = c.back;
     ctx.fillRect(0, 0, w, HEIGHT);
     const cut = progress * w;
-    for (const r of barRects(peaks, w, HEIGHT)) {
+    for (const r of bars) {
       ctx.fillStyle = r.x + r.w <= cut ? c.played : c.bar;
       ctx.fillRect(r.x, r.y, r.w, r.h);
     }
     if (progress > 0) { ctx.fillStyle = c.cursor; ctx.fillRect(Math.min(w - 2, Math.round(cut)), 0, 2, HEIGHT); }
   }
 
+  function draw({ full = true } = {}) {
+    if (destroyed) return;
+    const ctx = canvas.getContext && canvas.getContext('2d');
+    if (!ctx) return;
+    if (full || !cache || (!hasRO && width() !== cache.w)) measure();
+    paint(ctx);
+  }
+  // the observers and `matchMedia` call their callback with an event/entries: always a full redraw
+  const redraw = () => draw();
+
   function setProgress(f) {
     progress = Math.max(0, Math.min(1, Number.isFinite(f) ? f : 0));
     node.setAttribute('aria-valuenow', String(Math.round(progress * 100)));
     if (valueText) node.setAttribute('aria-valuetext', valueText(progress));
-    draw();
+    draw({ full: false });
   }
   function setPeaks(next) { peaks = Array.isArray(next) ? next : []; draw(); }
 
@@ -63,13 +81,13 @@ export function createWaveform({ label, onSeek = () => {}, valueText = null }) {
 
   // redibujar al cambiar el tamaño o el tema
   const stops = [];
-  if (typeof ResizeObserver === 'function') { const ro = new ResizeObserver(draw); ro.observe(node); stops.push(() => ro.disconnect()); }
+  if (typeof ResizeObserver === 'function') { const ro = new ResizeObserver(redraw); ro.observe(node); stops.push(() => ro.disconnect()); }
   if (typeof MutationObserver === 'function') {
-    const mo = new MutationObserver(draw); mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] }); stops.push(() => mo.disconnect());
+    const mo = new MutationObserver(redraw); mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] }); stops.push(() => mo.disconnect());
   }
   if (typeof matchMedia === 'function') {
     const mq = matchMedia('(prefers-color-scheme: dark)');
-    if (mq && mq.addEventListener) { mq.addEventListener('change', draw); stops.push(() => mq.removeEventListener('change', draw)); }
+    if (mq && mq.addEventListener) { mq.addEventListener('change', redraw); stops.push(() => mq.removeEventListener('change', redraw)); }
   }
-  return { node, setPeaks, setProgress, draw, width, destroy() { destroyed = true; for (const s of stops) s(); } };
+  return { node, setPeaks, setProgress, draw: redraw, width, destroy() { destroyed = true; for (const s of stops) s(); } };
 }

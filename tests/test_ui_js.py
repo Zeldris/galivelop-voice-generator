@@ -1245,6 +1245,270 @@ out(r);
         self.assertEqual(got["more"]["call"], [{"count": 2}])
         self.assertIn("2 tomas en la cola", got["more"]["toast"])
 
+    # ---- F5.4: arreglos de la revisión del bloque ----
+
+    LOOSE = """
+const mountLoose = async (key, query = {}) => {   // no espera al audio: para los tests que lo retienen o lo rompen a propósito
+  const view = orderView({ project: 'example-world', key, query });
+  doc.body.append(view.node);
+  await until(() => cards(view).length > 0);
+  return view;
+};
+"""
+
+    def test_a_refresh_that_cancels_the_first_load_still_mounts_the_gallery_with_the_models(self):
+        got = self.run_js(self.ORDER_ENV + """
+const realOrder = api.order; let calls = 0;
+api.order = (...a) => (++calls === 1 ? new Promise(() => {}) : realOrder(...a));   // el primer GET no vuelve
+api.undo = async () => ({ new: null });
+const view = orderView({ project: 'example-world', key: 'narrator', query: {} });
+doc.body.append(view.node);
+await sleep(20);
+press('u');   // deshacer antes de que vuelva la primera carga: su refresh la cancela
+await until(() => cards(view).length === 3 || view.node.textContent.includes('Cargando') === false);
+await sleep(20);
+out({ cards: cards(view).length, loading: view.node.textContent.includes('Cargando'), prints: cardOf(view, 2) ? cardOf(view, 2).textContent.includes('0.6b-base: hecha') : null });
+view.cleanup();
+""")
+        self.assertEqual(got, {"cards": 3, "loading": False, "prints": True})
+
+    def test_polling_goes_on_after_a_failed_order_or_queue_request_and_stops_with_the_view(self):
+        got = self.run_js(self.ORDER_ENV + """
+const realST = globalThis.setTimeout; const waits = [];
+globalThis.setTimeout = (fn, ms, ...a) => { if (ms >= 3000) { if (ms !== 10000) waits.push(ms);   // 10000 = el aviso de error; el resto, sondeos
+     return realST(fn, 5); } return realST(fn, ms, ...a); };   // los sondeos, sin esperar
+const realOrder = api.order; let calls = 0; let queueCalls = 0;
+api.order = (...a) => { calls++; return calls === 2 ? Promise.reject(new Error('boom')) : realOrder(...a); };
+const open = [{ id: 9, kind: 'line', project: 'example-world', key: 'narrator', state: 'queued', seed: 1 }];
+api.queue = async () => { queueCalls++; if (queueCalls === 3) throw new Error('queue down'); return open; };
+const view = orderView({ project: 'example-world', key: 'narrator', query: {} });
+doc.body.append(view.node);
+await until(() => calls >= 5);
+const r = { calls: calls >= 5, waits: waits.slice(0, 4), cards: cards(view).length };
+view.cleanup();
+const after = calls; await sleep(100);
+r.stoppedWithView = calls === after;
+out(r);
+""")
+        self.assertTrue(got["calls"], "el sondeo sigue tras un fallo del pedido y de la cola")
+        self.assertEqual(got["waits"][0], 3000)
+        self.assertEqual(got["waits"][1], 6000)  # tras un fallo, espera creciente
+        self.assertEqual(got["cards"], 3)
+        self.assertTrue(got["stoppedWithView"])
+
+    def test_a_take_that_receives_its_audio_in_a_later_refresh_gets_its_waveform(self):
+        got = self.run_js(self.ORDER_ENV + self.LOOSE + """
+const real = api.order; let phase = 0;
+api.order = async (...a) => { const o = structuredClone(await real(...a)); if (!phase) delete o.attempts[0].audioMs; return o; };
+api.newTakes = async () => [];
+const view = await mountLoose('narrator');
+await until(() => audioOf(view, 2).src);
+const peaks1 = () => seen.filter((s) => s[1].includes('/attempts/1/peaks')).length;
+const r = { before: { src: audioOf(view, 1).src || null, peaks: peaks1() } };
+phase = 1; press('g');
+await until(() => audioOf(view, 1).src, 3000);
+r.after = { src: audioOf(view, 1).src, peaks: peaks1() };
+view.cleanup();
+out(r);
+""")
+        self.assertEqual(got["before"], {"src": None, "peaks": 0})
+        self.assertTrue(got["after"]["src"])
+        self.assertEqual(got["after"]["peaks"], 1)
+
+    def test_merge_sources_drops_the_same_press_arriving_by_key_and_by_pad(self):
+        got = self.run_js("""
+const { mergeSources } = await mod('js/components/shortcuts.js');
+let t = 1000; const seen = [];
+const m = mergeSources((a) => seen.push(a), { now: () => t });
+m.key('toggle'); t += 100; m.pad('toggle');       // the same press, 100 ms later by the other source: dropped
+t += 50; m.key('toggle');                          // the same source repeating (auto-repeat): kept
+t += 100; m.pad('toggle');                         // 100 ms after the last key: dropped
+t += 300; m.pad('toggle');                         // a new press: kept
+t += 10; m.pad('choose');                          // another action: kept
+out(seen);
+""")
+        self.assertEqual(got, ["toggle", "toggle", "toggle", "choose"])
+
+    def test_a_pad_press_that_also_arrives_as_a_key_acts_once(self):
+        got = self.run_js(self.ORDER_ENV + """
+const buttons = (n) => Array.from({ length: 17 }, (_, i) => ({ pressed: n.includes(i), value: n.includes(i) ? 1 : 0 }));
+let pad = { connected: true, buttons: buttons([]) };
+Object.defineProperty(globalThis, 'navigator', { value: { getGamepads: () => [pad] }, configurable: true });
+const view = await mount('narrator');
+press('ArrowRight');                                   // la toma 3
+pad = { connected: true, buttons: buttons([0]) };      // A: reproducir...
+press('Enter', doc.body);                              // ...y Steam Input manda además Intro
+await until(() => !audioOf(view, 3).paused);
+await sleep(400);                                      // el sondeo del mando ve A; si no se deduplica, pausa
+const r = { playing: !audioOf(view, 3).paused };
+pad = { connected: true, buttons: buttons([]) };
+view.cleanup();
+out(r);
+""", timeout=60)
+        self.assertTrue(got["playing"])
+
+    def test_the_gamepad_respects_text_fields_and_open_dialogs_like_the_keyboard(self):
+        got = self.run_js(self.ORDER_ENV + """
+const { openHelp } = await mod('js/components/shortcuts.js');
+const buttons = (n) => Array.from({ length: 17 }, (_, i) => ({ pressed: n.includes(i), value: n.includes(i) ? 1 : 0 }));
+let pad = { connected: true, buttons: buttons([]) };
+Object.defineProperty(globalThis, 'navigator', { value: { getGamepads: () => [pad] }, configurable: true });
+const view = await mount('narrator');
+const tap = async (n) => { pad = { connected: true, buttons: buttons(n) }; await sleep(160); pad = { connected: true, buttons: buttons([]) }; await sleep(160); };
+const chooses = () => seen.filter((s) => s[1].includes('/choose')).length;
+await tap([15]);                                      // la toma 3
+cardOf(view, 3).find((e) => e.tag === 'textarea')[0].focus();
+await tap([2]); const r = { typing: chooses() };      // X con el foco en la nota
+doc.activeElement = null;
+openHelp(); await tap([2]); r.dialog = chooses();     // X con la ayuda abierta
+doc.body.find((e) => e.tag === 'dialog')[0].close(); await sleep(20); doc.activeElement = null;
+await tap([2]); await until(() => chosenIds(view).join() === '3'); r.free = chooses();
+view.cleanup();
+out(r);
+""", timeout=60)
+        self.assertEqual(got, {"typing": 0, "dialog": 0, "free": 1})
+
+    def test_a_note_typed_while_saving_stays_dirty_and_is_not_overwritten(self):
+        got = self.run_js(self.ORDER_ENV + """
+let release; api.note = (_p, _k, id, text) => new Promise((res) => { release = () => res({ id, note: text }); });
+const view = await mount('narrator');
+const card = cardOf(view, 3); const box = card.find((e) => e.tag === 'textarea')[0];
+box.type('a'); btn(card, 'Guardar nota').click();
+await until(() => release);
+box.type('ab');                                        // se teclea mientras se guarda
+release(); await sleep(30);
+const r = { value: box.value, saveDisabled: btn(card, 'Guardar nota').disabled };
+btn(card, 'Candidata').click();                         // repinta la tarjeta (update)
+await until(() => btn(cardOf(view, 3), 'Candidata').attrs['aria-pressed'] === 'true');
+r.afterUpdate = box.value;
+view.cleanup();
+out(r);
+""")
+        self.assertEqual(got, {"value": "ab", "saveDisabled": False, "afterUpdate": "ab"})
+
+    def test_keyboard_choose_follows_the_same_guards_as_the_button(self):
+        got = self.run_js(self.ORDER_ENV + """
+const view = await mount('narrator');
+press('ArrowLeft');                                    // la toma 1, descartada: «Elegir» está desactivado
+press('e'); await sleep(60);
+const r = { chooseCalls: seen.filter((s) => s[1].includes('/choose')).length, chosen: chosenIds(view) };
+view.cleanup();
+out(r);
+""")
+        self.assertEqual(got, {"chooseCalls": 0, "chosen": ["2"]})
+
+    def test_keyboard_marks_ignore_a_second_press_while_one_is_in_flight(self):
+        got = self.run_js(self.ORDER_ENV + """
+const marks = []; let release;
+api.mark = (_p, _k, id, state) => { marks.push(state); return new Promise((res) => { release = () => res({ id, state }); }); };
+const view = await mount('narrator');
+press('ArrowRight');                                   // la toma 3 (nueva)
+press('c'); press('c'); press('d');                    // C dos veces y D, con la primera en vuelo
+await sleep(30);
+const r = { inFlight: marks.slice() };
+release(); await sleep(30);
+press('c'); await sleep(30);                            // ya con el estado vuelto: la candidata se quita
+r.after = marks.slice();
+release(); await sleep(20);
+view.cleanup();
+out(r);
+""")
+        self.assertEqual(got["inFlight"], ["candidate"])
+        self.assertEqual(got["after"], ["candidate", "new"])  # la respuesta ya aplicada: C quita la marca
+
+    def test_a_mark_answer_lands_on_the_current_take_after_a_concurrent_refresh(self):
+        got = self.run_js(self.ORDER_ENV + """
+let release; api.mark = (_p, _k, id, state) => new Promise((res) => { release = () => res({ id, state }); });
+api.undo = async () => ({ new: null });
+const realOrder = api.order; let orders = 0; api.order = async (...a) => { const o = structuredClone(await realOrder(...a)); orders++; return o; };   // un pedido nuevo en cada GET, como el de la red
+const realQueue = api.queue; let queues = 0; api.queue = async (...a) => { const q = await realQueue(...a); queues++; return q; };
+const view = await mount('narrator');
+btn(cardOf(view, 3), 'Candidata').click();
+await until(() => release);
+const [o0, q0] = [orders, queues];
+press('u');                                            // un refresh trae un pedido nuevo mientras vuelve la marca
+await until(() => orders > o0 && queues > q0); await sleep(30);   // ya pintado
+release();
+await sleep(60);
+const r = { pressed: btn(cardOf(view, 3), 'Candidata').attrs['aria-pressed'], chip: cardOf(view, 3).textContent.includes('Candidata') };
+view.cleanup();
+out(r);
+""")
+        self.assertEqual(got["pressed"], "true")
+
+    def test_a_failed_audio_url_can_be_retried_and_a_peaks_failure_does_not_hide_it(self):
+        got = self.run_js(self.ORDER_ENV + self.LOOSE + """
+const realUrl = api.audioUrl; let ok = false; let calls = 0;
+api.audioUrl = async (...a) => { calls++; if (!ok) throw new Error('no url'); return realUrl(...a); };
+api.peaks = async () => { throw new Error('no peaks'); };
+const view = await mountLoose('narrator');
+await sleep(60);
+const status = () => cardOf(view, 2).find((e) => e.className.includes('take-status'))[0].textContent;
+const r = { status: status() };
+ok = true; btn(cardOf(view, 2), 'Reproducir').click();
+await until(() => !audioOf(view, 2).paused, 3000);
+r.retried = { src: Boolean(audioOf(view, 2).src), status: status(), calls: calls > 3 };
+view.cleanup();
+out(r);
+""")
+        self.assertIn("No se pudo cargar el audio", got["status"])
+        self.assertNotIn("forma de onda", got["status"])
+        self.assertTrue(got["retried"]["src"] and got["retried"]["calls"])
+        self.assertEqual(got["retried"]["status"], "")
+
+    def test_a_seek_before_the_first_play_is_applied_when_the_audio_loads(self):
+        got = self.run_js(self.ORDER_ENV + self.LOOSE + """
+const realUrl = api.audioUrl; const rel = {};
+api.audioUrl = (p, k, id) => new Promise((res) => { rel[id] = async () => res(await realUrl(p, k, id)); });
+const view = await mountLoose('narrator');
+const audio = audioOf(view, 2);
+let t = 0; let src = '';   // como un navegador: asignar `src` reinicia la posición; sin `src`, una posición no se guarda
+Object.defineProperty(audio, 'src', { get: () => src, set: (v) => { src = v; t = 0; } });
+Object.defineProperty(audio, 'currentTime', { get: () => t, set: (v) => { if (src) t = v; } });
+const slider = cardOf(view, 2).find((e) => e.attrs.role === 'slider')[0];
+slider.dispatchEvent({ type: 'click', clientX: 150 });   // la mitad de 300 px, antes de reproducir
+const r = { shown: slider.attrs['aria-valuenow'] };
+await until(() => rel[2]); await rel[2](); await until(() => audio.src);
+audio.dispatchEvent('loadedmetadata');
+r.applied = audio.currentTime; r.total = 2600 + 2 * 450;
+view.cleanup();
+out(r);
+""")
+        self.assertEqual(got["shown"], "50")
+        self.assertAlmostEqual(got["applied"], got["total"] / 2000, places=3)
+
+    def test_playback_progress_only_repaints_without_measuring_again(self):
+        got = self.run_js(self.ORDER_ENV + """
+let styles = 0;
+globalThis.getComputedStyle = () => { styles++; return { getPropertyValue: () => '' }; };
+const resizers = []; globalThis.ResizeObserver = class { constructor(fn) { this.fn = fn; resizers.push(this); } observe() {} disconnect() {} };
+const view = await mount('narrator');
+await until(() => [1, 2, 3].every((id) => lastDraw(cardOf(view, id)).filter((c) => c[0] === 'fillRect').length > 2));
+await sleep(50);
+const card = cardOf(view, 2); const audio = audioOf(view, 2);
+const clears = () => card.find((e) => e.tag === 'canvas')[0].getContext('2d').calls.filter((c) => c[0] === 'clearRect').length;
+const r = { styles0: styles }; const c0 = clears();
+for (let i = 1; i <= 20; i++) { audio.currentTime = i / 10; audio.dispatchEvent('timeupdate'); }
+r.styles = styles - r.styles0; r.repaints = clears() - c0;
+resizers.forEach((o) => o.fn()); r.afterResize = styles - r.styles0;   // un cambio de tamaño sí recalcula
+view.cleanup();
+out(r);
+""")
+        self.assertEqual(got["styles"], 0)
+        self.assertGreaterEqual(got["repaints"], 20)
+        self.assertGreater(got["afterResize"], 0)
+
+    def test_question_mark_help_respects_the_one_key_switch(self):
+        got = self.run_js(self.ORDER_ENV + """
+const { initShortcuts } = await mod('js/components/shortcuts.js');
+initShortcuts();
+const open = () => doc.body.find((e) => e.tag === 'dialog' && e.open).length;
+store.set('gvoice.oneKey', 'off'); press('?'); const r = { off: open() };
+store.delete('gvoice.oneKey'); press('?'); r.on = open();
+out(r);
+""")
+        self.assertEqual(got, {"off": 0, "on": 1})
+
     def test_take_model_helpers(self):
         got = self.run_js("""
 const m = await mod('js/take-model.js');

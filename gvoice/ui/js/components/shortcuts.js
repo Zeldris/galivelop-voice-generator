@@ -92,13 +92,31 @@ export function startGamepad(onAction) {
   return () => { on = false; clearTimeout(timer); };
 }
 
+/** Steam Input turns the pad into keys, and where the browser also exposes the pad (`navigator.getGamepads`) the same
+    press arrives twice. `merge(perform)` returns `{key, pad}`, one entry per source: an action that already came from
+    the OTHER source less than `windowMs` ago is dropped (the same source repeating, e.g. key auto-repeat, is not). */
+export function mergeSources(perform, { windowMs = 200, now = () => Date.now() } = {}) {
+  const last = new Map(); // action -> {source, at} of the last action performed
+  const gate = (source) => (action) => {
+    const prev = last.get(action);
+    const at = now();
+    if (prev && prev.source !== source && at - prev.at < windowMs) return;
+    last.set(action, { source, at });
+    perform(action);
+  };
+  return { key: gate('key'), pad: gate('pad') };
+}
+
 let help = null;
+
+/** ¿Está abierto el diálogo de ayuda? (un mando no debe actuar sobre la galería por debajo). */
+export function helpOpen() { return help !== null; }
 
 export function initShortcuts({ closeAll = () => {} } = {}) {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { closeHelp(); closeAll(); return; }
     if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.key === '?') { e.preventDefault(); openHelp(); }
+    if (e.key === '?' && oneKeyEnabled()) { e.preventDefault(); openHelp(); } // «?» es un atajo de una tecla (WCAG 2.1.4)
   });
 }
 

@@ -1,6 +1,8 @@
 """gvoice/peaks.py: bucket rules, sample widths, channels and the failures."""
+import random
 import struct
 import tempfile
+import time
 import unittest
 import wave
 from pathlib import Path
@@ -18,6 +20,22 @@ def write_wav(path, frames_bytes, width=2, chans=1, rate=1000):
 
 def pcm16(values):
     return struct.pack(f"<{len(values)}h", *values)
+
+
+def reference_peaks(data, width, chans, n):
+    """The original frame-by-frame rules, as a slow oracle: max abs over the channels of the frames of each bucket."""
+    total = len(data) // (width * chans)
+    if width == 1:
+        vals = [abs(b - 128) for b in data]
+    else:
+        vals = [abs(int.from_bytes(data[i:i + width], "little", signed=True)) for i in range(0, len(data), width)]
+    scale = 2 ** (8 * width - 1)
+    out = []
+    for b in range(n):
+        lo, hi = b * total // n, (b + 1) * total // n
+        m = max(vals[lo * chans:hi * chans], default=0)
+        out.append(min(1.0, ((2000 * m + scale) // (2 * scale)) / 1000))
+    return out
 
 
 class PeaksTest(unittest.TestCase):
@@ -106,6 +124,31 @@ class PeaksTest(unittest.TestCase):
         r = pk.peaks(self.wav(pcm16(vals)), 16)
         self.assertEqual((max(r["peaks"]), r["peaks"][-1]), (1.0, 1.0))
         self.assertEqual(r["peaks"][8], 0.5)
+
+    def test_matches_the_frame_by_frame_rules_for_every_width_and_chunk_edge(self):
+        rng = random.Random(7)
+        for width, chans, frames, n in [(1, 1, 50, 16), (2, 2, 301, 16), (3, 2, 77, 20), (4, 1, 500, 33), (2, 3, 1000, 2000),
+                                        (2, 1, 5, 16), (3, 1, 1000, 16)]:
+            lim = 2 ** (8 * width - 1)
+            data = bytes(rng.randrange(256) for _ in range(frames * chans * width))
+            p = self.wav(data, f"r{width}{chans}{frames}.wav", width=width, chans=chans)
+            want = reference_peaks(data, width, chans, n)
+            for chunk in (7, 64, pk._CHUNK_FRAMES):  # buckets that end inside, at and across a chunk
+                old, pk._CHUNK_FRAMES = pk._CHUNK_FRAMES, chunk
+                try:
+                    got = pk.peaks(p, n)["peaks"]
+                finally:
+                    pk._CHUNK_FRAMES = old
+                self.assertEqual(got, want, (width, chans, frames, n, chunk))
+            self.assertLessEqual(max(want), 1.0 if lim else 0)
+
+    def test_a_minute_of_48khz_stereo_is_fast(self):
+        data = struct.pack("<2h", 1000, -2000) * (48000 * 60)
+        p = self.wav(data, "long.wav", chans=2, rate=48000)
+        t0 = time.perf_counter()
+        r = pk.peaks(p, 400)
+        self.assertLess(time.perf_counter() - t0, 0.7)  # ~0.2 s now; the per-frame loop took ~1.3 s
+        self.assertEqual((r["audioMs"], r["peaks"][0], len(r["peaks"])), (60000, 0.061, 400))  # 2000/32768 = 0.0610
 
     def test_n_limits_have_a_clear_message(self):
         p = self.wav(pcm16([0] * 40))

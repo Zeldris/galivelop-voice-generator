@@ -10,12 +10,12 @@ import { t } from '../i18n.js';
 import { api, describeError } from '../api.js';
 import { to } from '../router.js';
 import { busy, latest, lifetime, STALE } from '../async-guard.js';
-import { openEntries, pendingTakes, takeState, undoTarget } from '../take-model.js';
+import { openEntries, pendingTakes, undoTarget } from '../take-model.js';
 import { MAX_COUNT } from '../order-model.js';
 import { takeCard } from './take-card.js';
 import { icon } from './icons.js';
 import { warningIcon } from './sheet-warnings.js';
-import { isTyping, keyAction, oneKeyEnabled, openHelp, startGamepad } from './shortcuts.js';
+import { helpOpen, isTyping, keyAction, mergeSources, oneKeyEnabled, openHelp, startGamepad } from './shortcuts.js';
 import { toast, toastError, toastOk } from './toast.js';
 
 export const POLL_MS = 3000;
@@ -28,7 +28,7 @@ export function orderView(route) {
   const loads = latest();
   const exclusive = busy(async (fn) => fn());   // elegir, deshacer y pedir tomas: uno a la vez
   const cards = new Map();                       // id de toma -> takeCard
-  let order = null; let models = []; let entries = []; let current = null; let timer = null; let focusFirst = route.query && route.query.a ? Number(route.query.a) : null;
+  let order = null; let models = []; let entries = []; let current = null; let timer = null; let mounted = false; let projectLoaded = false; let failures = 0; let focusFirst = route.query && route.query.a ? Number(route.query.a) : null;
 
   const head = h('div.order-head');
   const gallery = h('div.gallery.take-list');
@@ -52,20 +52,33 @@ export function orderView(route) {
   const bodyHost = node.children[1];
 
   /* ---- carga ---- */
-  async function refresh({ first = false } = {}) {
+  /** The next poll runs while there may be work: takes in the queue, or a failed refresh (the queue is then unknown).
+      After failures the wait grows (x2 up to x8) so a dead server is not hammered. Nothing after the view is gone. */
+  function schedulePoll() {
+    clearTimeout(timer);
+    if (!alive() || (!entries.length && !failures)) return;
+    timer = setTimeout(() => { if (alive()) refresh(); }, POLL_MS * 2 ** Math.min(failures, 3));
+  }
+
+  async function refresh() {
     try {
-      const res = await loads.run(Promise.all([api.order(project, key), api.queue().catch(() => []), first ? api.project(project) : Promise.resolve(null)]));
+      // the project (print models) is asked for until one load succeeds: a first load cancelled by a later refresh
+      // (`loads.run` keeps only the last) must not leave the models, or the gallery, unloaded
+      const res = await loads.run(Promise.all([api.order(project, key), api.queue().catch(() => null), projectLoaded ? Promise.resolve(null) : api.project(project)]));
       if (res === STALE || !alive()) return;
       order = res[0];
-      entries = openEntries(res[1], project, key);
-      if (res[2]) models = (res[2].config && res[2].config.printModels) || [];
-      if (first) replace(bodyHost, body);
+      if (res[1] === null) failures++; else { failures = 0; entries = openEntries(res[1], project, key); }  // queue down: keep what was known
+      if (res[2]) { models = (res[2].config && res[2].config.printModels) || []; projectLoaded = true; }
+      if (!mounted) { replace(bodyHost, body); mounted = true; }
       paint();
     } catch (e) {
       if (!alive()) return;
-      if (first) replace(bodyHost, h('p.notice.notice-bad', { role: 'alert' }, '✗ ', describeError(e, t)), h('a.btn', { href: to.project(project) }, project));
-      else toastError(describeError(e, t));
+      const first = failures === 0;
+      failures++;
+      if (!mounted) { replace(bodyHost, h('p.notice.notice-bad', { role: 'alert' }, '✗ ', describeError(e, t)), h('a.btn', { href: to.project(project) }, project)); return; }
+      if (first) toastError(describeError(e, t));   // one notice per streak of failures
     }
+    schedulePoll();
   }
 
   /* ---- pintura ---- */
@@ -74,13 +87,11 @@ export function orderView(route) {
     const takes = [...(order.attempts || [])].sort((a, b) => a.id - b.id);
     const ids = new Set(takes.map((a) => a.id));
     for (const [id, card] of cards) if (!ids.has(id)) { card.destroy(); card.node.remove(); cards.delete(id); }
-    const fresh = [];
     for (const take of takes) {
       let card = cards.get(take.id);
       if (!card) {
         card = takeCard({ project, key, type: order.type, models, alive, actions: { mark, note, choose: (tk) => choose(tk) }, onPlay: pauseOthers });
         cards.set(take.id, card);
-        fresh.push(card);
       }
       card.update(take, { order, entries });
     }
@@ -90,15 +101,13 @@ export function orderView(route) {
       const prefix = have.length <= want.length && have.every((n, i) => want[i] === n);
       if (prefix) gallery.append(...want.slice(have.length)); else gallery.replaceChildren(...want);
     }
-    for (const c of fresh) c.load();
+    for (const c of cards.values()) c.load();   // also a take that has just received its audio
     emptyNote.hidden = takes.length > 0;
     if (!cards.has(current)) current = null;
     if (current === null && takes.length) current = (focusFirst !== null && ids.has(focusFirst)) ? focusFirst : (order.chosen !== null && ids.has(order.chosen) ? order.chosen : takes[0].id);
     setCurrent(current, focusFirst !== null && ids.has(focusFirst));
     focusFirst = null;
     paintPanel();
-    clearTimeout(timer);
-    if (entries.length) timer = setTimeout(() => { if (alive()) refresh(); }, POLL_MS);
   }
 
   function paintHead() {
@@ -132,11 +141,14 @@ export function orderView(route) {
   }
 
   /* ---- acciones (las tarjetas las llaman; cada fallo, con su aviso) ---- */
+  /** The take as the order has it NOW: a refresh may have replaced `order` while a request was in flight, and the
+      answer belongs to the current object (the card gets it on the next `paint()`), not to the old one. */
+  const currentTake = (take) => (order && order.attempts.find((a) => a.id === take.id)) || take;
   async function mark(take, state) {
     try {
       const res = await api.mark(project, key, take.id, state);
       if (!alive()) return false;
-      Object.assign(take, res && typeof res === 'object' ? res : { state });
+      Object.assign(currentTake(take), res && typeof res === 'object' ? res : { state });
       paint();
       return true;
     } catch (e) { if (alive()) toastError(describeError(e, t)); return false; }
@@ -145,7 +157,7 @@ export function orderView(route) {
     try {
       const res = await api.note(project, key, take.id, text);
       if (!alive()) return false;
-      Object.assign(take, res && typeof res === 'object' ? res : { note: text });
+      Object.assign(currentTake(take), res && typeof res === 'object' ? res : { note: text });
       toastOk(t('ui.take.noteSaved', { id: take.id }), { timeout: 2500 });
       return true;
     } catch (e) { if (alive()) toastError(describeError(e, t)); return false; }
@@ -205,10 +217,11 @@ export function orderView(route) {
     else if (action === 'another') more();
     else if (!card || !take) return;
     else if (action === 'toggle') card.toggle();
-    else if (action === 'choose') { if (takeState(order, take) !== 'chosen') choose(take); }
-    else if (action === 'candidate') mark(take, take.state === 'candidate' ? 'new' : 'candidate');
-    else if (action === 'discard') { if (order.chosen !== take.id) mark(take, take.state === 'discarded' ? 'new' : 'discarded'); }
+    else if (action === 'choose') card.choose();                 // same guards as the buttons: canChoose, one request at a time
+    else if (action === 'candidate') card.toggleState('candidate');
+    else if (action === 'discard') { if (order.chosen !== take.id) card.toggleState('discarded'); }
   }
+  const merged = mergeSources(perform);   // Steam Input sends the pad as keys too: one press, one action
   const onKey = (e) => {
     if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
     const action = keyAction(e, oneKeyEnabled());
@@ -216,10 +229,15 @@ export function orderView(route) {
     // Intro y espacio sobre un botón, un enlace o la forma de onda hacen lo suyo; en la tarjeta o en la página, reproducen
     if ((e.key === 'Enter' || e.key === ' ') && closest(e.target, 'button, a, [role="slider"], summary, dialog')) return;
     e.preventDefault();
-    perform(action);
+    merged.key(action);
   };
   document.addEventListener('keydown', onKey);
-  const stopPad = startGamepad(perform);
+    const stopPad = startGamepad((action) => {
+    // the same filters as the keyboard: not while typing in a field or with a dialog (the help) open
+    const a = document.activeElement;
+    if (isTyping(a) || helpOpen() || closest(a, 'dialog')) return;
+    merged.pad(action);
+  });
   gallery.addEventListener('focusin', (e) => {
     const c = closest(e.target, '.take-card');
     if (c && c.dataset.take && Number(c.dataset.take) !== current) setCurrent(Number(c.dataset.take));

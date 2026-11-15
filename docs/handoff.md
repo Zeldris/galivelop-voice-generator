@@ -10,8 +10,8 @@
 |---|---|
 | **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; sigue tras el PR #5, con `main` en `d7d5095`) |
 | **Fase / tarea** | F5 Interfaz, en la nube (decisión de la persona del 2026-11-15) mientras F2.6 espera a la Deck. **F5.4 Galería de tomas en curso** (Presupuesto de compactaciones: 2; la rama ya lleva 1). Hoja de ruta: `docs/plan.md` § «F5 en detalle». F2 sigue abierta solo por F2.6 (la persona) |
-| **Último punto estable** | F5.4 hecho: galería de tomas (reproductor, onda en canvas, elegir/deshacer, huellas, más tomas) y atajos de teclado y mando; 606 tests en verde, 1 saltado; recorrido en Chrome (voice y line, 1280 y 360 px) sin errores |
-| **Siguiente paso** | Revisión de bloque F5.4 (`/code-review` desde el último `Findings:`), luego F5.5 Comparación A/B |
+| **Último punto estable** | F5.4 hecho y revisado: galería de tomas con atajos de teclado y mando; revisión de bloque (289ce75..) con 14 arreglos (carga atascada, sondeo tras fallo, mando duplicado o bajo diálogo, carreras de marcas y nota, reintento de audio, onda y `peaks.py` más rápidos); 622 tests en verde, 1 saltado |
+| **Siguiente paso** | F5.5 Comparación A/B (`docs/plan.md` § «F5 en detalle») |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`) |
 
 ## Para la próxima publicación

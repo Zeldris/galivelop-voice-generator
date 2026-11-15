@@ -130,7 +130,7 @@ sorpresas).
 
 ## F5 en detalle (hoja de ruta, 2026-11-15)
 
-Borrador para la persona; solo F5.1-F5.3 están implementados. **Avance: F5.1-F5.3 hechos (3 de 9 pasos, ~33 %).** Hay base de interfaz, contrato y simulador; no hay API (F4) ni efectos
+Borrador para la persona; solo F5.1-F5.4 están implementados. **Avance: F5.1-F5.4 hechos (4 de 9 pasos, ~44 %).** Hay base de interfaz, contrato y simulador; no hay API (F4) ni efectos
 (F3). La base que usará ya existe: proyectos, pedidos, tomas, elegir y deshacer, cola, avisos de la ficha y textos
 es/en (F1), además del motor real (F2).
 
@@ -186,7 +186,7 @@ de `changeSize.block`; el comportamiento del JS se prueba con `node` en `tests/t
 | F5.1 | **Hecho (2026-11-15).** Base copiada de `gimg/ui`: `index.html`, tokens con el acento de voces, CSS, fuentes, núcleo JS, servidor estático con CSP y tests estáticos; contrato en `docs/api.md` | Tests de CSP, imports y claves es/en; contraste de los tokens |
 | F5.2 | **Hecho (2026-11-15).** Proyectos (lista, registrar por carpeta, quitar con confirmación), pedidos del proyecto con filtros `type`/`chosen` en la URL (`#/p/<p>/orders?type=&chosen=`) y «Nuevo pedido» (`voice` con ficha de diseño y `line` con voz e id; cuerpo validado como `order.schema.json`); `app.js` ya limpia cada vista al cambiar de ruta; lógica pura en `ui/js/order-model.js` | Recorrido con `?mock=1` hecho en Chrome (1280 y 360 px, sin errores de consola ni de CSP). **Pendiente:** «con el motor falso» queda para cuando F4 implemente la API |
 | F5.3 | **Hecho (2026-11-15).** Ficha de diseño con avisos (`sheet.py`), cada uno con icono y texto: componente `sheet-warnings.js` (instrucción en monoespaciada y avisos con icono SVG propio y `aria-live`), comprobación en vivo en «Nuevo pedido» con espera de 300 ms que descarta respuestas viejas (`sheet-check.js`) y acción «Ficha» por pedido `voice` en el proyecto | Tests de cada aviso en pantalla |
-| F5.4 | Galería de tomas: reproductor, forma de onda (picos calculados en el servidor con `wave`), elegir/deshacer y estado de las huellas | Reproducir, elegir y deshacer con teclado y mando |
+| F5.4 | **Hecho (2026-11-15).** Vista de pedido con galería de tomas (`order-view.js`, `take-card.js`, `waveform.js`, `take-model.js`): reproductor, forma de onda en canvas con picos, estado/nota, elegir con marca visto, deshacer, huellas y más tomas; atajos de teclado y mando en `shortcuts.js` (copiado de `gimg@46248251`). Pendiente: el mando por Gamepad API en la Deck, de la persona (F5.8) | Reproducir, elegir y deshacer con teclado y mando |
 | F5.5 | Comparación A/B: dos tomas de la misma frase, cambio al mismo punto | Test en navegador del cambio |
 | F5.6 | Efectos con escucha previa: editor de la cadena de vocabulario cerrado (D12), escucha generada por `ffmpeg` en el servidor | Escucha previa igual al grafo exportado |
 | F5.7 | Cola, es/en, tema y pantallas de 360, 768 y 1280 px (arnés de Chrome) | `test_ui_browser` en verde |

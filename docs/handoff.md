@@ -29,6 +29,7 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 ## Pendiente
 
 - **F5, decisiones y recursos para la persona** (`docs/plan.md` § «F5 en detalle»): confirmar los pasos [P] y el orden F3 → F4+F5; encargar en GVIG el logo (símbolo + lockup) y decidir quién dibuja los iconos de interfaz.
+- Hallazgos leves de la revisión de bloque F5.1, sin arreglar en este PR: el simulador devuelve `blob` para el audio, pero `api.js` `request` solo devuelve `json` y `<audio src>` iría al servidor real (resolver en F5.4); `describeError` nunca llega a `ui.error.code`; carrera en `i18n.load` con cambios rápidos de idioma; `api.bad_host` no hace caso de `?lang=`; `cli.py` importa `server` en cada orden; `server.main` repite el argparse de `gvoice ui`; `api.js` tiene `withHeaders` y `put` muertos; `app.js` `current.cleanup` nunca existe (la limpieza de vistas llega con F5.2); `api_contract.match` parte los patrones y `i18n.available()` hace glob en cada petición.
 - Hallazgos leves de la revisión de bloque F2.4-F2.5, sin arreglar en este PR: `bench._wait_for_memory` duplica `worker._wait_for_memory`; `instalar.sh --dry-run` dice «modelos: verificados»; `gvoice bench --steps design --models …` ignora `--models` sin avisar y la comprobación de lista vacía de `cli.py` ~297 es enrevesada.
 - Hallazgos leves de la revisión de bloque F2.1-F2.3, sin arreglar en este PR (no vuelven a revisarse en él):
   - stdout del motor descartado (`stdout=DEVNULL`): mejor al mismo archivo que stderr.

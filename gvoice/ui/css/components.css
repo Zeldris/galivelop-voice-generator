@@ -1,6 +1,6 @@
 /* Copiado de gimg@46248251 (D7); adaptado a gvoice: de `components.css` solo lo que usan los componentes copiados
-   (avisos flotantes y confirmación modal) y, desde F5.2, las vistas de proyectos y pedidos. Los de la galería de tomas y
-   el reproductor llegan con F5.4. */
+   (avisos flotantes y confirmación modal) y, desde F5.2, las vistas de proyectos y pedidos; desde F5.4, la galería de
+   tomas, el reproductor y la ayuda de atajos (nuevos en gvoice). */
 
 /* avisos flotantes (aria-live) */
 .toasts { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 40; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; width: min(92vw, 520px); }
@@ -51,3 +51,52 @@ dialog.confirm { width: min(92vw, 420px); }
 dialog.sheet-dialog { width: min(94vw, 560px); max-height: 94vh; overflow-y: auto; }
 dialog.sheet-dialog .row { margin-top: 12px; }
 @media (max-width: 600px) { dialog.sheet-dialog { width: 96vw; } }
+
+/* pedido (F5.4): el panel va primero en el marcado (en pantallas estrechas queda arriba) y a la derecha en las anchas */
+.order-head { display: grid; gap: 8px; margin-bottom: 12px; }
+.order-text { margin: 0; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--surface-2); font-size: 17px; line-height: 1.5; overflow-wrap: anywhere; }
+.order-head .notice { align-items: center; }
+.order-head .warn-icon { color: var(--warn); flex: none; }
+.stale-lines { margin: 4px 0 0; padding-left: 20px; display: flex; flex-wrap: wrap; gap: 2px 18px; }
+.order-layout > .order-panel { grid-column: 2; grid-row: 1; }
+.order-layout > section { grid-column: 1; grid-row: 1; min-width: 0; }
+.order-chosen { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.order-panel .card > .btn { margin-top: 6px; }
+.order-panel input[type="number"] { max-width: 6em; }
+.take-list { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 1000px) { .order-layout > .order-panel, .order-layout > section { grid-column: auto; grid-row: auto; } }
+
+/* toma: la elegida lleva visto y texto («Elegida») y un filete grueso con subrayado en el título, no solo color */
+.take-card { display: grid; gap: 8px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--rule); border-left: 3px solid var(--rule); }
+.take-card:focus-visible { outline: var(--focus-w) solid var(--focus); outline-offset: 2px; }
+.take-card.is-chosen { border-color: var(--ok); border-left-width: 6px; }
+.take-card.is-chosen .take-title { text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 4px; }
+.take-card.is-discarded { background: var(--surface-2); }
+.take-card.is-discarded .take-title { text-decoration: line-through; }
+.take-card.is-playing { border-left-color: var(--accent); }
+.take-title { margin: 0; font-size: 20px; }
+.take-meta { margin: 0; }
+.take-player { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.take-time { font: 13px/1.4 var(--font-mono); color: var(--text-2); }
+.take-play .btn-icon-slot { display: inline-flex; vertical-align: middle; margin-right: 6px; }
+.btn .icon, .chip .icon { vertical-align: -4px; }
+.icon-s { width: 16px; height: 16px; }
+.wave { display: block; border: 1px solid var(--rule); cursor: pointer; background: var(--surface-2); min-height: 64px; }
+.wave canvas { display: block; width: 100%; height: 64px; }
+.take-actions { margin-top: 2px; }
+.take-why { margin: 0; }
+.take-prints { display: grid; gap: 4px; }
+.take-print-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 14px; }
+.print-done { color: var(--ok); }
+.print-pending { color: var(--text-2); }
+.take-note textarea { min-height: 56px; }
+.take-status:empty { display: none; }
+
+/* ayuda de atajos */
+dialog.shortcuts { width: min(94vw, 560px); max-height: 94vh; overflow-y: auto; }
+dialog.shortcuts .row { margin-top: 12px; }
+.shortcut-list { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; margin: 0 0 12px; }
+.shortcut-list h3 { grid-column: 1 / -1; margin: 10px 0 0; font-size: 16px; }
+.shortcut-list dt { display: flex; gap: 4px; flex-wrap: wrap; }
+.shortcut-list dd { margin: 0; }
+@media (max-width: 600px) { dialog.shortcuts { width: 96vw; } }

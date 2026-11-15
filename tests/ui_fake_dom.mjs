@@ -1,6 +1,8 @@
 /* DOM falso compartido por los tests del JS de la UI (tests/test_ui_js.py): lo justo de un navegador para montar los
    componentes de gvoice/ui/js con `h()` de dom.js y mirar el resultado, sin npm. No es un navegador: no hay estilos,
    ni foco real, ni selectores; `dialog.close()` avisa con `close` en un microtarea, como el navegador (asíncrono).
+   Desde F5.4: `<canvas>` con contexto 2D que anota cada llamada (`ctx.calls`), `<audio>` con `play`/`pause`/`currentTime`/
+   `duration`, `closest()` con selectores simples y escuchas en `document` (a las que llegan los eventos que suben).
    `installFakeDom()` instala `document`, `Node` y `Element` globales y devuelve `document`. */
 
 export class FakeNode {
@@ -42,6 +44,7 @@ export class FakeEl extends FakeNode {
     this._value = '';
     this.validity = { badInput: false };
     this.focused = 0;
+    this.paused = true; this.currentTime = 0; this.duration = NaN; this.clientWidth = 300; // <audio> y medidas de un <canvas>/caja
   }
   get id() { return this.attrs.id || ''; }
   get value() {
@@ -71,8 +74,35 @@ export class FakeEl extends FakeNode {
       if (!(n instanceof FakeEl)) break;
       for (const fn of [...(n.listeners[event.type] || [])]) fn(event);
     }
+    if (!event.stopped && this.isConnected) this.ownerDocument.fire(event);
     return event;
   }
+  getBoundingClientRect() { return { left: 0, top: 0, width: this.clientWidth, height: 64 }; }
+  scrollIntoView() { this.scrolled = (this.scrolled || 0) + 1; }
+  /** Contexto 2D falso: cada método y cada asignación (`fillStyle`…) quedan en `calls` como [nombre, ...argumentos]. */
+  getContext(kind) {
+    if (kind !== '2d') return null;
+    if (!this._ctx) {
+      const calls = [];
+      this._ctx = new Proxy({ calls }, {
+        get: (o, k) => (k in o ? o[k] : (...a) => { calls.push([String(k), ...a]); }),
+        set: (o, k, v) => { calls.push(['set ' + String(k), v]); return true; },
+      });
+    }
+    return this._ctx;
+  }
+  play() { this.paused = false; this.dispatchEvent('play'); return Promise.resolve(); }
+  pause() { if (this.paused) return; this.paused = true; this.dispatchEvent('pause'); }
+  /** Selectores simples separados por comas: `tag`, `.clase`, `[atributo]`, `[atributo="valor"]`. Sube por los padres. */
+  matches(sel) {
+    return sel.split(',').map((x) => x.trim()).some((one) => {
+      const m = one.match(/^([a-z0-9]*)(?:\.([\w-]+))?(?:\[([\w-]+)(?:=\"?([^\"\]]*)\"?)?\])?$/i);
+      if (!m) return false;
+      const [, tag, cls, attr, val] = m;
+      return (!tag || this.tag === tag) && (!cls || this.classList.contains(cls)) && (!attr || (attr in this.attrs && (val === undefined || this.attrs[attr] === val)));
+    });
+  }
+  closest(sel) { for (let n = this; n instanceof FakeEl; n = n.parent) if (n.matches(sel)) return n; return null; }
   /** Atajo de test: escribe en un campo y dispara `input`. */
   type(text) { this.value = text; return this.dispatchEvent('input'); }
   click() { return this.dispatchEvent('click'); }
@@ -89,7 +119,13 @@ export class FakeEl extends FakeNode {
 
 /** Instala el DOM falso en `globalThis` y devuelve `document`. */
 export function installFakeDom() {
-  const doc = { activeElement: null, createTextNode: (s) => new FakeText(s) };
+  const listeners = {};
+  const doc = { activeElement: null, createTextNode: (s) => new FakeText(s), visibilityState: 'visible', listeners,
+    addEventListener: (type, fn) => { (listeners[type] ||= []).push(fn); },
+    removeEventListener: (type, fn) => { listeners[type] = (listeners[type] || []).filter((f) => f !== fn); },
+    fire: (event) => { for (const fn of [...(listeners[event.type] || [])]) fn(event); },
+    /** Cuántas escuchas hay en `document` (los tests comprueban que limpiar una vista no deja ninguna). */
+    listenerCount: () => Object.values(listeners).reduce((n, l) => n + l.length, 0) };
   doc.documentElement = Object.assign(new FakeEl('html', doc), { lang: '', isRoot: true });
   doc.body = new FakeEl('body', doc);
   doc.documentElement.appendChild(doc.body);

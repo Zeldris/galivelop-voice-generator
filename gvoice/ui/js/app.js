@@ -1,4 +1,4 @@
-/* Copiado de gimg@46248251 (D7); adaptado a gvoice: la carcasa (F5.1) y las vistas de proyectos y pedidos (F5.2); el pedido llega con F5.3.
+/* Copiado de gimg@46248251 (D7); adaptado a gvoice: la carcasa (F5.1) y las vistas de proyectos (F5.2) y de pedido (F5.4).
    Arranque de Galivelop Voice Generator: idioma, tema, textos estáticos, banda «sin servicio», rutas y avisos.
    Con `?mock=1` en la URL carga /ui/mock/api-mock.js y sustituye el transporte (prototipo sin API). */
 
@@ -12,6 +12,8 @@ import { initTheme } from './components/theme.js';
 import { toastError } from './components/toast.js';
 import { projectsView } from './components/projects-view.js';
 import { projectView } from './components/project-view.js';
+import { orderView } from './components/order-view.js';
+import { initShortcuts } from './components/shortcuts.js';
 
 async function boot() {
   const params = new URLSearchParams(location.search);
@@ -41,6 +43,7 @@ async function boot() {
   const skip = document.querySelector('a.skip');
   if (skip) skip.addEventListener('click', (e) => { e.preventDefault(); el('main').focus(); });
   initTheme(el('theme'));
+  initShortcuts();
 
   router.onChange(render);
   router.start();
@@ -59,7 +62,7 @@ function render(route) {
   try {
     if (route.name === 'notfound') host.append(h('div.empty', {}, h('p', {}, t('ui.nav.notFound')), h('a.btn', { href: to.projects() }, t('ui.nav.projects'))));
     else {
-      const view = route.name === 'projects' ? projectsView() : route.name === 'project' ? projectView(route) : { node: soon(route) };
+      const view = route.name === 'projects' ? projectsView() : route.name === 'project' ? projectView(route) : orderView(route);
       host.append(view.node);
       cleanup = view.cleanup || null;
     }
@@ -68,11 +71,6 @@ function render(route) {
     toastError(t('ui.error.generic', { message: e.message || String(e) }));
   }
   document.title = `${titleOf(route)} · Galivelop Voice Generator`;
-}
-
-/** La vista vacía del pedido, hasta que llegue la real (F5.3 y F5.4). */
-function soon(route) {
-  return h('section.empty', {}, h('h1', {}, titleOf(route)), h('p', {}, t('ui.soon.text')));
 }
 
 function titleOf(route) {

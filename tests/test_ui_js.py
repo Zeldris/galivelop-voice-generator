@@ -898,5 +898,384 @@ out([m.sheetFromFields({ sheet: { age: ' child ', texture: '', tone: 'calm' }, e
         self.assertEqual(got[2], {"sheet": {}, "badLine": None})
 
 
+    # ---- F5.4: galería de tomas ----
+
+    ORDER_ENV = FAKE_DOM + """
+import { readFileSync } from 'node:fs';
+const doc = globalThis.document;
+const store = new Map();
+globalThis.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)) };
+globalThis.setInterval = () => 1;                       // la cola del simulador no avanza sola
+globalThis.location = { origin: 'http://localhost', hash: '' };
+const es = JSON.parse(readFileSync(new URL(UI + '/../locales/es.json').pathname, 'utf8'));
+globalThis.fetch = async () => ({ json: async () => es });
+const made = []; const revoked = [];
+URL.createObjectURL = () => { const u = 'blob:t/' + (made.length + 1); made.push(u); return u; };
+URL.revokeObjectURL = (u) => { revoked.push(u); };
+const { api, setTransport, ApiError } = await mod('js/api.js');
+const i18n = await mod('js/i18n.js');
+const mock = await mod('mock/api-mock.js');
+const seen = [];
+setTransport(async (method, url, body) => { seen.push([method, url, body]); return mock.transport(method, url, body); });
+await i18n.load('es');
+doc.body.append(Object.assign(doc.createElement('div'), { attrs: { id: 'toasts' } }), Object.assign(doc.createElement('div'), { attrs: { id: 'alerts' } }));
+const { orderView } = await mod('js/components/order-view.js');
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const until = async (fn, ms = 5000) => { const t0 = Date.now(); while (!fn()) { if (Date.now() - t0 > ms) throw new Error('timeout: ' + fn); await sleep(15); } };
+const mount = async (key, query = {}) => {
+  const view = orderView({ project: 'example-world', key, query });
+  doc.body.append(view.node);
+  await until(() => view.node.find((e) => e.tag === 'audio').length > 0 || view.node.textContent.includes('Este pedido aún no'));
+  await until(() => view.node.find((e) => e.tag === 'audio').every((a) => a.src));
+  return view;
+};
+const cards = (view) => view.node.find((e) => e.className.split(' ').includes('take-card'));
+const cardOf = (view, id) => cards(view).find((c) => c.dataset.take === String(id));
+const btn = (root, text) => root.find((e) => e.tag === 'button' && e.textContent.includes(text))[0];
+const press = (key, target = doc.body) => target.dispatchEvent({ type: 'keydown', key });
+const toasts = () => doc.getElementById('toasts').textContent;
+const chosenIds = (view) => cards(view).filter((c) => c.classList.contains('is-chosen')).map((c) => c.dataset.take);
+const audioOf = (view, id) => cardOf(view, id).find((e) => e.tag === 'audio')[0];
+const shown = (view) => view.node.find((e) => e.className.includes('notice-warn') && e.textContent.includes('pone en cola sus huellas')).every((e) => !e.hidden);
+const lastDraw = (card) => { const c = card.find((e) => e.tag === 'canvas')[0].getContext('2d').calls; return c.slice(c.map((x) => x[0]).lastIndexOf('clearRect')); };
+"""
+
+    def test_order_view_paints_voice_takes_with_state_prints_and_waveform(self):
+        got = self.run_js(self.ORDER_ENV + """
+const view = await mount('narrator');
+await until(() => lastDraw(cardOf(view, 2)).filter((c) => c[0] === 'fillRect').length > 2);
+const text = (id) => cardOf(view, id).textContent;
+const draw = lastDraw(cardOf(view, 2));
+out({
+  ids: cards(view).map((c) => c.dataset.take), chosen: chosenIds(view),
+  head: view.node.children[0].textContent,
+  chosenText: text(2).includes('Elegida'), chosenCheck: text(2).includes('✓'), otherChosenText: text(3).includes('Elegida'),
+  discardedChip: text(1).includes('✗ Descartada'), candidateChip: text(2).includes('Candidata'),
+  prints2: text(2).includes('0.6b-base: hecha') && text(2).includes('1.7b-base: hecha'), prints1: text(1).includes('0.6b-base: pendiente'),
+  note: cardOf(view, 2).find((e) => e.tag === 'textarea')[0].value,
+  peaksUrls: seen.filter((s) => s[1].includes('/peaks')).map((s) => s[1].split('?')[1]).slice(0, 3),
+  bars: draw.filter((c) => c[0] === 'fillRect').length,
+  choose: [1, 2, 3].map((id) => { const b = btn(cardOf(view, id), 'Elegir'); return [b.disabled, b.hidden]; }),
+  panel: view.node.textContent.includes('Elegida: toma 2'), voiceNote: shown(view),
+  undoDisabled: btn(view.node, 'Deshacer elección').disabled,
+});
+view.cleanup();
+""")
+        self.assertEqual(got["ids"], ["1", "2", "3"])
+        self.assertEqual(got["chosen"], ["2"])
+        self.assertIn("The law of the obelisks admits no exceptions.", got["head"])
+        self.assertIn("narrator/intro-02", got["head"])  # frases desfasadas
+        self.assertTrue(got["chosenText"] and got["chosenCheck"], "la elegida lleva visto y texto, no solo color")
+        self.assertFalse(got["otherChosenText"])
+        self.assertTrue(got["discardedChip"] and got["candidateChip"])
+        self.assertTrue(got["prints2"] and got["prints1"])
+        self.assertEqual(got["note"], "la mejor")
+        self.assertEqual(got["peaksUrls"][0].split("&")[0], "n=75")  # 300 px de ancho / 4 px por barra
+        self.assertEqual(got["bars"], 1 + 75)  # el fondo y una barra por cubo
+        self.assertEqual(got["choose"], [[True, False], [True, True], [False, False]])  # descartada: apagado; elegida: oculto
+        self.assertTrue(got["panel"] and got["voiceNote"])
+        self.assertFalse(got["undoDisabled"])
+
+    def test_order_view_line_shows_voice_and_stale_without_prints(self):
+        got = self.run_js(self.ORDER_ENV + """
+const view = await mount('narrator/intro-02');
+const fresh = await mount('narrator/intro-01');
+out({ stale: view.node.textContent, fresh: fresh.node.textContent, voiceNote: shown(view) });
+view.cleanup(); fresh.cleanup();
+""")
+        self.assertIn("Then the obelisks rose.", got["stale"])
+        self.assertIn("voz narrator", got["stale"])
+        self.assertIn("Desfasada", got["stale"])
+        self.assertNotIn("Huellas", got["stale"])
+        self.assertFalse(got["voiceNote"])
+        self.assertNotIn("Desfasada", got["fresh"].split("Elección")[0])
+
+    def test_choose_marks_the_take_with_text_and_queues_prints_then_undo_goes_back(self):
+        got = self.run_js(self.ORDER_ENV + """
+const view = await mount('narrator');
+btn(cardOf(view, 3), 'Elegir').click();
+await until(() => chosenIds(view).join() === '3');
+const r = {};
+r.afterChoose = { chosen: chosenIds(view), text: cardOf(view, 3).textContent.includes('✓') && cardOf(view, 3).textContent.includes('Elegida'),
+  old: cardOf(view, 2).textContent.includes('Elegida'), prints: cardOf(view, 3).textContent.includes('0.6b-base: en cola'),
+  toast: toasts(), call: seen.filter((s) => s[1].includes('/choose')).map((s) => s[2]), panel: view.node.textContent.includes('Elegida: toma 3'),
+  hint: view.node.textContent.includes('Vuelve a la toma 2') };
+btn(view.node, 'Deshacer elección').click();
+await until(() => chosenIds(view).join() === '2');
+r.afterUndo = { chosen: chosenIds(view), toast: toasts(), calls: seen.filter((s) => s[1].includes('/undo')).length };
+view.cleanup();
+out(r);
+""")
+        a = got["afterChoose"]
+        self.assertEqual(a["chosen"], ["3"])
+        self.assertTrue(a["text"])
+        self.assertFalse(a["old"])
+        self.assertTrue(a["prints"], "elegir una toma de voz pone en cola sus huellas")
+        self.assertIn("Toma 3 elegida", a["toast"])
+        self.assertIn("huellas de la toma 3", a["toast"])
+        self.assertEqual(a["call"], [{"attempt": 3}])
+        self.assertTrue(a["panel"] and a["hint"])
+        self.assertEqual(got["afterUndo"]["chosen"], ["2"])
+        self.assertIn("vuelve la toma 2", got["afterUndo"]["toast"])
+        self.assertEqual(got["afterUndo"]["calls"], 1)
+
+    def test_server_409_shows_the_error_and_keeps_the_state(self):
+        got = self.run_js(self.ORDER_ENV + """
+const view = await mount('narrator');
+// un 409 de elegir (la toma cambió de estado en otro sitio): aviso con el mensaje del servidor y estado intacto
+const real = api.choose;
+api.choose = async () => { throw new ApiError(409, { error: { code: 'order.choose_discarded', message: 'el intento 3 está descartado y no se puede elegir' } }); };
+btn(cardOf(view, 3), 'Elegir').click();
+await until(() => toasts().includes('descartado'));
+const r = { choose409: toasts(), chosen: chosenIds(view), alert: doc.getElementById('alerts').textContent };
+api.choose = real; await sleep(500);   // la acción termina con la recarga del pedido
+// deshacer hacia una toma descartada: 409 del simulador (order.undo_discarded)
+btn(cardOf(view, 3), 'Elegir').click();
+await until(() => chosenIds(view).join() === '3');
+btn(cardOf(view, 2), 'Descartar').click();
+await until(() => cardOf(view, 2).classList.contains('is-discarded'));
+btn(view.node, 'Deshacer elección').click();
+await until(() => toasts().includes('No se puede deshacer') || toasts().toLowerCase().includes('descartado y'));
+r.undo409 = toasts(); r.chosenAfterUndo = chosenIds(view);
+view.cleanup();
+out(r);
+""")
+        self.assertIn("el intento 3 está descartado", got["choose409"])
+        self.assertIn("el intento 3 está descartado", got["alert"])  # también en la región de alertas
+        self.assertEqual(got["chosen"], ["2"])
+        self.assertEqual(got["chosenAfterUndo"], ["3"])
+        self.assertRegex(got["undo409"], "descartad")
+
+    def test_keyboard_walks_plays_chooses_undoes_marks_and_ignores_text_fields(self):
+        got = self.run_js(self.ORDER_ENV + """
+const { initShortcuts } = await mod('js/components/shortcuts.js');
+const view = await mount('narrator');
+const r = {};
+const tab = () => cards(view).map((c) => c.attrs.tabindex).join();
+r.tab0 = tab();                                          // la elegida (2) es la actual
+press('ArrowRight'); r.tab1 = tab(); r.focus3 = cardOf(view, 3).focused;
+press('ArrowRight'); r.tabEnd = tab();                    // no pasa del final
+press('ArrowLeft'); press('ArrowUp'); r.tabStart = tab();
+press('ArrowDown'); press('ArrowDown'); r.back3 = tab();
+press('p'); await until(() => !audioOf(view, 3).paused); r.playing3 = !audioOf(view, 3).paused;
+press('ArrowLeft'); press(' '); await until(() => !audioOf(view, 2).paused);
+r.exclusive = { two: !audioOf(view, 2).paused, three: audioOf(view, 3).paused };
+press('Escape'); r.paused = audioOf(view, 2).paused;
+// campos de texto: no disparan atajos
+const note = cardOf(view, 2).find((e) => e.tag === 'textarea')[0];
+note.dispatchEvent({ type: 'keydown', key: 'e' }); note.dispatchEvent({ type: 'keydown', key: 'ArrowRight' });
+r.typing = { chosenCalls: seen.filter((s) => s[1].includes('/choose')).length, tab: tab() };
+// Intro sobre un botón no reproduce
+btn(cardOf(view, 2), 'Candidata'); press('Enter', btn(cardOf(view, 2), 'Reproducir')); r.enterOnButton = audioOf(view, 2).paused;
+// elegir, marcar y deshacer con una tecla
+press('ArrowRight'); press('e'); await until(() => chosenIds(view).join() === '3'); r.chose = chosenIds(view);
+press('c'); await until(() => cardOf(view, 3).textContent.includes('Candidata') && cardOf(view, 3).find((e) => e.attrs['aria-pressed'] === 'true').length > 0);
+r.candidate = cardOf(view, 3).textContent.includes('Candidata');
+press('ArrowLeft'); press('ArrowLeft'); press('d'); await until(() => cardOf(view, 1).classList.contains('is-discarded') === false);
+r.restored = !cardOf(view, 1).classList.contains('is-discarded');
+press('u'); await until(() => chosenIds(view).join() === '2'); r.undone = chosenIds(view);
+// sin atajos de una tecla: las letras no hacen nada, las flechas sí
+store.set('gvoice.oneKey', 'off');
+const before = seen.length; press('u'); press('e'); await sleep(50); r.letterCalls = seen.length - before;
+press('ArrowRight'); r.arrowStill = tab();
+store.delete('gvoice.oneKey');
+// la ayuda: ? abre el diálogo y Esc lo cierra
+initShortcuts(); press('?'); r.help = doc.body.find((e) => e.tag === 'dialog' && e.open).length;
+doc.body.find((e) => e.tag === 'dialog')[0].dispatchEvent({ type: 'keydown', key: 'e' });
+r.helpSwallows = seen.filter((s) => s[1].includes('/choose')).length;
+view.cleanup();
+out(r);
+""", timeout=60)
+        self.assertEqual(got["tab0"], "-1,0,-1")
+        self.assertEqual((got["tab1"], got["focus3"]), ("-1,-1,0", 1))
+        self.assertEqual(got["tabEnd"], "-1,-1,0")
+        self.assertEqual(got["tabStart"], "0,-1,-1")
+        self.assertEqual(got["back3"], "-1,-1,0")
+        self.assertTrue(got["playing3"])
+        self.assertEqual(got["exclusive"], {"two": True, "three": True})
+        self.assertTrue(got["paused"])
+        self.assertEqual(got["typing"], {"chosenCalls": 0, "tab": "-1,0,-1"})
+        self.assertTrue(got["enterOnButton"])
+        self.assertEqual(got["chose"], ["3"])
+        self.assertTrue(got["candidate"])
+        self.assertTrue(got["restored"])  # la 1 estaba descartada: «d» la recupera
+        self.assertEqual(got["undone"], ["2"])
+        self.assertEqual(got["letterCalls"], 0)
+        self.assertEqual(got["arrowStill"], "-1,0,-1")  # de la 1 a la 2
+        self.assertEqual(got["help"], 1)
+        self.assertEqual(got["helpSwallows"], 1)  # la ayuda abierta no deja pasar «e» a la galería: sigue la única elección de antes
+
+    def test_gamepad_buttons_walk_play_choose_and_undo(self):
+        got = self.run_js(self.ORDER_ENV + """
+const { padActions, startGamepad } = await mod('js/components/shortcuts.js');
+const buttons = (n) => Array.from({ length: 17 }, (_, i) => ({ pressed: n.includes(i), value: n.includes(i) ? 1 : 0 }));
+const r = { pure: [padActions([], buttons([0])), padActions([true], buttons([0])), padActions([], buttons([2, 3, 15, 12, 1]))].map((x) => x.actions) };
+let pad = { connected: true, buttons: buttons([]) };
+Object.defineProperty(globalThis, 'navigator', { value: { getGamepads: () => [null, pad] }, configurable: true });
+const view = await mount('narrator');
+const tab = () => cards(view).map((c) => c.attrs.tabindex).join();
+const tap = async (n) => { pad = { connected: true, buttons: buttons(n) }; await sleep(160); pad = { connected: true, buttons: buttons([]) }; await sleep(160); };
+await tap([15]); r.next = tab();                       // cruceta derecha
+await tap([0]); await until(() => !audioOf(view, 3).paused); r.play = true;   // A
+await tap([1]); r.pause = audioOf(view, 3).paused;    // B
+await tap([2]); await until(() => chosenIds(view).join() === '3'); r.choose = chosenIds(view);   // X
+await tap([3]); await until(() => chosenIds(view).join() === '2'); r.undo = chosenIds(view);     // Y
+view.cleanup();
+pad = { connected: true, buttons: buttons([15]) }; await sleep(250); r.afterCleanup = tab();
+out(r);
+""", timeout=60)
+        self.assertEqual(got["pure"], [["toggle"], [], ["pause", "choose", "undo", "prev", "next"]])
+        self.assertEqual(got["next"], "-1,-1,0")
+        self.assertTrue(got["play"] and got["pause"])
+        self.assertEqual(got["choose"], ["3"])
+        self.assertEqual(got["undo"], ["2"])
+        self.assertEqual(got["afterCleanup"], "-1,-1,0")  # tras limpiar, el mando ya no mueve nada
+
+    def test_cleanup_revokes_audio_urls_and_leaves_no_listeners_or_late_paint(self):
+        got = self.run_js(self.ORDER_ENV + """
+const r = { base: doc.listenerCount() };
+const view = await mount('narrator');
+r.mounted = { listeners: doc.listenerCount(), made: made.length };
+press('p'); await until(() => !audioOf(view, 2).paused);
+const audio = audioOf(view, 2);
+view.cleanup();
+r.after = { listeners: doc.listenerCount(), revoked: [...revoked].sort(), made: [...made].sort(), paused: audio.paused };
+// un audio que llega después de limpiar se revoca al llegar, y un pedido tardío no pinta
+const gate = {}; const late = new Promise((res) => { gate.res = res; });
+const realUrl = api.audioUrl; api.audioUrl = () => late;
+const realOrder = api.order; const lateOrder = new Promise((res) => { gate.order = res; }); api.order = () => lateOrder;
+const dead = orderView({ project: 'example-world', key: 'narrator', query: {} });
+doc.body.append(dead.node);
+const first = orderView({ project: 'example-world', key: 'orc', query: {} });
+await sleep(20); dead.cleanup(); first.cleanup();
+gate.order(await realOrder('example-world', 'narrator')); await sleep(300);
+r.dead = { cards: dead.node.find((e) => e.className.split(' ').includes('take-card')).length, listeners: doc.listenerCount() };
+// mismo caso con la vista viva pero con la URL en vuelo
+api.order = realOrder;
+const live = orderView({ project: 'example-world', key: 'orc', query: {} });
+doc.body.append(live.node);
+await until(() => live.node.find((e) => e.className.split(' ').includes('take-card')).length === 1);
+const before = revoked.length;
+live.cleanup(); gate.res('blob:late/1'); await sleep(50);
+r.late = revoked.slice(before);
+api.audioUrl = realUrl;
+out(r);
+""")
+        self.assertEqual(got["base"], 0)
+        self.assertEqual(got["mounted"]["made"], 3)
+        self.assertEqual(got["mounted"]["listeners"], 1)  # solo el keydown de la vista
+        self.assertEqual(got["after"]["listeners"], 0)
+        self.assertEqual(got["after"]["revoked"], got["after"]["made"])
+        self.assertTrue(got["after"]["paused"])
+        self.assertEqual(got["dead"], {"cards": 0, "listeners": 0})
+        self.assertEqual(got["late"], ["blob:late/1"])
+
+    def test_waveform_seeks_by_click_and_keys_and_redraws_on_resize_and_theme(self):
+        got = self.run_js(self.ORDER_ENV + """
+const resizers = []; const mutators = [];
+globalThis.ResizeObserver = class { constructor(fn) { this.fn = fn; this.off = false; resizers.push(this); } observe() {} disconnect() { this.off = true; } };
+globalThis.MutationObserver = class { constructor(fn) { this.fn = fn; this.off = false; mutators.push(this); } observe(_n, o) { this.opts = o; } disconnect() { this.off = true; } };
+const view = await mount('narrator');
+await until(() => lastDraw(cardOf(view, 2)).filter((c) => c[0] === 'fillRect').length > 2);
+const card = cardOf(view, 2);
+const slider = card.find((e) => e.attrs.role === 'slider')[0];
+const audio = audioOf(view, 2);
+const draws = () => card.find((e) => e.tag === 'canvas')[0].getContext('2d').calls.filter((c) => c[0] === 'clearRect').length;
+const r = { audioMs: 2600 + 2 * 450 };
+slider.clientWidth = 400; slider.dispatchEvent({ type: 'click', clientX: 100 });
+r.click = audio.currentTime;
+let moved = false; slider.dispatchEvent({ type: 'keydown', key: 'ArrowRight' });   // ← →: la reproducción, no la toma
+r.keyStep = audio.currentTime; r.tab = cards(view).map((c) => c.attrs.tabindex).join();
+slider.dispatchEvent({ type: 'keydown', key: 'End' }); r.end = audio.currentTime;
+slider.dispatchEvent({ type: 'keydown', key: 'Home' }); r.home = audio.currentTime;
+r.now = slider.attrs['aria-valuenow'];
+const draw = lastDraw(card);
+audio.currentTime = r.audioMs / 2000; audio.dispatchEvent('timeupdate');
+const half = lastDraw(card);
+r.colors = { played: half.filter((c) => c[0] === 'set fillStyle').some((c) => c[1] === '#d9467a'), cursor: half.some((c) => c[0] === 'fillRect' && c[3] === 2) };
+const n = draws(); resizers.forEach((o) => o.fn()); r.resize = draws() - n;
+const m = draws(); mutators.forEach((o) => o.fn()); r.theme = draws() - m;
+r.observes = mutators[0].opts.attributeFilter;
+view.cleanup(); r.disconnected = [...resizers, ...mutators].every((o) => o.off);
+out(r);
+""")
+        total = got["audioMs"] / 1000
+        self.assertAlmostEqual(got["click"], total * 0.25, places=3)  # 100 de 400 px
+        self.assertAlmostEqual(got["keyStep"], total * 0.30, places=3)
+        self.assertEqual(got["tab"], "-1,0,-1")  # la flecha no cambió de toma
+        self.assertAlmostEqual(got["end"], total, places=3)
+        self.assertEqual(got["home"], 0)
+        self.assertTrue(got["colors"]["played"] and got["colors"]["cursor"])
+        self.assertGreaterEqual(got["resize"], 1)
+        self.assertGreaterEqual(got["theme"], 1)
+        self.assertEqual(got["observes"], ["data-theme"])
+        self.assertTrue(got["disconnected"])
+
+    def test_note_state_and_more_takes_actions(self):
+        got = self.run_js(self.ORDER_ENV + """
+const view = await mount('narrator');
+const r = {};
+const box = cardOf(view, 3).find((e) => e.tag === 'textarea')[0];
+r.saveDisabled = btn(cardOf(view, 3), 'Guardar nota').disabled;
+box.type('mejor que la dos'); r.saveEnabled = !btn(cardOf(view, 3), 'Guardar nota').disabled;
+btn(cardOf(view, 3), 'Guardar nota').click();
+await until(() => seen.some((s) => s[1].includes('/attempts/3/note')));
+await until(() => btn(cardOf(view, 3), 'Guardar nota').disabled);
+r.noteCall = seen.filter((s) => s[1].includes('/note')).map((s) => s[2]);
+r.noteToast = toasts();
+btn(cardOf(view, 3), 'Candidata').click();
+await until(() => cardOf(view, 3).textContent.includes('Candidata') && btn(cardOf(view, 3), 'Candidata').attrs['aria-pressed'] === 'true');
+btn(cardOf(view, 3), 'Candidata').click();
+await until(() => btn(cardOf(view, 3), 'Candidata').attrs['aria-pressed'] === 'false');
+r.marks = seen.filter((s) => s[1].includes('/mark')).map((s) => s[2]);
+r.discardOnChosen = btn(cardOf(view, 2), 'Descartar').disabled;
+// más tomas
+view.node.find((e) => e.attrs.id === 'more-count')[0].value = '2';
+btn(view.node, 'Pedir más tomas').click();
+await until(() => view.node.textContent.includes('Tomas en la cola: 2'));
+r.more = { call: seen.filter((s) => s[0] === 'POST' && /\\/attempts\\?/.test(s[1])).map((s) => s[2]), toast: toasts() };
+view.cleanup();
+out(r);
+""")
+        self.assertTrue(got["saveDisabled"] and got["saveEnabled"])
+        self.assertEqual(got["noteCall"], [{"text": "mejor que la dos"}])
+        self.assertIn("Nota de la toma 3 guardada", got["noteToast"])
+        self.assertEqual(got["marks"], [{"state": "candidate"}, {"state": "new"}])
+        self.assertTrue(got["discardOnChosen"])
+        self.assertEqual(got["more"]["call"], [{"count": 2}])
+        self.assertIn("2 tomas en la cola", got["more"]["toast"])
+
+    def test_take_model_helpers(self):
+        got = self.run_js("""
+const m = await mod('js/take-model.js');
+const { keyAction } = await mod('js/components/shortcuts.js');
+const order = { chosen: 2, chosenHistory: [null, 1] };
+const takes = [{ id: 1, state: 'discarded', audioMs: 10 }, { id: 2, state: 'candidate', audioMs: 10 }, { id: 3, state: 'new' }, { id: 4, state: 'new', audioMs: 5 }];
+const entries = [{ kind: 'prints', take: 4, state: 'running' }, { kind: 'prints', take: 3, state: 'queued' }, { kind: 'line', state: 'queued' }];
+out({
+  states: takes.map((t) => m.takeState(order, t)), canChoose: takes.map((t) => m.canChoose(order, t)),
+  undo: [m.undoTarget(order), m.undoTarget({ chosenHistory: [null] }), m.undoTarget({ chosenHistory: [] }), m.undoTarget({})],
+  prints: m.printStates({ id: 4, prints: { a: {} } }, ['a', 'b'], entries), printsQueued: m.printStates({ id: 3 }, ['a'], entries),
+  open: m.openEntries([{ project: 'p', key: 'k', state: 'queued' }, { project: 'p', key: 'k', state: 'done' }, { project: 'p', key: 'x', state: 'running' }], 'p', 'k').length,
+  pending: m.pendingTakes(entries),
+  buckets: [m.bucketsFor(0), m.bucketsFor(300), m.bucketsFor(20), m.bucketsFor(100000)],
+  resample: [m.resample([0.1, 0.9, 0.2, 0.4], 2), m.resample([0.5], 3), m.resample([], 3)],
+  rects: m.barRects([0, 0.5, 1], 12, 64), fraction: [m.fractionAt(150, { left: 50, width: 200 }), m.fractionAt(0, { left: 50, width: 200 }), m.fractionAt(999, { left: 50, width: 200 }), m.fractionAt(5, { left: 0, width: 0 })],
+  keys: [keyAction({ key: 'ArrowRight' }), keyAction({ key: 'E' }), keyAction({ key: 'e' }, false), keyAction({ key: 'Enter' }, false), keyAction({ key: 'e', ctrlKey: true }), keyAction({ key: ' ' }), keyAction({ key: 'x' })],
+});
+""")
+        self.assertEqual(got["states"], ["discarded", "chosen", "new", "new"])
+        self.assertEqual(got["canChoose"], [False, False, False, True])  # descartada, ya elegida, sin audio, buena
+        self.assertEqual(got["undo"], [1, None, None, None])
+        self.assertEqual(got["prints"], [{"model": "a", "status": "done"}, {"model": "b", "status": "running"}])
+        self.assertEqual(got["printsQueued"], [{"model": "a", "status": "queued"}])
+        self.assertEqual((got["open"], got["pending"]), (1, 1))
+        self.assertEqual(got["buckets"], [120, 75, 16, 2000])
+        self.assertEqual(got["resample"], [[0.9, 0.4], [0.5, 0.5, 0.5], []])
+        self.assertEqual(got["rects"], [{"x": 0, "y": 32, "w": 3, "h": 1}, {"x": 4, "y": 16, "w": 3, "h": 32}, {"x": 8, "y": 0, "w": 3, "h": 64}])
+        self.assertEqual(got["fraction"], [0.5, 0, 1, 0])
+        self.assertEqual(got["keys"], ["next", "choose", None, "toggle", None, "toggle", None])
+
+
 if __name__ == "__main__":
     unittest.main()

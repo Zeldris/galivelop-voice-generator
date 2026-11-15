@@ -9,9 +9,9 @@
 | Campo | Valor |
 |---|---|
 | **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; sigue tras el PR #5, con `main` en `d7d5095`) |
-| **Fase / tarea** | F2 Motor real. `qwentts.cpp` aceptado como primer candidato (D18: motores y modelos enchufables; al cerrar F2 se bajan más para comparar). Plan detallado en `docs/plan.md` § «F2 en detalle» (pasos F2.1-F2.6). Presupuesto de compactaciones: 2 (la sesión lleva 1 antes de empezar F2) |
-| **Último punto estable** | Arreglos de la revisión de bloque F2.4-F2.5 (commit «Arreglos de la revisión de bloque F2.4-F2.5»); check verde |
-| **Siguiente paso** | F2.6, comprobación en la Deck (la persona): instalar, diseñar, fijar, producir y `gvoice bench --devices Vulkan0,cpu`; su tabla a `docs/investigacion/` |
+| **Fase / tarea** | F5 Interfaz, en la nube (decisión de la persona del 2026-11-15) mientras F2.6 espera a la Deck. Hoja de ruta: `docs/plan.md` § «F5 en detalle». F2 sigue abierta solo por F2.6 (la persona) |
+| **Último punto estable** | Hoja de ruta de F5 en `docs/plan.md`; check verde |
+| **Siguiente paso** | F5.1: base copiada de `gimg/ui` (`galivelop-image-generator@46248251`, clon en `/home/user/zeldris/` o `git clone --depth 1`) con el simulador `?mock=1`, tokens con el acento de voces, servidor estático con CSP y tests estáticos; fijar el contrato de rutas de la API. En paralelo, la persona: F2.6 en la Deck |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`) |
 
 ## Para la próxima publicación

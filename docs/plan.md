@@ -173,8 +173,10 @@ es/en (F1), además del motor real (F2).
 
 ### Pasos propuestos [P]
 
-F5 necesita la API (F4) y, para los efectos, F3. **Propuesta:** hacer F4 y F5 juntas tras F3, como GVIG adelantó su
-interfaz (su D39).
+F5 necesita la API (F4) y, para los efectos, F3. **Decisión de la persona (2026-11-15):** F5 empieza ya en la nube, mientras
+F2.6 espera a la Deck. Se trabaja con el simulador (`?mock=1`, transporte falso de `api.js`) y el contrato de rutas de
+la API se fija en F5.1; F4 lo implementa después y `test_ui.py` comprueba que coinciden. F5.6 (efectos) espera a F3.
+Mientras no haya logo ni iconos, nombre en texto y tokens con los nombres de `gimg` (propuesta, la persona puede cambiarlos).
 
 | Paso | Qué | Hecho cuando |
 |---|---|---|

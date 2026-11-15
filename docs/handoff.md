@@ -11,7 +11,7 @@
 | **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; sigue tras el PR #5, con `main` en `d7d5095`) |
 | **Fase / tarea** | F5 Interfaz, en la nube (decisión de la persona del 2026-11-15) mientras F2.6 espera a la Deck. Hoja de ruta: `docs/plan.md` § «F5 en detalle». F2 sigue abierta solo por F2.6 (la persona) |
 | **Último punto estable** | F5.1 hecho y revisado (bloque cerrado con 12 arreglos: `--host` solo local, cuerpo leído con 413, segmento vacío 404, i18n y banda sin servicio, router, simulador, tema claro, ruta `orders`); 543 tests en verde |
-| **Siguiente paso** | F5.2 Proyectos y pedidos: vistas de proyectos y pedidos (`voice`, `line`), filtros y «Nuevo pedido», recorrido con `?mock=1`. En paralelo, la persona: F2.6 en la Deck |
+| **Siguiente paso** | Subir `tests/test_ui_js.py` (tests del JS con `node`, retro F5.1 aprobada: P1, P2 y la del flujo; P3 rechazada) y luego F5.2 Proyectos y pedidos: vistas de proyectos y pedidos (`voice`, `line`), filtros y «Nuevo pedido», recorrido con `?mock=1`. En paralelo, la persona: F2.6 en la Deck |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`) |
 
 ## Para la próxima publicación

@@ -177,6 +177,8 @@ F5 necesita la API (F4) y, para los efectos, F3. **Decisión de la persona (2026
 F2.6 espera a la Deck. Se trabaja con el simulador (`?mock=1`, transporte falso de `api.js`) y el contrato de rutas de
 la API se fija en F5.1; F4 lo implementa después y `test_ui.py` comprueba que coinciden. F5.6 (efectos) espera a F3.
 Mientras no haya logo ni iconos, nombre en texto y tokens con los nombres de `gimg` (propuesta, la persona puede cambiarlos).
+**Cada paso F5.n cierra con su revisión de bloque** (`/code-review` desde el último `Findings:`), sin esperar al aviso
+de `changeSize.block`; el comportamiento del JS se prueba con `node` en `tests/test_ui_js.py` (retro F5.1, aprobada).
 
 | Paso | Qué | Hecho cuando |
 |---|---|---|

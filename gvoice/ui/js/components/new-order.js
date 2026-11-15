@@ -89,8 +89,8 @@ export async function openNewOrder(project, { opener = null, onCreated = null, o
     onError: () => panel.fail(t('ui.sheet.checkFailed')), // aviso discreto: el formulario sigue igual
   });
   function checkSheet() {
-    const { sheet: designSheet, badLine } = sheetFromFields(fields());
-    if (badLine !== null) return; // «extra» a medias: se comprueba cuando esté bien escrito
+    const { sheet: designSheet } = sheetFromFields(fields());
+    // «extra» a medias: se comprueba la ficha sin esas líneas (`sheetFromFields` las deja fuera); el panel sigue vivo
     checker.request(designSheet);
   }
   const voiceBox = h('div.stack', {},

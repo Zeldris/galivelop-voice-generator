@@ -1,4 +1,4 @@
-/* Copiado de gimg@46248251 (D7); escrito de nuevo para gvoice (F5.2): solo lógica pura, sin DOM, para probarla con node.
+/* Nuevo en gvoice (no copiado de gimg) (F5.2): solo lógica pura, sin DOM, para probarla con node.
    Filtros de la lista de pedidos (de y hacia la URL), resumen de una fila y el pedido que se envía desde «Nuevo pedido»
    (validado como `gvoice/schemas/order.schema.json` y `common.schema.json`). */
 

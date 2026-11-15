@@ -1,4 +1,4 @@
-/* Copiado de gimg@46248251 (D7); escrito de nuevo para gvoice (F5.3). Ficha de diseño con avisos (F5.3): la instrucción que saldrá de la ficha (vista previa, monoespaciada) y la lista de
+/* Nuevo en gvoice (no copiado de gimg) (F5.3). Ficha de diseño con avisos (F5.3): la instrucción que saldrá de la ficha (vista previa, monoespaciada) y la lista de
    avisos de `gvoice/sheet.py` (D11: nunca bloquean). Cada aviso lleva icono y texto, nunca solo color. Los iconos son una
    serie propia de línea simple, legible a 24 px, hecha con `createElementNS` (sin archivos externos, compatible con la
    CSP); van con aria-hidden: el texto es lo que se lee. Los textos salen de `warning.<código>` del idioma activo y, si
@@ -48,20 +48,32 @@ export function warningItems(warnings) {
     que el lector anuncie los cambios); `fail(text)` deja un aviso discreto de que no se pudo comprobar. */
 export function sheetPanel() {
   const preview = h('pre.sheet-instruction.mono', { aria: { label: t('ui.sheet.instruction') } });
-  const list = h('ul.sheet-warnings', { role: 'status', aria: { live: 'polite' } });
+  const list = h('ul.sheet-warnings');
+  const live = h('div.sheet-live', { role: 'status', aria: { live: 'polite' } }, list); // la región viva envuelve la lista
+  let shown = null; // firma de lo pintado
   const note = h('p.hint.sheet-fail', { hidden: true });
-  const node = h('div.sheet-check', {}, h('h4', {}, t('ui.sheet.instruction')), preview, list, note);
+  const node = h('div.sheet-check', {}, h('h4', {}, t('ui.sheet.instruction')), preview, live, note);
   return {
     node,
     update(res) {
       note.hidden = true;
-      preview.textContent = (res && res.instruction) || '';
+      const instruction = (res && res.instruction) || '';
       const items = warningItems(res && res.warnings);
+      const sig = JSON.stringify([instruction, items.map((it) => [it.code, it.text])]);
+      if (sig === shown) return; // sin cambios: ni se repinta ni el lector repite todo
+      shown = sig;
+      preview.textContent = instruction;
       replace(list, items.length
         ? items.map((it) => h('li.sheet-warning', { data: { code: it.code } }, warningIcon(it.icon), h('span.warn-text', {}, it.text)))
         : h('li.sheet-ok', {}, t('ui.sheet.noWarnings')));
     },
-    fail(text) { note.textContent = text; note.hidden = false; },
+    fail(text) {
+      shown = null;
+      preview.textContent = ''; // nada de una ficha anterior: sería engañoso junto al aviso de fallo
+      replace(list);
+      note.textContent = text;
+      note.hidden = false;
+    },
   };
 }
 

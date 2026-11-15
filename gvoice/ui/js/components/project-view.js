@@ -52,8 +52,13 @@ export function projectView(route) {
   async function openSheet(key, opener) {
     if (sheetOpening) return;
     sheetOpening = true;
-    const dlg = await openSheetDialog(project, key, { opener, onClose: () => { sheetDlg = null; sheetOpening = false; } });
-    if (!dlg) { sheetOpening = false; return; }
+    let dlg = null;
+    try {
+      dlg = await openSheetDialog(project, key, { opener, isAlive: () => alive, onClose: () => { sheetDlg = null; sheetOpening = false; } });
+    } finally {
+      if (!dlg) sheetOpening = false;
+    }
+    if (!dlg) return;
     sheetDlg = dlg;
     if (!alive) closeSheet();
   }

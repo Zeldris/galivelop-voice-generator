@@ -9,9 +9,9 @@
 | Campo | Valor |
 |---|---|
 | **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; sigue tras el PR #5, con `main` en `d7d5095`) |
-| **Fase / tarea** | F5 Interfaz, en la nube (decisión de la persona del 2026-11-15) mientras F2.6 espera a la Deck. F5.2 hecha; sigue la revisión de bloque (Presupuesto de compactaciones: 1). Hoja de ruta: `docs/plan.md` § «F5 en detalle». F2 sigue abierta solo por F2.6 (la persona) |
-| **Último punto estable** | F5.3 hecho (572 tests en verde, 1 saltado): componente de avisos con icono y texto, comprobación en vivo en «Nuevo pedido» y diálogo «Ficha»; recorrido en Chrome con `?mock=1` a 1280 y 360 px sin errores de consola ni de CSP |
-| **Siguiente paso** | Revisión de bloque F5.3 (`/code-review` desde el último `Findings:`) y luego F5.4. En paralelo, la persona: F2.6 en la Deck |
+| **Fase / tarea** | F5 Interfaz, en la nube (decisión de la persona del 2026-11-15) mientras F2.6 espera a la Deck. F5.3 hecha y revisada (Presupuesto de compactaciones: 1). Hoja de ruta: `docs/plan.md` § «F5 en detalle». F2 sigue abierta solo por F2.6 (la persona) |
+| **Último punto estable** | F5.3 revisado con 8 arreglos (ficha con `extra` malo sigue comprobándose, `fail()` vacía el panel, guardas del diálogo «Ficha», región viva fuera del `ul`, sin POST repetidos, cabecera «Nuevo en gvoice»); 574 tests en verde, 1 saltado |
+| **Siguiente paso** | Retro del bloque F5.3 (`gw-opt-tokens` + `retro`, presentar a la persona) y luego F5.4 Galería de tomas. En paralelo, la persona: F2.6 en la Deck |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`) |
 
 ## Para la próxima publicación
@@ -27,6 +27,7 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 5. 2026-11-14 — Arreglos de la revisión de bloque F2.1-F2.3 (6 hallazgos): el resultado lleva el dispositivo como el perfil (`cpu`; `device_arg` solo en el argv); un proceso muerto por señal no lanza el respaldo y, con vigilante, este exige `minFreeMemoryMb` otra vez (si no, error del primer intento y nota); el motor hereda el descriptor del candado (`machine_lock.held_fds`, `pass_fds`) para que un motor huérfano siga ocupando la máquina, y `worker.run` no limpia `.qwentts-*` si el candado está ocupado; `EngineError`/`EngineTimeout`/`Cancelled` llevan `stats` (`min_free_mb`, `peak_rss_mb`) y el trabajador las pasa al registro (`log.record_for(stats=)`); pico de RSS exacto con `os.wait4` (`ru_maxrss`; `proc.returncode` fijado a mano con `waitstatus_to_exitcode`; `VmHWM` solo si `wait4` no da nada); tests del vigilante sin reloj (`WATCH_S` parcheable, lecturas de memoria inyectadas). Check verde.
 ## Pendiente
 
+- Hallazgos leves de la revisión de bloque F5.3, sin arreglar en este PR: `sheetWarnings` de `sheet-warnings.js` solo lo usan los tests y el respaldo del icono está en dos sitios (`warningItems` y `warningIcon`); el botón que abre el diálogo de la ficha se pierde si la lista se rehace con el diálogo abierto, y el foco cae a `body`.
 - Hallazgo leve de la revisión de bloque F5.2, sin arreglar en este PR: los tests del JS pasaron de `test_ui.py` (estáticos) a `test_ui_js.py`, que se salta entero sin `node` ≥ 18; en la Deck (Flatpak) el check local no los corre: comprobar si hay `node` allí o dejar los estáticos como respaldo.
 - **F5, decisiones y recursos para la persona** (`docs/plan.md` § «F5 en detalle»): confirmar los pasos [P] y el orden F3 → F4+F5; encargar en GVIG el logo (símbolo + lockup) y decidir quién dibuja los iconos de interfaz.
 - `gvoice ui --host ::1` (IPv6) sin probar: el contenedor de la nube no tiene IPv6 y `test_ipv6_loopback_is_served` se salta; lo comprueba la persona en la Deck o su equipo.

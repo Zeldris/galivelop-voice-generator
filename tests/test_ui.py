@@ -18,6 +18,7 @@ from gvoice.errors import GvoiceError
 ROOT = Path(__file__).resolve().parent.parent
 UI = ROOT / "gvoice" / "ui"
 HEADER = "Copiado de gimg@46248251"
+NEW_MARK = "Nuevo en gvoice (no copiado de gimg)"
 
 
 def read(rel):
@@ -70,7 +71,9 @@ class Static(unittest.TestCase):
         files = [UI / "index.html", UI / "fonts" / "README.md", UI / "mock" / "api-mock.js"]
         files += list((UI / "css").glob("*.css")) + list((UI / "js").rglob("*.js"))
         for f in files:
-            self.assertIn(HEADER, f.read_text(encoding="utf-8").split("\n\n")[0][:600], f.name)
+            first = f.read_text(encoding="utf-8").split("\n\n")[0][:600]
+            self.assertTrue(HEADER in first or NEW_MARK in first.split("\n")[0], f"{f.name}: sin cabecera de procedencia")
+            self.assertFalse(HEADER in first and NEW_MARK in first, f"{f.name}: copiado y nuevo a la vez")
 
     def test_ui_keys_used_exist_in_both_languages(self):
         es = json.loads((ROOT / "gvoice/locales/es.json").read_text(encoding="utf-8"))

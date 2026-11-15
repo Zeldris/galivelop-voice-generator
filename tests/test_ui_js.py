@@ -518,10 +518,11 @@ await i18n.load('es');
 const view = (node) => {
   const items = node.find((e) => e.tag === 'li');
   return {
-    live: node.find((e) => e.tag === 'ul').map((u) => [u.attrs.role, u.attrs['aria-live']]),
+    live: node.find((e) => e.tag === 'div' && e.attrs.role).map((d) => [d.attrs.role, d.attrs['aria-live'], d.find((e) => e.tag === 'ul').length]),
+    ulRole: node.find((e) => e.tag === 'ul').map((u) => u.attrs.role || null),
     pre: node.find((e) => e.tag === 'pre').map((p) => [p.textContent, p.className]),
     items: items.map((li) => ({
-      cls: li.className, code: li.dataset.code,
+      cls: li.className, code: li.dataset.code, liText: li.textContent,
       svgs: li.find((e) => e.tag === 'svg').map((s) => ({ hidden: s.attrs['aria-hidden'], viewBox: s.attrs.viewBox, parts: s.children.length, ns: s.ns })),
       text: li.find((e) => e.className === 'warn-text').map((e) => e.textContent).join(''),
     })),
@@ -536,11 +537,21 @@ p.update({ instruction: 'age: adult', warnings: [] });
 r.repaint = view(p.node);
 p.fail('no se pudo');
 r.fail = p.node.find((e) => e.className.includes('sheet-fail')).map((e) => [e.textContent, e.hidden]);
+r.failView = view(p.node);
+// sin cambios: no se repinta (los nodos de la lista son los mismos)
+const q = sheetPanel();
+q.update({ instruction: 'x', warnings: %s });
+const before = q.node.find((e) => e.tag === 'li');
+q.update({ instruction: 'x', warnings: %s });
+r.sameNodes = q.node.find((e) => e.tag === 'li').every((li, i) => li === before[i]);
+q.update({ instruction: 'y', warnings: %s });
+r.changedNodes = q.node.find((e) => e.tag === 'li').some((li, i) => li === before[i]);
 out(r);
-""" % (json.dumps(self.WARNINGS), json.dumps(self.WARNINGS)))
+""" % ((json.dumps(self.WARNINGS),) * 5))
         locale = json.loads((UI.parent / "locales" / "es.json").read_text(encoding="utf-8"))
         three = got["three"]
-        self.assertEqual(three["live"], [["status", "polite"]])
+        self.assertEqual(three["live"], [["status", "polite", 1]])  # la región viva envuelve el ul...
+        self.assertEqual(three["ulRole"], [None])                    # ...y el ul conserva su semántica de lista
         self.assertEqual(three["pre"][0][0], "age: child; texture: bright")
         self.assertIn("mono", three["pre"][0][1])
         self.assertEqual([i["code"] for i in three["items"]], [w["code"] for w in self.WARNINGS])
@@ -555,12 +566,17 @@ out(r);
         self.assertIn("deep, resonant", three["items"][2]["text"])
         # sin avisos: un texto corto y ningún icono
         self.assertEqual(len(got["none"]["items"]), 1)
-        self.assertEqual(got["none"]["items"][0]["text"], "")
+        self.assertEqual(got["none"]["items"][0]["liText"], "Sin avisos")
         self.assertEqual(got["none"]["items"][0]["svgs"], [])
         # repintar sustituye lo anterior, y fallar deja un aviso discreto sin tocar la lista
         self.assertEqual(len(got["repaint"]["items"]), 1)
         self.assertEqual(got["repaint"]["pre"][0][0], "age: adult")
         self.assertEqual(got["fail"], [["no se pudo", False]])
+        # al fallar no queda la instrucción ni los avisos de la ficha anterior
+        self.assertEqual(got["failView"]["pre"][0][0], "")
+        self.assertEqual(got["failView"]["items"], [])
+        self.assertTrue(got["sameNodes"])        # mismo resultado: no se repinta
+        self.assertFalse(got["changedNodes"])    # resultado distinto: sí
 
     def test_sheet_panel_without_warnings_says_so(self):
         got = self.run_js(self.LOAD_LOCALE + self.FAKE_DOM + """
@@ -574,6 +590,58 @@ for (const lang of ['es', 'en']) {
 out(r);
 """)
         self.assertEqual(got, {"es": ["Sin avisos"], "en": ["No warnings"]})
+
+    def test_sheet_checker_skips_an_unchanged_sheet_and_retries_after_a_failure(self):
+        got = self.run_js("""
+const { createSheetChecker } = await mod('js/sheet-check.js');
+const { sheetFromFields } = await mod('js/order-model.js');
+const timers = new Map(); let nextId = 1;
+const setTimer = (fn) => { const id = nextId++; timers.set(id, fn); return id; };
+const clearTimer = (id) => timers.delete(id);
+const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
+const fire = async () => { const all = [...timers.values()]; timers.clear(); for (const f of all) f(); await flush(); };
+const sent = []; let fail = true; const errors = [];
+const checker = createSheetChecker({
+  check: async (s) => { sent.push(s); if (fail) throw new Error('x'); return {}; },
+  onResult: () => {}, onError: (e) => errors.push(e.message), setTimer, clearTimer,
+});
+checker.request({ age: 'a' }); await fire();            // primera: sale (y falla)
+checker.request({ age: 'a' }); await fire();            // misma ficha tras el fallo: se reintenta
+fail = false;
+checker.request({ age: 'a' }); await fire();            // misma ficha que la última: no sale
+checker.request({ age: 'a' }); checker.request({ age: 'a' }); await fire();
+checker.request({ age: 'b' }); await fire();            // otra: sale
+checker.cancel();
+checker.request({ age: 'b' }); await fire();            // tras cancelar, sale de nuevo
+// «extra» mal escrito: la ficha sin esas líneas se comprueba igual
+const bad = sheetFromFields({ sheet: { age: 'adult' }, extra: 'sin dos puntos' });
+out({ sent, errors, bad });
+""")
+        self.assertEqual(got["sent"], [{"age": "a"}, {"age": "a"}, {"age": "a"}, {"age": "b"}, {"age": "b"}])
+        self.assertEqual(got["errors"], ["x", "x"])
+        self.assertEqual(got["bad"]["sheet"], {"age": "adult"})  # sin `extra`, pero hay ficha que comprobar
+        self.assertIsNotNone(got["bad"]["badLine"])
+
+    def test_sheet_dialog_does_nothing_when_the_route_changed_while_loading(self):
+        got = self.run_js(self.LOAD_LOCALE + self.FAKE_DOM + """
+const { openSheetDialog } = await mod('js/components/sheet-dialog.js');
+await i18n.load('es');
+const appended = []; const toasts = [];
+globalThis.document.body = { append: (n) => appended.push(n) };
+const run = async (apiFn, alive) => {
+  const before = appended.length;
+  api.sheet = apiFn;
+  const dlg = await openSheetDialog('p', 'k', { isAlive: () => alive });
+  return { dlg: dlg === null, appended: appended.length - before };
+};
+const r = {};
+r.deadOk = await run(async () => ({ instruction: 'a', warnings: [] }), false);
+r.deadErr = await run(async () => { throw new Error('boom'); }, false);
+const toast = await mod('js/components/toast.js');
+out(r);
+""")
+        self.assertEqual(got["deadOk"], {"dlg": True, "appended": 0})
+        self.assertEqual(got["deadErr"], {"dlg": True, "appended": 0})
 
     def test_sheet_checker_waits_and_drops_stale_responses(self):
         got = self.run_js("""

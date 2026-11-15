@@ -30,6 +30,9 @@ las crea una vez; desde entonces son del proyecto.
   llamada: ~8M de los 13M de F1. Los encargos de código van al tipo `implementador` (`.claude/agents/`), con solo
   las herramientas que usa; medir su arranque con `measure.py` en el primer encargo de F2 y volver atrás si no baja
   o le falta algo.
+- Preparar el encargo de F5.2 leyendo la interfaz en la sesión principal (`api.md`, `app.js`, simulador, plan, tests)
+  costó ~11k tokens, arrastrados ~170k. El encargo de un paso de F5 se escribe con la fila del plan, `docs/api.md` y
+  las rutas; el subagente lee el resto (retro F5.2, aprobada).
 
 ## Ajustes en vigor
 
@@ -48,3 +51,5 @@ las crea una vez; desde entonces son del proyecto.
   3,5M (revisión en opus 1,4M).
 - 2026-11-14, `/gw-update` 0.3.0 → 0.6.0 (`6ea0a867`): 42 llamadas, contexto medio 119k (suelo 80k, techo 151k),
   0 compactaciones, sin subagentes; la revisión de fase 1 (4 archivos de configuración) en la sesión.
+- 2026-11-15, F5.2 (`86bcfcfb`): 22 llamadas, contexto medio 113k (suelo 86k, techo 138k), 0 compactaciones;
+  subagentes 4,98M de entrada (implementador en sonnet 3,3M; revisión en opus 1,6M).

@@ -7,7 +7,7 @@ import { h, replace } from '../dom.js';
 import { t } from '../i18n.js';
 import { api, describeError } from '../api.js';
 import { to, replaceHash } from '../router.js';
-import { filtersFromQuery, filtersToQuery, orderSummary } from '../order-model.js';
+import { filtersFromQuery, filtersToQuery, orderSummary, ordersOf } from '../order-model.js';
 import { openNewOrder } from './new-order.js';
 
 const loading = () => h('p.empty', {}, h('span.spin', { aria: { hidden: true } }), ' ', t('ui.loading'));
@@ -28,7 +28,25 @@ export function projectView(route) {
     h('option', { value: 'false', selected: filters.chosen === 'false' }, t('ui.project.filter.unchosen')));
   const count = h('span.hint', { aria: { live: 'polite' } });
   const list = h('div.order-list', { aria: { live: 'polite', busy: 'true' } }, loading());
-  const newBtn = h('button.btn.btn-primary', { type: 'button', onclick: () => openNewOrder(project, { opener: newBtn, onCreated: () => load() }) }, '+ ', t('ui.project.newOrder'));
+  let dialog = null;   // el diálogo abierto
+  let opening = false; // guarda: mientras se abre o está abierto, otro clic no abre otro (ids duplicados)
+  async function openDialog() {
+    if (opening) return;
+    opening = true;
+    const dlg = await openNewOrder(project, { opener: newBtn, onCreated: () => { if (alive) load(); }, onClose: () => { dialog = null; opening = false; } });
+    if (!dlg) { opening = false; return; }
+    dialog = dlg;
+    if (!alive) closeDialog(); // la ruta cambió mientras se abría
+  }
+  function closeDialog() {
+    if (!dialog) return;
+    const dlg = dialog;
+    dialog = null;
+    dlg.close();
+    dlg.remove(); // el `close` async quitaría también el diálogo, pero no hay que esperarlo
+    opening = false;
+  }
+  const newBtn = h('button.btn.btn-primary', { type: 'button', onclick: openDialog }, '+ ', t('ui.project.newOrder'));
   const head = h('div.page-head', {}, h('h1', {}, project));
   const node = h('section', {}, head,
     h('div.filters', {},
@@ -45,7 +63,7 @@ export function projectView(route) {
     try {
       const res = await api.orders(project, query);
       if (!alive || mine !== seq) return;
-      const orders = (Array.isArray(res) ? res : (res && res.orders) || []).map(orderSummary);
+      const orders = ordersOf(res).map(orderSummary);
       count.textContent = t('ui.project.orderCount', { n: orders.length });
       replace(list, orders.length ? orders.map((o) => row(project, o)) : h('div.empty', {}, h('p', {}, t(Object.keys(query).length ? 'ui.project.noMatch' : 'ui.project.noOrders'))));
     } catch (e) {
@@ -74,7 +92,7 @@ export function projectView(route) {
     }
     load();
   })();
-  return { node, cleanup: () => { alive = false; } };
+  return { node, cleanup: () => { alive = false; closeDialog(); } };
 }
 
 function row(project, o) {

@@ -10,7 +10,7 @@
 import { h, replace } from '../dom.js';
 import { t } from '../i18n.js';
 import { api, describeError } from '../api.js';
-import { SHEET_FIELDS, MAX_COUNT, MAX_SEED, buildOrder } from '../order-model.js';
+import { SHEET_FIELDS, MAX_COUNT, MAX_SEED, buildOrder, ordersOf } from '../order-model.js';
 import * as poll from '../queue-poll.js';
 import { toastError, toastOk } from './toast.js';
 
@@ -25,7 +25,9 @@ const SHEET_LABELS = {
 function validationText(e) {
   const p = e.params || {};
   if (e.code === 'required') return t('ui.newOrder.error.required', { field: fieldName(e.field) });
-  if (e.code === 'pattern') return t(e.field === 'key' ? 'ui.newOrder.error.keyPattern' : 'ui.newOrder.error.segmentPattern', { field: fieldName(e.field) });
+  if (e.code === 'key_exists') return t('ui.newOrder.error.keyExists', { field: fieldName(e.field) });
+  if (e.code === 'seed_range') return t('ui.newOrder.error.seedRange', { max: p.max, count: p.count });
+  if (e.code === 'pattern') return t(e.field === 'key' || e.field === 'voice' ? 'ui.newOrder.error.keyPattern' : 'ui.newOrder.error.segmentPattern', { field: fieldName(e.field) });
   if (e.code === 'too_long') return t('ui.newOrder.error.tooLong', { field: fieldName(e.field), max: p.max });
   if (e.code === 'seed') return t('ui.newOrder.error.seed', { max: p.max });
   if (e.code === 'count') return t('ui.newOrder.error.count', { max: p.max });
@@ -37,15 +39,18 @@ const FIELD_NAMES = {
 };
 const fieldName = (f) => (FIELD_NAMES[f] ? FIELD_NAMES[f]() : f);
 
-/** Abre el panel. `opener`: el botón que lo abrió (recupera el foco al cerrar); `onCreated(res)`: tras crear el pedido. */
-export async function openNewOrder(project, { opener = null, onCreated = null } = {}) {
+/** Abre el panel y devuelve su `dialog` (null si no pudo abrirse). `opener`: el botón que lo abrió (recupera el foco al
+    cerrar); `onCreated(res)`: tras crear el pedido; `onClose()`: cuando el panel se cierra y se quita. */
+export async function openNewOrder(project, { opener = null, onCreated = null, onClose = null } = {}) {
   let info;
-  let voiceOrders = [];
+  let allOrders = [];
   try {
-    [info, voiceOrders] = await Promise.all([api.project(project), api.orders(project, { type: 'voice' }).catch(() => [])]);
+    [info, allOrders] = await Promise.all([api.project(project), api.orders(project, {}).catch(() => [])]);
   } catch (e) { toastError(describeError(e, t)); return null; }
+  allOrders = ordersOf(allOrders);
+  const existingKeys = new Set(allOrders.map((o) => o.key));
   const configVoices = Object.keys((info.config && info.config.voices) || {});
-  const chosenOf = new Map((Array.isArray(voiceOrders) ? voiceOrders : []).map((o) => [o.key, o.chosen !== null && o.chosen !== undefined]));
+  const chosenOf = new Map(allOrders.filter((o) => o.type === 'voice').map((o) => [o.key, o.chosen !== null && o.chosen !== undefined]));
   const voices = [...new Set([...configVoices, ...chosenOf.keys()])].sort();
 
   let busy = false;
@@ -59,7 +64,11 @@ export async function openNewOrder(project, { opener = null, onCreated = null } 
   const sheet = Object.fromEntries(SHEET_FIELDS.map((name) => [name, h('input', { id: `no-sheet-${name}`, type: 'text', autocomplete: 'off', spellcheck: 'false' })]));
   const extra = h('textarea', { id: 'no-extra', rows: 2, spellcheck: 'false', placeholder: 'breathing: audible between sentences', aria: { describedby: 'no-extra-hint' } });
   // line
-  const voiceSel = h('select', { id: 'no-voice' }, voices.map((v) => h('option', { value: v }, chosenOf.get(v) === false ? t('ui.newOrder.voiceUnchosen', { voice: v }) : v)));
+  const voiceLabel = (v) => {
+    if (!chosenOf.has(v)) return t('ui.newOrder.voiceNoOrder', { voice: v }); // solo en el `config`: el servidor rechaza la frase
+    return chosenOf.get(v) === false ? t('ui.newOrder.voiceUnchosen', { voice: v }) : v;
+  };
+  const voiceSel = h('select', { id: 'no-voice' }, voices.map((v) => h('option', { value: v }, voiceLabel(v))));
   const lineId = h('input', { id: 'no-lineid', type: 'text', autocomplete: 'off', spellcheck: 'false', maxlength: 100, aria: { describedby: 'no-lineid-hint' } });
   const lineKeyHint = h('span.hint', { id: 'no-lineid-hint' });
   const lineText = h('textarea', { id: 'no-text', rows: 3, maxlength: 4000, spellcheck: 'false' });
@@ -114,6 +123,7 @@ export async function openNewOrder(project, { opener = null, onCreated = null } 
       type: typeSel.value, key: key.value, testText: testText.value, extra: extra.value,
       sheet: Object.fromEntries(SHEET_FIELDS.map((name) => [name, sheet[name].value])),
       voice: voiceSel.value, lineId: lineId.value, text: lineText.value, seed: seed.value, count: count.value,
+      seedBad: seed.validity.badInput, countBad: count.validity.badInput, // texto que no es un número: el valor sale ''
     };
   }
   const focusOf = { key, testText, extra, voice: voiceSel, lineId, text: lineText, seed, count };
@@ -133,7 +143,7 @@ export async function openNewOrder(project, { opener = null, onCreated = null } 
   async function submit() {
     if (busy) return;
     error.hidden = true;
-    const { body, errors } = buildOrder(fields());
+    const { body, errors } = buildOrder(fields(), existingKeys);
     if (!body) {
       showError(errors.map(validationText).join(' '), focusOf[errors[0].field]);
       return;
@@ -141,7 +151,7 @@ export async function openNewOrder(project, { opener = null, onCreated = null } 
     setBusy(true);
     let res;
     try { res = await api.newOrder(project, body.order, body.count); } catch (e) { setBusy(false); showError(describeError(e, t)); return; }
-    const n = (res && res.entries && res.entries.length) || body.count;
+    const n = res && Array.isArray(res.entries) ? res.entries.length : body.count;
     toastOk(t('ui.newOrder.created', { key: body.order.key, n }));
     poll.refreshNow();
     dlg.close();
@@ -151,6 +161,7 @@ export async function openNewOrder(project, { opener = null, onCreated = null } 
   dlg.addEventListener('keydown', (ev) => ev.stopPropagation()); // los atajos globales no actúan con el panel abierto
   dlg.addEventListener('close', () => {
     dlg.remove();
+    if (onClose) onClose();
     if (opener && opener.isConnected) opener.focus();
   });
   document.body.append(dlg);

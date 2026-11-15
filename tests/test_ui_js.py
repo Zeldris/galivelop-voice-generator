@@ -263,6 +263,63 @@ out({
         long_line = self.build({"type": "line", "voice": "a" * 60, "lineId": "b" * 60, "text": "x"})
         self.assertEqual(long_line["errors"], [{"field": "lineId", "code": "too_long", "params": {"max": 100}}])
 
+    def codes(self, fields, existing=None):
+        got = self.run_js(f"const {{ buildOrder }} = await mod('js/order-model.js'); out(buildOrder({json.dumps(fields)}, {json.dumps(existing)} === null ? null : new Set({json.dumps(existing)})));")
+        return got, [(e["field"], e["code"]) for e in got["errors"]]
+
+    def test_line_voice_is_a_key_with_slashes(self):
+        got = self.build({"type": "line", "voice": "npc/guard", "lineId": "hi-1", "text": "Halt."})
+        self.assertEqual(got["errors"], [])
+        self.assertEqual(got["body"]["order"]["key"], "npc/guard/hi-1")
+        self.assert_valid_order(got["body"])
+        self.assertEqual(self.codes({"type": "line", "voice": "npc//guard", "lineId": "a", "text": "x"})[1], [("voice", "pattern")])
+        self.assertEqual(self.codes({"type": "line", "voice": "npc/guard", "lineId": "a/b", "text": "x"})[1], [("lineId", "pattern")])
+
+    def test_build_rejects_an_existing_key(self):
+        voice = {"type": "voice", "key": "narrator", "testText": "x"}
+        self.assertEqual(self.codes(voice, ["narrator", "orc"])[1], [("key", "key_exists")])
+        self.assertEqual(self.codes(voice, ["orc"])[1], [])
+        self.assertEqual(self.codes(voice)[1], [])  # sin claves cargadas, no se comprueba
+        line = {"type": "line", "voice": "narrator", "lineId": "intro-01", "text": "x"}
+        self.assertEqual(self.codes(line, ["narrator", "narrator/intro-01"])[1], [("lineId", "key_exists")])
+        self.assertEqual(self.codes(line, ["narrator"])[1], [])
+
+    def test_build_checks_the_seed_range_with_the_count(self):
+        base = {"type": "voice", "key": "v", "testText": "x"}
+        got, codes = self.codes({**base, "seed": "4294967295", "count": "3"})
+        self.assertEqual(codes, [("seed", "seed_range")])
+        self.assertEqual(got["errors"][0]["params"], {"max": 4294967295, "count": 3})
+        self.assertEqual(self.codes({**base, "seed": "4294967295", "count": "1"})[1], [])
+        self.assertEqual(self.codes({**base, "seed": "4294967293", "count": "3"})[1], [])
+        self.assertEqual(self.codes({**base, "seed": "4294967294", "count": "3"})[1], [("seed", "seed_range")])
+        self.assertEqual(self.codes({**base, "seed": "4294967295", "count": "51"})[1], [("count", "count")])
+
+    def test_build_reports_non_numeric_number_inputs(self):
+        base = {"type": "voice", "key": "v", "testText": "x", "seed": "", "count": ""}
+        self.assertEqual(self.codes({**base, "seedBad": True})[1], [("seed", "seed")])
+        self.assertEqual(self.codes({**base, "countBad": True})[1], [("count", "count")])
+        self.assertEqual(self.codes({**base, "seedBad": False, "countBad": False})[1], [])
+
+    def test_orders_of_reads_both_response_shapes(self):
+        got = self.run_js("""const { ordersOf } = await mod('js/order-model.js');
+out([ordersOf([{ key: 'a' }]), ordersOf({ orders: [{ key: 'b' }] }), ordersOf(null), ordersOf({}), ordersOf({ orders: 3 })]);""")
+        self.assertEqual(got, [[{"key": "a"}], [{"key": "b"}], [], [], []])
+
+    def test_api_mock_count_limit_is_the_real_one(self):
+        got = self.run_js(self.mock_script("""
+const order = { key: 'narrator/x-1', type: 'line', voice: 'narrator', text: 'Hi' };
+const strip = (r) => ({ status: r.status, code: r.code, n: Array.isArray(r.json && r.json.entries) ? r.json.entries.length : null });
+out({
+  ok: strip(await call('POST', '/api/projects/example-world/orders', { order, count: 50 })),
+  over: strip(await call('POST', '/api/projects/example-world/orders', { order, count: 51 })),
+  attempts: strip(await call('POST', '/api/projects/example-world/orders/narrator/attempts', { count: 51 })),
+});
+"""))
+        self.assertEqual(got["ok"]["status"], 200)
+        self.assertEqual(got["ok"]["n"], 50)
+        self.assertEqual((got["over"]["status"], got["over"]["code"]), (400, "api.bad_param"))
+        self.assertEqual((got["attempts"]["status"], got["attempts"]["code"]), (400, "api.bad_param"))
+
     def test_build_rejects_bad_seed_count_extra_and_long_text(self):
         def reasons(**f):
             base = {"type": "voice", "key": "v", "testText": "x"}

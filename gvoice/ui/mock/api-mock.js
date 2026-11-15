@@ -222,7 +222,7 @@ route('POST', '/api/projects/{p}/orders', async (c) => {
   if (!projects[p]) return fail(c.lang, 404, 'project.unknown', { name: p });
   const spec = c.body && c.body.order; const count = (c.body && c.body.count) ?? 1;
   if (!spec || typeof spec.key !== 'string' || !['voice', 'line'].includes(spec.type)) return fail(c.lang, 400, 'api.bad_param', { name: 'order' });
-  if (!Number.isInteger(count) || count < 1 || count > 20) return fail(c.lang, 400, 'api.bad_param', { name: 'count' });
+  if (!Number.isInteger(count) || count < 1 || count > 50) return fail(c.lang, 400, 'api.bad_param', { name: 'count' });
   let record = findOrder(p, spec.key);
   if (record && record.type !== spec.type) return fail(c.lang, 409, 'order.type_changed', { order: spec.key, type: record.type, new: spec.type });
   if (spec.type === 'line') {
@@ -280,7 +280,7 @@ route('POST', '/api/projects/{p}/orders/{key}/attempts', (c) => {
   const o = lookup(c);
   if (o.error) return o.error;
   const count = (c.body && c.body.count) ?? 1;
-  if (!Number.isInteger(count) || count < 1 || count > 20) return fail(c.lang, 400, 'api.bad_param', { name: 'count' });
+  if (!Number.isInteger(count) || count < 1 || count > 50) return fail(c.lang, 400, 'api.bad_param', { name: 'count' });
   const seed = c.body && Number.isInteger(c.body.seed) ? c.body.seed : null;
   return ok(Array.from({ length: count }, (_, i) => ({ ...enqueueTake(c.params.p, o, seed === null ? null : seed + i) })));
 });

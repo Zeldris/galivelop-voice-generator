@@ -32,6 +32,12 @@ export function filtersToQuery(filters = {}) {
   return q;
 }
 
+/** Los pedidos de la respuesta de GET …/orders: un array o `{orders: [...]}`; otra cosa, []. */
+export function ordersOf(res) {
+  if (Array.isArray(res)) return res;
+  return res && Array.isArray(res.orders) ? res.orders : [];
+}
+
 /* ---- fila de la lista ---- */
 
 /** Lo que muestra una fila: clave, tipo, voz (solo `line`), texto de prueba o texto, nº de tomas y toma elegida. */
@@ -77,10 +83,14 @@ export const lineKey = (voice, id) => `${String(voice || '').trim()}/${String(id
  * Construye el cuerpo de POST …/orders a partir de los campos del formulario (todo texto, como salen de los inputs):
  *   voice: {type, key, testText, sheet: {gender…personality}, extra, seed, count}
  *   line:  {type, voice, lineId, text, seed, count}
+ * `seedBad` / `countBad` (opcionales): el input numérico tenía texto que no es un número (`validity.badInput`, su valor
+ * sale ''), y se informa como error en vez de tomarlo por «aleatoria» / 1.
+ * `existingKeys` (opcional): las claves de los pedidos ya cargados; reenviar una clave existente sobrescribe el pedido
+ * (`orders.submit`), así que se rechaza con `key_exists`.
  * Devuelve {body, errors}: `body` es {order, count} (null si hay errores) y cada error {field, code, params?}, con los
- * códigos `required`, `pattern`, `too_long`, `seed`, `count` y `extra`; la interfaz los traduce.
+ * códigos `required`, `pattern`, `too_long`, `key_exists`, `seed`, `seed_range`, `count` y `extra`; la interfaz los traduce.
  */
-export function buildOrder(f) {
+export function buildOrder(f, existingKeys = null) {
   const errors = [];
   const bad = (field, code, params) => errors.push(params ? { field, code, params } : { field, code });
   const order = {};
@@ -93,6 +103,7 @@ export function buildOrder(f) {
     if (!key) bad('key', 'required');
     else if (!KEY_PATTERN.test(key)) bad('key', 'pattern');
     else if (key.length > MAX_KEY) bad('key', 'too_long', { max: MAX_KEY });
+    else if (hasKey(existingKeys, key)) bad('key', 'key_exists');
     order.key = key;
     const testText = String(f.testText ?? '').trim();
     if (!testText) bad('testText', 'required');
@@ -111,12 +122,13 @@ export function buildOrder(f) {
     const voice = String(f.voice ?? '').trim();
     const id = String(f.lineId ?? '').trim();
     if (!voice) bad('voice', 'required');
-    else if (!SEGMENT_PATTERN.test(voice)) bad('voice', 'pattern');
+    else if (!KEY_PATTERN.test(voice)) bad('voice', 'pattern');
     if (!id) bad('lineId', 'required');
     else if (!SEGMENT_PATTERN.test(id)) bad('lineId', 'pattern');
     order.voice = voice;
     order.key = lineKey(voice, id);
     if (!errors.some((e) => e.field === 'voice' || e.field === 'lineId') && order.key.length > MAX_KEY) bad('lineId', 'too_long', { max: MAX_KEY });
+    else if (!errors.some((e) => e.field === 'voice' || e.field === 'lineId') && hasKey(existingKeys, order.key)) bad('lineId', 'key_exists');
     const text = String(f.text ?? '').trim();
     if (!text) bad('text', 'required');
     else if (text.length > MAX_LINE_TEXT) bad('text', 'too_long', { max: MAX_LINE_TEXT });
@@ -124,15 +136,20 @@ export function buildOrder(f) {
   }
 
   const seedRaw = String(f.seed ?? '').trim();
-  if (seedRaw !== '') {
-    const seed = intField(seedRaw);
-    if (seed === null || seed > MAX_SEED) bad('seed', 'seed', { max: MAX_SEED });
-    else order.seed = seed;
-  }
   const countRaw = String(f.count ?? '').trim();
   const count = countRaw === '' ? 1 : intField(countRaw);
-  if (count === null || count < 1 || count > MAX_COUNT) bad('count', 'count', { max: MAX_COUNT });
+  let seed = null;
+  if (f.seedBad) bad('seed', 'seed', { max: MAX_SEED });
+  else if (seedRaw !== '') {
+    seed = intField(seedRaw);
+    if (seed === null || seed > MAX_SEED) { bad('seed', 'seed', { max: MAX_SEED }); seed = null; }
+    else order.seed = seed;
+  }
+  if (f.countBad || count === null || count < 1 || count > MAX_COUNT) bad('count', 'count', { max: MAX_COUNT });
+  else if (seed !== null && seed + count - 1 > MAX_SEED) bad('seed', 'seed_range', { max: MAX_SEED, count });
 
   if (errors.length) return { body: null, errors };
   return { body: { order, count }, errors };
 }
+
+const hasKey = (keys, key) => !!keys && (keys instanceof Set ? keys.has(key) : Array.isArray(keys) && keys.includes(key));

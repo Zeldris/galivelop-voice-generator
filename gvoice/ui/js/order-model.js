@@ -76,6 +76,19 @@ export function parseExtra(raw) {
   return { extra, bad: null };
 }
 
+/** La ficha de diseño que sale de los campos del formulario ({sheet: {gender…}, extra}): solo los campos con texto.
+    `badLine`: la primera línea de `extra` mal escrita, o null. La usan `buildOrder` y la comprobación en vivo (F5.3). */
+export function sheetFromFields(f) {
+  const sheet = {};
+  for (const name of SHEET_FIELDS) {
+    const v = String((f.sheet || {})[name] ?? '').trim();
+    if (v) sheet[name] = v;
+  }
+  const { extra, bad } = parseExtra(f.extra);
+  if (bad === null && Object.keys(extra).length) sheet.extra = extra;
+  return { sheet, badLine: bad };
+}
+
 /** Clave de una frase: `<voz>/<id>`. */
 export const lineKey = (voice, id) => `${String(voice || '').trim()}/${String(id || '').trim()}`;
 
@@ -109,14 +122,8 @@ export function buildOrder(f, existingKeys = null) {
     if (!testText) bad('testText', 'required');
     else if (testText.length > MAX_TEST_TEXT) bad('testText', 'too_long', { max: MAX_TEST_TEXT });
     order.testText = testText;
-    const sheet = {};
-    for (const name of SHEET_FIELDS) {
-      const v = String((f.sheet || {})[name] ?? '').trim();
-      if (v) sheet[name] = v;
-    }
-    const { extra, bad: badLine } = parseExtra(f.extra);
+    const { sheet, badLine } = sheetFromFields(f);
     if (badLine !== null) bad('extra', 'extra', { line: badLine });
-    else if (Object.keys(extra).length) sheet.extra = extra;
     order.designSheet = sheet;
   } else {
     const voice = String(f.voice ?? '').trim();

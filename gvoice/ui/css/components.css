@@ -36,3 +36,18 @@ dialog.confirm { width: min(92vw, 420px); }
   .order-row { grid-template-columns: minmax(0, 1fr); }
   .order-row > :last-child { grid-column: auto; }
 }
+
+/* ficha con avisos (F5.3): instrucción en monoespaciada y avisos con icono y texto (el color solo acompaña) */
+.order-item { display: grid; gap: 4px; }
+.order-actions { justify-content: flex-end; }
+.sheet-check { display: grid; gap: 8px; }
+.sheet-check h4 { margin: 0; font-size: 15px; color: var(--text-2); }
+.sheet-instruction { margin: 0; padding: 8px 10px; background: var(--surface-2); border: 1px solid var(--rule); font-size: 14px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; min-height: 2.9em; }
+.sheet-warnings { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.sheet-warning { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; align-items: start; padding: 8px 10px; background: var(--accent-soft); border: 1px solid var(--accent); border-left-width: 3px; color: var(--text); font-size: 15px; line-height: 1.45; }
+.sheet-warning .warn-icon { color: var(--accent-text); flex: none; }
+.sheet-warning .warn-text { overflow-wrap: anywhere; }
+.sheet-ok { padding: 4px 0; color: var(--text-2); font-size: 15px; }
+dialog.sheet-dialog { width: min(94vw, 560px); max-height: 94vh; overflow-y: auto; }
+dialog.sheet-dialog .row { margin-top: 12px; }
+@media (max-width: 600px) { dialog.sheet-dialog { width: 96vw; } }

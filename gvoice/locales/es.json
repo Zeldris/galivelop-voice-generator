@@ -339,5 +339,10 @@
   "error.api.bad_host": "Petición rechazada: la cabecera Host no es la local.",
   "error.api.bad_param": "El parámetro «{name}» no es válido.",
   "error.cli.ui_host_not_local": "«{host}» no es una dirección local: la interfaz solo escucha en 127.0.0.1, localhost o ::1.",
-  "error.api.body_too_large": "El cuerpo de la petición supera el límite de {limit} bytes."
+  "error.api.body_too_large": "El cuerpo de la petición supera el límite de {limit} bytes.",
+  "ui.sheet.title": "Ficha",
+  "ui.sheet.open": "Ficha",
+  "ui.sheet.instruction": "Instrucción resultante",
+  "ui.sheet.noWarnings": "Sin avisos",
+  "ui.sheet.checkFailed": "No se pudo comprobar la ficha ahora; puedes crear el pedido igualmente."
 }

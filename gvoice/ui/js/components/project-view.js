@@ -9,6 +9,7 @@ import { api, describeError } from '../api.js';
 import { to, replaceHash } from '../router.js';
 import { filtersFromQuery, filtersToQuery, orderSummary, ordersOf } from '../order-model.js';
 import { openNewOrder } from './new-order.js';
+import { openSheetDialog } from './sheet-dialog.js';
 
 const loading = () => h('p.empty', {}, h('span.spin', { aria: { hidden: true } }), ' ', t('ui.loading'));
 
@@ -46,6 +47,24 @@ export function projectView(route) {
     dlg.remove(); // el `close` async quitaría también el diálogo, pero no hay que esperarlo
     opening = false;
   }
+  let sheetDlg = null;  // el diálogo «Ficha» abierto (uno a la vez)
+  let sheetOpening = false;
+  async function openSheet(key, opener) {
+    if (sheetOpening) return;
+    sheetOpening = true;
+    const dlg = await openSheetDialog(project, key, { opener, onClose: () => { sheetDlg = null; sheetOpening = false; } });
+    if (!dlg) { sheetOpening = false; return; }
+    sheetDlg = dlg;
+    if (!alive) closeSheet();
+  }
+  function closeSheet() {
+    if (!sheetDlg) return;
+    const dlg = sheetDlg;
+    sheetDlg = null;
+    dlg.close();
+    dlg.remove();
+    sheetOpening = false;
+  }
   const newBtn = h('button.btn.btn-primary', { type: 'button', onclick: openDialog }, '+ ', t('ui.project.newOrder'));
   const head = h('div.page-head', {}, h('h1', {}, project));
   const node = h('section', {}, head,
@@ -65,7 +84,7 @@ export function projectView(route) {
       if (!alive || mine !== seq) return;
       const orders = ordersOf(res).map(orderSummary);
       count.textContent = t('ui.project.orderCount', { n: orders.length });
-      replace(list, orders.length ? orders.map((o) => row(project, o)) : h('div.empty', {}, h('p', {}, t(Object.keys(query).length ? 'ui.project.noMatch' : 'ui.project.noOrders'))));
+      replace(list, orders.length ? orders.map((o) => row(project, o, openSheet)) : h('div.empty', {}, h('p', {}, t(Object.keys(query).length ? 'ui.project.noMatch' : 'ui.project.noOrders'))));
     } catch (e) {
       if (!alive || mine !== seq) return;
       count.textContent = '';
@@ -92,12 +111,12 @@ export function projectView(route) {
     }
     load();
   })();
-  return { node, cleanup: () => { alive = false; closeDialog(); } };
+  return { node, cleanup: () => { alive = false; closeDialog(); closeSheet(); } };
 }
 
-function row(project, o) {
+function row(project, o, openSheet) {
   const text = o.text ? h('div.text', { title: o.text }, o.text) : null;
-  return h('a.card.order-row', { href: to.order(project, o.key), aria: { label: o.key } },
+  const link = h('a.card.order-row', { href: to.order(project, o.key), aria: { label: o.key } },
     h('div', {},
       h('div.key', {}, o.key),
       h('div.meta', {},
@@ -108,4 +127,8 @@ function row(project, o) {
     o.chosen
       ? h('span.chip.chip-ok', {}, '✓ ', t('ui.project.chosen'), o.chosenId !== null ? ` · ${t('ui.project.takeN', { id: o.chosenId })}` : '')
       : h('span.chip', {}, t('ui.project.unchosen')));
+  if (o.type !== 'voice') return link;
+  // el botón no puede ir dentro del enlace: va al lado, en su propia línea
+  const sheetBtn = h('button.btn', { type: 'button', aria: { label: `${t('ui.sheet.open')}: ${o.key}` }, onclick: () => openSheet(o.key, sheetBtn) }, t('ui.sheet.open'));
+  return h('div.order-item', {}, link, h('div.row.order-actions', {}, sheetBtn));
 }

@@ -1,6 +1,7 @@
 /* Copiado de gimg@46248251 (D7); adaptado a gvoice (F5.2): panel «Nuevo pedido», un `dialog` modal.
    - Tipo `voice`: clave, texto de prueba, ficha de diseño (los campos de design-sheet.schema.json más `extra`), semilla
-     (vacía = al azar) y nº de tomas. Los avisos de la ficha llegan con F5.3.
+     (vacía = al azar) y nº de tomas. Bajo la ficha, la instrucción y los avisos
+     en vivo (F5.3: POST /api/sheet/check con espera de 300 ms; nunca bloquean «Crear» ni rompen el formulario).
    - Tipo `line`: voz (las del `config` del proyecto y los pedidos `voice`), id de la frase (la clave es `<voz>/<id>`),
      texto, semilla y nº de tomas.
    - El cuerpo lo arma y valida ../order-model.js (`buildOrder`, el mismo esquema que el servidor) y se envía con
@@ -10,7 +11,9 @@
 import { h, replace } from '../dom.js';
 import { t } from '../i18n.js';
 import { api, describeError } from '../api.js';
-import { SHEET_FIELDS, MAX_COUNT, MAX_SEED, buildOrder, ordersOf } from '../order-model.js';
+import { SHEET_FIELDS, MAX_COUNT, MAX_SEED, buildOrder, ordersOf, sheetFromFields } from '../order-model.js';
+import { createSheetChecker } from '../sheet-check.js';
+import { sheetPanel } from './sheet-warnings.js';
 import * as poll from '../queue-poll.js';
 import { toastError, toastOk } from './toast.js';
 
@@ -79,13 +82,25 @@ export async function openNewOrder(project, { opener = null, onCreated = null, o
   const send = h('button.btn.btn-primary', { type: 'submit' }, sendLabel);
   const cancel = h('button.btn', { type: 'button', onclick: () => dlg.close() }, t('ui.actions.cancel'));
 
+  const panel = sheetPanel();
+  const checker = createSheetChecker({
+    check: (designSheet) => api.checkSheet(designSheet),
+    onResult: (res) => panel.update(res),
+    onError: () => panel.fail(t('ui.sheet.checkFailed')), // aviso discreto: el formulario sigue igual
+  });
+  function checkSheet() {
+    const { sheet: designSheet, badLine } = sheetFromFields(fields());
+    if (badLine !== null) return; // «extra» a medias: se comprueba cuando esté bien escrito
+    checker.request(designSheet);
+  }
   const voiceBox = h('div.stack', {},
     h('div.field', {}, h('label', { for: 'no-key' }, t('ui.newOrder.key')), key, h('span.hint', { id: 'no-key-hint' }, t('ui.newOrder.keyHint'))),
     h('div.field', {}, h('label', { for: 'no-testtext' }, t('ui.newOrder.testText')), testText, h('span.hint', {}, t('ui.newOrder.testTextHint'))),
     h('h3', {}, t('ui.newOrder.sheet.title')),
     h('p.hint', {}, t('ui.newOrder.sheet.hint')),
     h('div.cols-2', {}, SHEET_FIELDS.map((name) => h('div.field', {}, h('label', { for: `no-sheet-${name}` }, SHEET_LABELS[name]()), sheet[name]))),
-    h('div.field', {}, h('label', { for: 'no-extra' }, t('ui.newOrder.sheet.extra')), extra, h('span.hint', { id: 'no-extra-hint' }, t('ui.newOrder.sheet.extraHint'))));
+    h('div.field', {}, h('label', { for: 'no-extra' }, t('ui.newOrder.sheet.extra')), extra, h('span.hint', { id: 'no-extra-hint' }, t('ui.newOrder.sheet.extraHint'))),
+    panel.node);
   const lineBox = h('div.stack', { hidden: true },
     voices.length
       ? h('div.cols-2', {},
@@ -117,6 +132,8 @@ export async function openNewOrder(project, { opener = null, onCreated = null, o
   voiceSel.addEventListener('change', showKey);
   lineId.addEventListener('input', showKey);
   showKey();
+  for (const input of [...Object.values(sheet), extra]) input.addEventListener('input', checkSheet);
+  checkSheet(); // ficha vacía: ya avisa de la edad que falta
 
   function fields() {
     return {
@@ -160,6 +177,7 @@ export async function openNewOrder(project, { opener = null, onCreated = null, o
 
   dlg.addEventListener('keydown', (ev) => ev.stopPropagation()); // los atajos globales no actúan con el panel abierto
   dlg.addEventListener('close', () => {
+    checker.cancel();
     dlg.remove();
     if (onClose) onClose();
     if (opener && opener.isConnected) opener.focus();

@@ -339,5 +339,10 @@
   "error.api.bad_host": "Request refused: the Host header is not the local one.",
   "error.api.bad_param": "The parameter \"{name}\" is not valid.",
   "error.cli.ui_host_not_local": "\"{host}\" is not a local address: the interface only listens on 127.0.0.1, localhost or ::1.",
-  "error.api.body_too_large": "The request body is over the limit of {limit} bytes."
+  "error.api.body_too_large": "The request body is over the limit of {limit} bytes.",
+  "ui.sheet.title": "Sheet",
+  "ui.sheet.open": "Sheet",
+  "ui.sheet.instruction": "Resulting instruction",
+  "ui.sheet.noWarnings": "No warnings",
+  "ui.sheet.checkFailed": "The sheet could not be checked right now; you can still create the order."
 }

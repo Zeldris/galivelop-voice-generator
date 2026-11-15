@@ -442,5 +442,190 @@ process.exit(0);
             self.assertEqual(js, py, json.dumps(s))
 
 
+    # ---- F5.3: ficha con avisos ----
+
+    FAKE_DOM = """
+class FakeNode { constructor() { this.children = []; this.parent = null; }
+  append(...c) { for (const x of c) this.appendChild(typeof x === 'string' ? new FakeText(x) : x); }
+  appendChild(c) { c.parent = this; this.children.push(c); return c; }
+  removeChild(c) { this.children = this.children.filter((x) => x !== c); c.parent = null; return c; }
+  get firstChild() { return this.children[0] || null; }
+  get textContent() { return this.children.map((c) => c.textContent).join(''); }
+  set textContent(v) { this.children = [new FakeText(String(v))]; }
+}
+class FakeText extends FakeNode { constructor(s) { super(); this.text = s; } get textContent() { return this.text; } set textContent(v) { this.text = String(v); } }
+class FakeEl extends FakeNode {
+  constructor(tag) { super(); this.tag = tag; this.attrs = {}; this.className = ''; this.dataset = {}; this.hidden = false; this.listeners = {}; }
+  setAttribute(k, v) { this.attrs[k] = String(v); }
+  addEventListener(k, fn) { this.listeners[k] = fn; }
+  find(pred, acc = []) { for (const c of this.children) if (c instanceof FakeEl) { if (pred(c)) acc.push(c); c.find(pred, acc); } return acc; }
+}
+globalThis.Node = FakeNode;
+globalThis.document = {
+  documentElement: { lang: '' },
+  createElement: (tag) => new FakeEl(tag),
+  createElementNS: (ns, tag) => { const e = new FakeEl(tag); e.ns = ns; return e; },
+  createTextNode: (s) => new FakeText(s),
+};
+"""
+
+    LOAD_LOCALE = """
+import { readFileSync } from 'node:fs';
+const { api, setTransport } = await mod('js/api.js');
+const i18n = await mod('js/i18n.js');
+const store = new Map();
+globalThis.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)) };
+globalThis.document = { documentElement: { lang: '' } };
+setTransport(async (method, url) => {
+  const lang = new URL(url, 'http://x').pathname.split('/').pop();
+  return { status: 200, json: JSON.parse(readFileSync(new URL(UI + '/../locales/' + lang + '.json').pathname, 'utf8')) };
+});
+"""
+
+    WARNINGS = [
+        {"code": "sheet.age_missing", "params": {}},
+        {"code": "sheet.age_not_adult", "params": {"age": "child"}},
+        {"code": "sheet.banned_word", "params": {"word": "bright", "field": "texture", "suggestions": "deep, resonant"}},
+    ]
+
+    def test_warning_items_give_an_icon_and_the_text_of_each_code_in_both_languages(self):
+        got = self.run_js(self.LOAD_LOCALE + """
+const { warningItems } = await mod('js/components/sheet-warnings.js');
+const warnings = %s;
+const r = {};
+for (const lang of ['es', 'en']) { await i18n.load(lang); r[lang] = warningItems(warnings); }
+r.unknown = warningItems([{ code: 'sheet.nope', params: {}, message: 'del servidor' }]);
+r.none = warningItems(undefined);
+out(r);
+""" % json.dumps(self.WARNINGS))
+        for lang in ("es", "en"):
+            locale = json.loads((UI.parent / "locales" / f"{lang}.json").read_text(encoding="utf-8"))
+            self.assertEqual([i["code"] for i in got[lang]], [w["code"] for w in self.WARNINGS])
+            self.assertEqual([i["icon"] for i in got[lang]], [w["code"] for w in self.WARNINGS])
+            self.assertEqual(len({i["text"] for i in got[lang]}), 3)
+            self.assertEqual(got[lang][0]["text"], locale["warning.sheet.age_missing"])
+            self.assertIn('"child"', got[lang][1]["text"])
+            self.assertIn("bright", got[lang][2]["text"])
+            self.assertIn("deep, resonant", got[lang][2]["text"])
+        self.assertNotEqual(got["es"][0]["text"], got["en"][0]["text"])
+        self.assertEqual(got["unknown"], [{"code": "sheet.nope", "icon": "default", "text": "del servidor"}])
+        self.assertEqual(got["none"], [])
+
+    def test_sheet_panel_renders_each_warning_with_its_icon_and_text_on_screen(self):
+        got = self.run_js(self.LOAD_LOCALE + self.FAKE_DOM + """
+const { sheetPanel, sheetWarnings } = await mod('js/components/sheet-warnings.js');
+await i18n.load('es');
+const view = (node) => {
+  const items = node.find((e) => e.tag === 'li');
+  return {
+    live: node.find((e) => e.tag === 'ul').map((u) => [u.attrs.role, u.attrs['aria-live']]),
+    pre: node.find((e) => e.tag === 'pre').map((p) => [p.textContent, p.className]),
+    items: items.map((li) => ({
+      cls: li.className, code: li.dataset.code,
+      svgs: li.find((e) => e.tag === 'svg').map((s) => ({ hidden: s.attrs['aria-hidden'], viewBox: s.attrs.viewBox, parts: s.children.length, ns: s.ns })),
+      text: li.find((e) => e.className === 'warn-text').map((e) => e.textContent).join(''),
+    })),
+  };
+};
+const r = {};
+r.three = view(sheetWarnings({ instruction: 'age: child; texture: bright', warnings: %s }));
+r.none = view(sheetWarnings({ instruction: 'age: adult', warnings: [] }));
+const p = sheetPanel();
+p.update({ instruction: 'a', warnings: %s });
+p.update({ instruction: 'age: adult', warnings: [] });
+r.repaint = view(p.node);
+p.fail('no se pudo');
+r.fail = p.node.find((e) => e.className.includes('sheet-fail')).map((e) => [e.textContent, e.hidden]);
+out(r);
+""" % (json.dumps(self.WARNINGS), json.dumps(self.WARNINGS)))
+        locale = json.loads((UI.parent / "locales" / "es.json").read_text(encoding="utf-8"))
+        three = got["three"]
+        self.assertEqual(three["live"], [["status", "polite"]])
+        self.assertEqual(three["pre"][0][0], "age: child; texture: bright")
+        self.assertIn("mono", three["pre"][0][1])
+        self.assertEqual([i["code"] for i in three["items"]], [w["code"] for w in self.WARNINGS])
+        for item in three["items"]:
+            self.assertEqual(len(item["svgs"]), 1, item["code"])  # un icono por aviso...
+            svg = item["svgs"][0]
+            self.assertEqual((svg["hidden"], svg["viewBox"], svg["ns"]), ("true", "0 0 24 24", "http://www.w3.org/2000/svg"))
+            self.assertGreaterEqual(svg["parts"], 2)
+            self.assertTrue(item["text"].strip(), item["code"])  # ...y su texto visible
+        self.assertEqual(three["items"][0]["text"], locale["warning.sheet.age_missing"])
+        self.assertIn('"child"', three["items"][1]["text"])
+        self.assertIn("deep, resonant", three["items"][2]["text"])
+        # sin avisos: un texto corto y ningún icono
+        self.assertEqual(len(got["none"]["items"]), 1)
+        self.assertEqual(got["none"]["items"][0]["text"], "")
+        self.assertEqual(got["none"]["items"][0]["svgs"], [])
+        # repintar sustituye lo anterior, y fallar deja un aviso discreto sin tocar la lista
+        self.assertEqual(len(got["repaint"]["items"]), 1)
+        self.assertEqual(got["repaint"]["pre"][0][0], "age: adult")
+        self.assertEqual(got["fail"], [["no se pudo", False]])
+
+    def test_sheet_panel_without_warnings_says_so(self):
+        got = self.run_js(self.LOAD_LOCALE + self.FAKE_DOM + """
+const { sheetWarnings } = await mod('js/components/sheet-warnings.js');
+const r = {};
+for (const lang of ['es', 'en']) {
+  await i18n.load(lang);
+  const node = sheetWarnings({ instruction: 'age: adult', warnings: [] });
+  r[lang] = node.find((e) => e.tag === 'li').map((li) => li.textContent);
+}
+out(r);
+""")
+        self.assertEqual(got, {"es": ["Sin avisos"], "en": ["No warnings"]})
+
+    def test_sheet_checker_waits_and_drops_stale_responses(self):
+        got = self.run_js("""
+const { createSheetChecker, CHECK_DELAY_MS } = await mod('js/sheet-check.js');
+const timers = new Map(); let nextId = 1;
+const setTimer = (fn, ms) => { const id = nextId++; timers.set(id, { fn, ms }); return id; };
+const clearTimer = (id) => timers.delete(id);
+const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
+const fire = async () => { const all = [...timers.values()]; timers.clear(); for (const t of all) t.fn(); await flush(); };
+const pending = new Map(); // ficha → resolver
+const results = []; const errors = [];
+const checker = createSheetChecker({
+  check: (s) => new Promise((res, rej) => pending.set(s.age, { res, rej })),
+  onResult: (r) => results.push(r), onError: (e) => errors.push(e.message), setTimer, clearTimer,
+});
+const r = { delay: CHECK_DELAY_MS };
+checker.request({ age: 'a' }); checker.request({ age: 'ab' });
+r.debounced = timers.size; r.ms = [...timers.values()].map((t) => t.ms);   // dos pulsaciones, un solo temporizador
+await fire();                                                             // sale la petición de «ab»
+checker.request({ age: 'abc' });                                          // llega una más nueva mientras la anterior vuela
+await fire();
+pending.get('abc').res({ instruction: 'abc' });
+await flush();
+pending.get('ab').res({ instruction: 'ab' });                             // la vieja contesta tarde: se descarta
+await flush();
+r.results = results.map((x) => x.instruction);
+checker.request({ age: 'x' }); await fire();
+pending.get('x').rej(new Error('caído'));                                  // un fallo solo cuenta si es de la última
+await flush();
+r.errors = errors.slice();
+checker.request({ age: 'y' }); await fire(); checker.cancel(); pending.get('y').res({ instruction: 'y' });
+await flush();
+r.afterCancel = results.map((x) => x.instruction);
+out(r);
+""")
+        self.assertEqual(got["delay"], 300)
+        self.assertEqual((got["debounced"], got["ms"]), (1, [300]))
+        self.assertEqual(got["results"], ["abc"])
+        self.assertEqual(got["errors"], ["caído"])
+        self.assertEqual(got["afterCancel"], ["abc"])
+
+    def test_sheet_from_fields_ignores_empty_fields_and_reports_bad_extra(self):
+        got = self.run_js("""
+const m = await mod('js/order-model.js');
+out([m.sheetFromFields({ sheet: { age: ' child ', texture: '', tone: 'calm' }, extra: 'breathing: audible' }),
+     m.sheetFromFields({ sheet: {}, extra: 'sin dos puntos' }), m.sheetFromFields({})]);
+""")
+        self.assertEqual(got[0], {"sheet": {"age": "child", "tone": "calm", "extra": {"breathing": "audible"}}, "badLine": None})
+        self.assertEqual(got[1]["sheet"], {})
+        self.assertEqual(got[1]["badLine"], "sin dos puntos")
+        self.assertEqual(got[2], {"sheet": {}, "badLine": None})
+
+
 if __name__ == "__main__":
     unittest.main()

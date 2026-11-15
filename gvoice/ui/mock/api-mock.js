@@ -30,19 +30,34 @@ const NARRATOR_SHEET = { gender: 'male', age: 'middle-aged adult', pitch: 'low',
   personality: 'precise and formal', extra: { breathing: 'audible between sentences' } };
 const ORC_SHEET = { gender: 'male', age: 'young', pitch: 'very low', texture: 'bright, gravelly', tone: 'menacing' };
 const SHEET_ORDER = ['gender', 'age', 'pitch', 'speed', 'volume', 'clarity', 'fluency', 'accent', 'texture', 'emotion', 'tone', 'personality'];
-const BANNED = ['bright', 'cute', 'small', 'light', 'childlike', 'high-pitched'];
-const SUGGESTIONS = 'airy, breathy, soft-spoken, whispering';
+export const BANNED = ['bright', 'cute', 'small', 'light', 'childlike', 'high-pitched'];
+export const SUGGESTIONS = 'airy, breathy, soft-spoken, whispering';
 
 function instructionOf(sheet) {
   const pairs = [...SHEET_ORDER.filter((k) => k in sheet).map((k) => [k, sheet[k]]), ...Object.entries(sheet.extra || {})];
   return pairs.map(([k, v]) => `${k[0].toUpperCase()}${k.slice(1)}: ${String(v).trim().replace(/\.$/, '')}.`).join(' ');
 }
 
-function warningsOf(sheet) {
+/* Como `gvoice/sheet.py` (`is_adult`, mismas reglas; lo comprueba tests/test_ui_js.py sobre un juego de fichas). */
+const CHILD = /^(child\w*|kids?|teen\w*|boys?|girls?|youth\w*|juveniles?|minors?|underage|babys?|babies|infants?|toddlers?|adolescent\w*|tweens?|preteens?)$/;
+const ADULT = /^(adults?|middle|aged|elderly|old|older|senior|mature|men|man|women|woman|(twen|thir|for|fif|six|seven|eight|nine)ties|[2-9]0s|(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)\w*)$/;
+function isAdult(age) {
+  if (typeof age !== 'string') return false;
+  const words = age.toLowerCase().match(/[a-z0-9]+/g) || [];
+  const numbers = words.filter((w) => /^\d+$/.test(w)).map(Number);
+  if (numbers.some((n) => n < 18)) return false;
+  for (let i = 0; i < words.length; i++) {
+    if (CHILD.test(words[i])) return false;
+    if (words[i] === 'young' && words[i + 1] !== 'adult') return false;
+  }
+  return words.some((w) => ADULT.test(w)) || numbers.some((n) => n >= 18);
+}
+
+export function warningsOf(sheet) {
   const out = [];
   const age = String(sheet.age || '').toLowerCase();
   if (!age.trim()) out.push({ code: 'sheet.age_missing', params: {} });
-  else if (!/\b(adult|adults|middle|aged|elderly|old|senior|mature|[2-9]0s|\d{2,})\b/.test(age) || /\b(child\w*|kid\w*|teen\w*|young)\b/.test(age.replace('young adult', ''))) {
+  else if (!isAdult(sheet.age)) {
     out.push({ code: 'sheet.age_not_adult', params: { age: sheet.age } });
   }
   const fields = [...SHEET_ORDER.filter((k) => k in sheet).map((k) => [k, sheet[k]]), ...Object.entries(sheet.extra || {})];

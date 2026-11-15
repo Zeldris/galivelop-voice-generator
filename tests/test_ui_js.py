@@ -20,6 +20,20 @@ def node_major():
     m = re.match(r"v(\d+)", out.strip())
     return int(m.group(1)) if m else 0
 
+PATTERN_CASES = ["a", "0", "abc-def", "a-", "a--b", "-a", "A", "aB", "a/b", "a/b/c-1", "/a", "a/", "a//b", "a/-b", "a b",
+                 "a_b", "voz/id-01", "ñ", "a/B", "", "-", "a.b", "../a", "a/../b", "1/2"]
+SHEETS = [
+    {}, {"gender": "male"}, {"age": "  "},
+    {"age": "child"}, {"age": "12 years old"}, {"age": "teenager"}, {"age": "young"}, {"age": "young adult"},
+    {"age": "young man"}, {"age": "adult"}, {"age": "middle-aged adult"}, {"age": "elderly"}, {"age": "30s"},
+    {"age": "thirties"}, {"age": "25"}, {"age": "Adult"}, {"age": "child-like adult"}, {"age": "ageless"},
+    {"age": "adult", "texture": "bright, gravelly"}, {"age": "adult", "tone": "Bright"},
+    {"age": "adult", "pitch": "high-pitched"}, {"age": "adult", "pitch": "high pitched"},
+    {"age": "adult", "extra": {"mood": "cute and light"}}, {"age": "adult", "texture": "brightness"},
+    {"age": "adult", "texture": "small-ish"}, {"age": "adult", "emotion": "childlike"},
+    {"age": "adult", "tone": "calm", "personality": "precise"}, {"extra": {"x": "small"}},
+]
+
 
 class UiJs(unittest.TestCase):
     @classmethod
@@ -375,6 +389,57 @@ out({ voice, line, orphan, unchosen: list.json.map((o) => o.key) });
         # a line of a voice with no chosen take is refused by the API, with its reason
         self.assertEqual((got["orphan"]["status"], got["orphan"]["code"]), (409, "order.voice_not_fixed"))
         self.assertEqual(got["unchosen"], ["narrator/outro", "orc", "wizard"])
+
+    def test_order_model_constants_match_python_sources(self):
+        """The limits copied into order-model.js equal their sources (common/order schemas, orders.py)."""
+        from gvoice import orders
+        got = self.run_js("""
+const m = await mod('js/order-model.js');
+const keys = %s, segs = %s;
+out({ MAX_COUNT: m.MAX_COUNT, MAX_SEED: m.MAX_SEED, MAX_KEY: m.MAX_KEY, MAX_TEST_TEXT: m.MAX_TEST_TEXT,
+  MAX_LINE_TEXT: m.MAX_LINE_TEXT, SHEET_FIELDS: m.SHEET_FIELDS,
+  key: keys.map((k) => m.KEY_PATTERN.test(k)), seg: segs.map((k) => m.SEGMENT_PATTERN.test(k)) });
+""" % (json.dumps(PATTERN_CASES), json.dumps(PATTERN_CASES)))
+        common = schema.load_schema("common")["$defs"]
+        order_props = schema.load_schema("order")["properties"]
+        self.assertEqual(got["MAX_SEED"], common["seed"]["maximum"])
+        self.assertEqual(got["MAX_SEED"], orders.SEED_LIMIT - 1)
+        self.assertEqual(got["MAX_KEY"], common["key"]["maxLength"])
+        self.assertEqual(got["MAX_TEST_TEXT"], common["testText"]["maxLength"])
+        self.assertEqual(got["MAX_LINE_TEXT"], order_props["text"]["maxLength"])
+        with self.assertRaises(Exception) as cm:  # MAX_COUNT: 1..50 in orders.check_count, no schema
+            orders.check_count(got["MAX_COUNT"] + 1)
+        self.assertIn("count_invalid", str(getattr(cm.exception, "code", cm.exception)))
+        orders.check_count(got["MAX_COUNT"])
+        props = [k for k in schema.load_schema("design-sheet")["properties"] if k not in ("$schema", "extra")]
+        self.assertEqual(got["SHEET_FIELDS"], props)
+        for name, rx_js in (("key", got["key"]), ("seg", got["seg"])):
+            rx = re.compile(common["key" if name == "key" else "name"]["pattern"])
+            self.assertEqual(rx_js, [bool(rx.search(c)) for c in PATTERN_CASES], name)
+
+    def test_mock_limits_match_python(self):
+        """api-mock.js hard-codes count 1..50 (twice); it has no seed limit of its own (no source to compare)."""
+        src = (UI / "mock" / "api-mock.js").read_text(encoding="utf-8")
+        found = re.findall(r"count < 1 \|\| count > (\d+)", src)
+        self.assertEqual(len(found), 2)
+        got = self.run_js("const m = await mod('js/order-model.js'); out(m.MAX_COUNT);")
+        self.assertEqual({int(n) for n in found}, {got})
+
+    def test_mock_warnings_match_sheet_py(self):
+        """warningsOf / BANNED / SUGGESTIONS of the mock give the same warnings as gvoice.sheet.warnings."""
+        from gvoice import sheet
+        got = self.run_js("""
+const m = await mod('mock/api-mock.js');
+const sheets = %s;
+out({ banned: m.BANNED, suggestions: m.SUGGESTIONS, warnings: sheets.map((s) => m.warningsOf(s)) });
+process.exit(0);
+""" % json.dumps(SHEETS))
+        self.assertEqual(got["banned"], list(sheet.BANNED_WORDS))
+        self.assertEqual(got["suggestions"], ", ".join(sheet.SUGGESTIONS))
+        for s, js in zip(SHEETS, got["warnings"]):
+            py = [{"code": w.code, "params": w.params}
+                  for w in sheet.warnings(s)]
+            self.assertEqual(js, py, json.dumps(s))
 
 
 if __name__ == "__main__":

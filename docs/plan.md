@@ -130,7 +130,7 @@ sorpresas).
 
 ## F5 en detalle (hoja de ruta, 2026-11-15)
 
-Borrador para la persona; nada de esto está implementado. **Avance: 0 %.** No hay interfaz, ni API (F4), ni efectos
+Borrador para la persona; solo F5.1 está implementado. **Avance: F5.1 hecho (1 de 9 pasos, ~10 %).** Hay base de interfaz, contrato y simulador; no hay API (F4) ni efectos
 (F3). La base que usará ya existe: proyectos, pedidos, tomas, elegir y deshacer, cola, avisos de la ficha y textos
 es/en (F1), además del motor real (F2).
 
@@ -181,7 +181,7 @@ Mientras no haya logo ni iconos, nombre en texto y tokens con los nombres de `gi
 | Paso | Qué | Hecho cuando |
 |---|---|---|
 | F5.0 | Recursos de marca (los pide la persona en una sesión de GVIG; ver abajo) | Archivos en `gvoice/ui/assets/` |
-| F5.1 | Base copiada de `gimg/ui`: `index.html`, tokens con el acento de voces, CSS, fuentes, núcleo JS, servidor estático con CSP y tests estáticos | Tests de CSP, imports y claves es/en; contraste de los tokens |
+| F5.1 | **Hecho (2026-11-15).** Base copiada de `gimg/ui`: `index.html`, tokens con el acento de voces, CSS, fuentes, núcleo JS, servidor estático con CSP y tests estáticos; contrato en `docs/api.md` | Tests de CSP, imports y claves es/en; contraste de los tokens |
 | F5.2 | Proyectos y pedidos (`voice`, `line`): lista, filtros y «Nuevo pedido» | Recorrido con `?mock=1` y con el motor falso |
 | F5.3 | Ficha de diseño con avisos (`sheet.py`), cada uno con icono y texto | Tests de cada aviso en pantalla |
 | F5.4 | Galería de tomas: reproductor, forma de onda (picos calculados en el servidor con `wave`), elegir/deshacer y estado de las huellas | Reproducir, elegir y deshacer con teclado y mando |

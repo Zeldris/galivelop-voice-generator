@@ -261,5 +261,6 @@
   "error.api.not_implemented": "Esta ruta de la API aún no está implementada.",
   "error.api.not_found": "No existe la ruta «{path}».",
   "error.api.method_not_allowed": "El método {method} no vale para esta ruta.",
-  "error.api.bad_host": "Petición rechazada: la cabecera Host no es la local."
+  "error.api.bad_host": "Petición rechazada: la cabecera Host no es la local.",
+  "error.api.bad_param": "El parámetro «{name}» no es válido."
 }

@@ -261,5 +261,6 @@
   "error.api.not_implemented": "This API route is not implemented yet.",
   "error.api.not_found": "There is no route \"{path}\".",
   "error.api.method_not_allowed": "Method {method} is not allowed on this route.",
-  "error.api.bad_host": "Request refused: the Host header is not the local one."
+  "error.api.bad_host": "Request refused: the Host header is not the local one.",
+  "error.api.bad_param": "The parameter \"{name}\" is not valid."
 }

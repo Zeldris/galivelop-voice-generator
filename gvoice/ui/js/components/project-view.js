@@ -10,13 +10,15 @@ import { to, replaceHash } from '../router.js';
 import { filtersFromQuery, filtersToQuery, orderSummary, ordersOf } from '../order-model.js';
 import { openNewOrder } from './new-order.js';
 import { openSheetDialog } from './sheet-dialog.js';
+import { busy, latest, lifetime, STALE } from '../async-guard.js';
 
 const loading = () => h('p.empty', {}, h('span.spin', { aria: { hidden: true } }), ' ', t('ui.loading'));
 
 export function projectView(route) {
   const { project } = route;
-  let alive = true;
-  let seq = 0;
+  const life = lifetime();
+  const alive = life.alive;
+  const loads = latest(); // dos cambios seguidos de filtro: solo vale la respuesta del último
   const filters = filtersFromQuery(route.query);
 
   const typeSel = h('select', { id: 'f-type' },
@@ -30,45 +32,37 @@ export function projectView(route) {
   const count = h('span.hint', { aria: { live: 'polite' } });
   const list = h('div.order-list', { aria: { live: 'polite', busy: 'true' } }, loading());
   let dialog = null;   // el diálogo abierto
-  let opening = false; // guarda: mientras se abre o está abierto, otro clic no abre otro (ids duplicados)
-  async function openDialog() {
-    if (opening) return;
-    opening = true;
-    const dlg = await openNewOrder(project, { opener: newBtn, onCreated: () => { if (alive) load(); }, onClose: () => { dialog = null; opening = false; } });
-    if (!dlg) { opening = false; return; }
+  // guarda: mientras se abre o está abierto, otro clic no abre otro (ids duplicados); `release` al cerrarse
+  const openDialog = busy(async () => {
+    const dlg = await openNewOrder(project, { opener: newBtn, onCreated: () => { if (alive()) load(); }, onClose: () => { dialog = null; openDialog.release(); } });
+    if (!dlg) return null;
     dialog = dlg;
-    if (!alive) closeDialog(); // la ruta cambió mientras se abría
-  }
+    if (!alive()) closeDialog(); // la ruta cambió mientras se abría
+    return dlg;
+  }, { keep: (dlg) => Boolean(dlg) });
   function closeDialog() {
     if (!dialog) return;
     const dlg = dialog;
     dialog = null;
     dlg.close();
     dlg.remove(); // el `close` async quitaría también el diálogo, pero no hay que esperarlo
-    opening = false;
+    openDialog.release();
   }
   let sheetDlg = null;  // el diálogo «Ficha» abierto (uno a la vez)
-  let sheetOpening = false;
-  async function openSheet(key, opener) {
-    if (sheetOpening) return;
-    sheetOpening = true;
-    let dlg = null;
-    try {
-      dlg = await openSheetDialog(project, key, { opener, isAlive: () => alive, onClose: () => { sheetDlg = null; sheetOpening = false; } });
-    } finally {
-      if (!dlg) sheetOpening = false;
-    }
-    if (!dlg) return;
+  const openSheet = busy(async (key, opener) => {
+    const dlg = await openSheetDialog(project, key, { opener, isAlive: alive, onClose: () => { sheetDlg = null; openSheet.release(); } });
+    if (!dlg) return null;
     sheetDlg = dlg;
-    if (!alive) closeSheet();
-  }
+    if (!alive()) closeSheet();
+    return dlg;
+  }, { keep: (dlg) => Boolean(dlg) });
   function closeSheet() {
     if (!sheetDlg) return;
     const dlg = sheetDlg;
     sheetDlg = null;
     dlg.close();
     dlg.remove();
-    sheetOpening = false;
+    openSheet.release();
   }
   const newBtn = h('button.btn.btn-primary', { type: 'button', onclick: openDialog }, '+ ', t('ui.project.newOrder'));
   const head = h('div.page-head', {}, h('h1', {}, project));
@@ -80,18 +74,17 @@ export function projectView(route) {
     list);
 
   async function load() {
-    const mine = ++seq; // dos cambios seguidos de filtro: solo vale la respuesta del último
     const query = filtersToQuery({ type: typeSel.value, chosen: chosenSel.value });
     list.setAttribute('aria-busy', 'true');
     replace(list, loading());
     try {
-      const res = await api.orders(project, query);
-      if (!alive || mine !== seq) return;
+      const res = await loads.run(api.orders(project, query));
+      if (res === STALE || !alive()) return;
       const orders = ordersOf(res).map(orderSummary);
       count.textContent = t('ui.project.orderCount', { n: orders.length });
       replace(list, orders.length ? orders.map((o) => row(project, o, openSheet)) : h('div.empty', {}, h('p', {}, t(Object.keys(query).length ? 'ui.project.noMatch' : 'ui.project.noOrders'))));
     } catch (e) {
-      if (!alive || mine !== seq) return;
+      if (!alive()) return;
       count.textContent = '';
       replace(list, h('p.notice.notice-bad', { role: 'alert' }, '✗ ', describeError(e, t)));
     }
@@ -105,18 +98,18 @@ export function projectView(route) {
   (async () => {
     try {
       const info = await api.project(project);
-      if (!alive) return;
+      if (!alive()) return;
       head.append(h('span.path.hint', { title: info.root || '' }, info.root || ''));
     } catch (e) {
-      if (!alive) return;
+      if (!alive()) return;
       replace(node, h('div.page-head', {}, h('h1', {}, project)), h('p.notice.notice-bad', { role: 'alert' }, '✗ ', describeError(e, t)),
         h('a.btn', { href: to.projects() }, t('ui.nav.projects')));
-      seq++; // la lista no se pide
+      loads.invalidate(); // la lista no se pide
       return;
     }
     load();
   })();
-  return { node, cleanup: () => { alive = false; closeDialog(); closeSheet(); } };
+  return { node, cleanup: () => { life.end(); closeDialog(); closeSheet(); } };
 }
 
 function row(project, o, openSheet) {

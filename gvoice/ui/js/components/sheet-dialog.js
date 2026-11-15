@@ -9,6 +9,7 @@ import { sheetPanel } from './sheet-warnings.js';
 import { toastError } from './toast.js';
 
 export async function openSheetDialog(project, key, { opener = null, onClose = null, isAlive = () => true } = {}) {
+  // `isAlive` es la `alive()` de `lifetime()` de la vista (../async-guard.js)
   let res;
   try { res = await api.sheet(project, key); } catch (e) { if (isAlive()) toastError(describeError(e, t)); return null; }
   if (!isAlive()) return null; // la ruta cambió mientras la ficha estaba en vuelo: ni se crea ni se muestra

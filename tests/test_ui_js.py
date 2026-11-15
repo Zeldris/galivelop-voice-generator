@@ -11,6 +11,7 @@ from pathlib import Path
 from gvoice import schema
 
 UI = Path(__file__).resolve().parent.parent / "gvoice" / "ui"
+FAKE_DOM_URL = (Path(__file__).resolve().parent / "ui_fake_dom.mjs").as_uri()  # DOM falso compartido
 NODE = shutil.which("node")
 MIN_NODE = 18  # ES modules, structuredClone, global fetch/URL
 
@@ -47,6 +48,7 @@ class UiJs(unittest.TestCase):
         """Run ``body`` as an ES module with ``mod(path)`` importing from gvoice/ui; return the JSON it ``out(...)``s."""
         script = (
             f"const UI = {json.dumps(UI.as_uri())};\n"
+            f"const FAKE_DOM_URL = {json.dumps(FAKE_DOM_URL)};\n"
             "const mod = (p) => import(UI + '/' + p);\n"
             "const out = (v) => process.stdout.write(JSON.stringify(v));\n" + body
         )
@@ -445,28 +447,8 @@ process.exit(0);
     # ---- F5.3: ficha con avisos ----
 
     FAKE_DOM = """
-class FakeNode { constructor() { this.children = []; this.parent = null; }
-  append(...c) { for (const x of c) this.appendChild(typeof x === 'string' ? new FakeText(x) : x); }
-  appendChild(c) { c.parent = this; this.children.push(c); return c; }
-  removeChild(c) { this.children = this.children.filter((x) => x !== c); c.parent = null; return c; }
-  get firstChild() { return this.children[0] || null; }
-  get textContent() { return this.children.map((c) => c.textContent).join(''); }
-  set textContent(v) { this.children = [new FakeText(String(v))]; }
-}
-class FakeText extends FakeNode { constructor(s) { super(); this.text = s; } get textContent() { return this.text; } set textContent(v) { this.text = String(v); } }
-class FakeEl extends FakeNode {
-  constructor(tag) { super(); this.tag = tag; this.attrs = {}; this.className = ''; this.dataset = {}; this.hidden = false; this.listeners = {}; }
-  setAttribute(k, v) { this.attrs[k] = String(v); }
-  addEventListener(k, fn) { this.listeners[k] = fn; }
-  find(pred, acc = []) { for (const c of this.children) if (c instanceof FakeEl) { if (pred(c)) acc.push(c); c.find(pred, acc); } return acc; }
-}
-globalThis.Node = FakeNode;
-globalThis.document = {
-  documentElement: { lang: '' },
-  createElement: (tag) => new FakeEl(tag),
-  createElementNS: (ns, tag) => { const e = new FakeEl(tag); e.ns = ns; return e; },
-  createTextNode: (s) => new FakeText(s),
-};
+const { installFakeDom, flush: flushAll, fakeTimers } = await import(FAKE_DOM_URL);
+installFakeDom();
 """
 
     LOAD_LOCALE = """
@@ -627,7 +609,7 @@ out({ sent, errors, bad });
 const { openSheetDialog } = await mod('js/components/sheet-dialog.js');
 await i18n.load('es');
 const appended = []; const toasts = [];
-globalThis.document.body = { append: (n) => appended.push(n) };
+document.body.append = (n) => appended.push(n); // cuenta lo que se añade al cuerpo
 const run = async (apiFn, alive) => {
   const before = appended.length;
   api.sheet = apiFn;
@@ -682,6 +664,139 @@ out(r);
         self.assertEqual(got["results"], ["abc"])
         self.assertEqual(got["errors"], ["caído"])
         self.assertEqual(got["afterCancel"], ["abc"])
+
+    # ---- retro F5.3: async-guard.js y el DOM falso compartido ----
+
+    def test_async_guard_latest_discards_old_responses_and_their_failures(self):
+        got = self.run_js("""
+const { latest, STALE } = await mod('js/async-guard.js');
+const defer = () => { let res, rej; const p = new Promise((a, b) => { res = a; rej = b; }); return { p, res, rej }; };
+const g = latest();
+const a = defer(), b = defer();
+const ra = g.run(a.p), rb = g.run(b.p);
+b.res('nueva'); a.res('vieja');                    // la vieja contesta después de la nueva
+const r = { newer: await rb, older: (await ra) === STALE };
+const c = defer(), d = defer();
+const rc = g.run(c.p).catch((e) => 'lanzó ' + e.message), rd = g.run(d.p);
+c.rej(new Error('viejo')); d.res('ok');           // el fallo de una vieja no llega a nadie
+r.oldFailure = (await rc) === STALE; r.afterOld = await rd;
+const e = defer(); const re = g.run(e.p).catch((x) => 'lanzó ' + x.message);
+e.rej(new Error('último'));                        // el de la última sí
+r.lastFailure = await re;
+const f = defer(); const rf = g.run(f.p); g.invalidate(); f.res('tarde');
+r.invalidated = (await rf) === STALE;
+out(r);
+""")
+        self.assertEqual(got, {"newer": "nueva", "older": True, "oldFailure": True, "afterOld": "ok",
+                               "lastFailure": "lanzó último", "invalidated": True})
+
+    def test_async_guard_busy_ignores_overlapping_calls_and_resets_after_a_throw(self):
+        got = self.run_js("""
+const { busy } = await mod('js/async-guard.js');
+const defer = () => { let res; const p = new Promise((a) => { res = a; }); return { p, res }; };
+const r = {};
+let calls = 0; let gate = defer(); const changes = [];
+const fn = busy(async (x) => { calls++; await gate.p; if (x === 'boom') throw new Error('boom'); return x; }, { onChange: (v) => changes.push(v) });
+const first = fn('a'); const second = await fn('b');  // la segunda no hace nada mientras corre la primera
+r.secondIgnored = second === undefined; r.activeWhileRunning = fn.active;
+gate.res(); r.first = await first; r.calls = calls; r.activeAfter = fn.active;
+gate = defer(); gate.res();
+try { await fn('boom'); } catch (e) { r.threw = e.message; }
+r.activeAfterThrow = fn.active;                        // la bandera se repone con `finally`
+r.again = await fn('c');
+r.changes = changes;
+// `keep`: la bandera sigue puesta hasta `release()`
+const held = busy(async () => 'dlg', { keep: (v) => v === 'dlg' });
+await held(); r.heldActive = held.active; r.heldIgnored = (await held()) === undefined; held.release(); r.released = held.active;
+const { lifetime } = await mod('js/async-guard.js');
+const life = lifetime(); r.alive = life.alive(); life.end(); r.dead = life.alive();
+out(r);
+""")
+        self.assertEqual(got["secondIgnored"], True)
+        self.assertEqual((got["activeWhileRunning"], got["first"], got["calls"], got["activeAfter"]), (True, "a", 1, False))
+        self.assertEqual((got["threw"], got["activeAfterThrow"], got["again"]), ("boom", False, "c"))
+        self.assertEqual(got["changes"], [True, False, True, False, True, False])
+        self.assertEqual((got["heldActive"], got["heldIgnored"], got["released"]), (True, True, False))
+        self.assertEqual((got["alive"], got["dead"]), (True, False))
+
+    def test_project_view_paints_nothing_after_cleanup_and_drops_old_filter_answers(self):
+        got = self.run_js(self.LOAD_LOCALE + self.FAKE_DOM + """
+const { projectView } = await mod('js/components/project-view.js');
+await i18n.load('es');
+const defer = () => { let res; const p = new Promise((a) => { res = a; }); return { p, res }; };
+const order = (key) => ({ key, type: 'voice', testText: 'hola', attempts: [], chosen: null });
+const rows = (v) => v.node.find((e) => e.className.includes('order-row')).map((e) => e.attrs['aria-label']);
+api.project = async () => ({ root: '/x' });
+const r = {};
+// vista muerta: la respuesta llega después de `cleanup` y no pinta
+let gate = defer(); api.orders = () => gate.p;
+const dead = projectView({ project: 'p', query: {} });
+await flushAll(); dead.cleanup(); gate.res([order('a')]); await flushAll();
+r.deadRows = rows(dead); r.deadBusy = dead.node.find((e) => e.attrs['aria-busy'] !== undefined).map((e) => e.attrs['aria-busy']);
+// viva: con dos peticiones seguidas solo vale la última
+const gates = []; api.orders = () => { const g = defer(); gates.push(g); return g.p; };
+const live = projectView({ project: 'p', query: {} });
+await flushAll();
+live.node.find((e) => e.attrs.id === 'f-type')[0].dispatchEvent('change');   // segunda petición
+await flushAll();
+gates[1].res([order('nuevo')]); await flushAll();
+gates[0].res([order('viejo')]); await flushAll();
+r.liveRows = rows(live);
+out(r);
+""")
+        self.assertEqual(got["deadRows"], [])
+        self.assertEqual(got["deadBusy"], ["true"])  # sigue «cargando»: nada lo repintó
+        self.assertEqual(got["liveRows"], ["nuevo"])
+
+    def test_new_order_voice_sheet_panel_follows_the_fields(self):
+        got = self.run_js(self.LOAD_LOCALE + self.FAKE_DOM + """
+const { openNewOrder } = await mod('js/components/new-order.js');
+const { warningsOf } = await mod('mock/api-mock.js');
+await i18n.load('es');
+const timers = fakeTimers();
+const checks = [];
+api.project = async () => ({ config: { voices: {} } });
+api.orders = async () => [];
+api.checkSheet = async (s) => { checks.push(s); return { instruction: JSON.stringify(s), warnings: warningsOf(s) }; };
+const dlg = await openNewOrder('p', {});
+const codes = () => dlg.find((e) => e.tag === 'li' && e.dataset.code).map((li) => li.dataset.code);
+const okShown = () => dlg.find((e) => e.className.includes('sheet-ok')).length;
+const field = (id) => dlg.find((e) => e.attrs.id === id)[0];
+const r = { open: dlg.open, inBody: dlg.isConnected };
+await flushAll(); await timers.advance(300);
+r.initial = codes();                                            // ficha vacía: ya avisa de la edad
+field('no-sheet-age').type('child');
+await timers.advance(299); r.beforeDelay = codes();             // aún no pasó la espera: nada cambia
+await timers.advance(1); r.child = codes();
+field('no-sheet-age').type('adult'); field('no-sheet-texture').type('bright');   // dos pulsaciones, una petición
+await timers.advance(300); r.bright = codes(); r.callsSoFar = checks.length;
+// una línea de «extra» mal escrita no rompe el panel: sigue actualizándose al cambiar la edad
+field('no-extra').type('sin dos puntos');
+field('no-sheet-texture').type('');
+await timers.advance(300);
+field('no-sheet-age').type('child');
+await timers.advance(300);
+r.withBadExtra = codes(); r.lastSheet = checks[checks.length - 1];
+field('no-sheet-age').type('adult'); await timers.advance(300);
+r.fixed = codes(); r.ok = okShown();
+// cerrar cancela lo pendiente: nada se pide después
+field('no-sheet-age').type('elderly'); const before = checks.length;
+dlg.close(); await flushAll(); await timers.advance(1000);
+r.afterClose = checks.length - before; r.removed = dlg.isConnected;
+timers.restore();
+out(r);
+process.exit(0);
+""")
+        self.assertTrue(got["open"] and got["inBody"])
+        self.assertEqual(got["initial"], ["sheet.age_missing"])
+        self.assertEqual(got["beforeDelay"], ["sheet.age_missing"])
+        self.assertEqual(got["child"], ["sheet.age_not_adult"])
+        self.assertEqual(got["bright"], ["sheet.banned_word"])
+        self.assertEqual(got["callsSoFar"], 3)  # inicial, «child», y una sola por las dos pulsaciones
+        self.assertEqual(got["withBadExtra"], ["sheet.age_not_adult"])
+        self.assertEqual(got["lastSheet"], {"age": "child"})  # la línea mal escrita queda fuera de la ficha
+        self.assertEqual((got["fixed"], got["ok"]), ([], 1))
+        self.assertEqual((got["afterClose"], got["removed"]), (0, False))
 
     def test_sheet_from_fields_ignores_empty_fields_and_reports_bad_extra(self):
         got = self.run_js("""

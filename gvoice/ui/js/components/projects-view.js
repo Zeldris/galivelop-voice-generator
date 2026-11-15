@@ -8,12 +8,14 @@ import { api, describeError } from '../api.js';
 import { to } from '../router.js';
 import { confirmAction } from './confirm.js';
 import { toastError, toastOk } from './toast.js';
+import { latest, lifetime, STALE } from '../async-guard.js';
 
 const loading = () => h('p.empty', {}, h('span.spin', { aria: { hidden: true } }), ' ', t('ui.loading'));
 
 export function projectsView() {
-  let alive = true;
-  let seq = 0;
+  const life = lifetime();
+  const alive = life.alive;
+  const loads = latest();
   const count = h('span.hint', { aria: { live: 'polite' } });
   const list = h('div', { aria: { live: 'polite', busy: 'true' } }, loading());
   const path = h('input', { id: 'pv-path', type: 'text', autocomplete: 'off', spellcheck: 'false', aria: { describedby: 'pv-path-hint pv-path-error' } });
@@ -30,12 +32,12 @@ export function projectsView() {
     send.disabled = true;
     try {
       const res = await api.addProject(value);
-      if (!alive) return;
+      if (!alive()) return;
       path.value = '';
       toastOk(t('ui.projects.added', { name: (res && res.name) || value }));
       await load();
     } catch (e) {
-      if (!alive) return;
+      if (!alive()) return;
       const message = describeError(e, t);
       error.textContent = `✗ ${message}`;
       error.hidden = false;
@@ -51,27 +53,26 @@ export function projectsView() {
       message: t('ui.projects.remove.message', { name: p.name, root: p.root || '' }),
       confirmLabel: t('ui.projects.remove.confirm'), opener,
     });
-    if (!yes || !alive) return;
+    if (!yes || !alive()) return;
     try {
       await api.removeProject(p.name);
       toastOk(t('ui.projects.removed', { name: p.name }));
     } catch (e) { toastError(describeError(e, t)); }
-    if (alive) await load();
+    if (alive()) await load();
   }
 
   async function load() {
-    const mine = ++seq;
     list.setAttribute('aria-busy', 'true');
     try {
-      const res = await api.projects();
-      if (!alive || mine !== seq) return;
+      const res = await loads.run(api.projects());
+      if (res === STALE || !alive()) return;
       const projects = (Array.isArray(res) ? res : (res && res.projects) || []).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
       count.textContent = t('ui.projects.count', { n: projects.length });
       replace(list, projects.length
         ? h('div.project-grid', {}, projects.map((p) => card(p, remove)))
         : h('div.empty', {}, h('p', {}, t('ui.projects.empty'))));
     } catch (e) {
-      if (!alive || mine !== seq) return;
+      if (!alive()) return;
       count.textContent = '';
       replace(list, h('p.notice.notice-bad', { role: 'alert' }, '✗ ', describeError(e, t)));
     }
@@ -80,7 +81,7 @@ export function projectsView() {
 
   const node = h('section', {}, h('div.page-head', {}, h('h1', {}, t('ui.projects.title')), count), form, list);
   load();
-  return { node, cleanup: () => { alive = false; } };
+  return { node, cleanup: () => { life.end(); } };
 }
 
 function card(p, remove) {

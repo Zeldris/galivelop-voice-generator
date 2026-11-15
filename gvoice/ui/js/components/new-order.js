@@ -13,6 +13,7 @@ import { t } from '../i18n.js';
 import { api, describeError } from '../api.js';
 import { SHEET_FIELDS, MAX_COUNT, MAX_SEED, buildOrder, ordersOf, sheetFromFields } from '../order-model.js';
 import { createSheetChecker } from '../sheet-check.js';
+import { busy } from '../async-guard.js';
 import { sheetPanel } from './sheet-warnings.js';
 import * as poll from '../queue-poll.js';
 import { toastError, toastOk } from './toast.js';
@@ -55,8 +56,6 @@ export async function openNewOrder(project, { opener = null, onCreated = null, o
   const configVoices = Object.keys((info.config && info.config.voices) || {});
   const chosenOf = new Map(allOrders.filter((o) => o.type === 'voice').map((o) => [o.key, o.chosen !== null && o.chosen !== undefined]));
   const voices = [...new Set([...configVoices, ...chosenOf.keys()])].sort();
-
-  let busy = false;
 
   const error = h('p.notice.notice-bad', { id: 'no-error', role: 'alert', hidden: true });
   const typeSel = h('select', { id: 'no-type' },
@@ -152,28 +151,26 @@ export async function openNewOrder(project, { opener = null, onCreated = null, o
     if (focusOn) focusOn.focus();
   }
   function setBusy(v) {
-    busy = v;
     send.disabled = v;
     replace(sendLabel, v ? t('ui.newOrder.sending') : t('ui.newOrder.submit'));
   }
 
-  async function submit() {
-    if (busy) return;
+  // un solo envío a la vez (doble clic o Intro repetido); la bandera se repone con `finally` y el botón la sigue
+  const submit = busy(async () => {
     error.hidden = true;
     const { body, errors } = buildOrder(fields(), existingKeys);
     if (!body) {
       showError(errors.map(validationText).join(' '), focusOf[errors[0].field]);
       return;
     }
-    setBusy(true);
     let res;
-    try { res = await api.newOrder(project, body.order, body.count); } catch (e) { setBusy(false); showError(describeError(e, t)); return; }
+    try { res = await api.newOrder(project, body.order, body.count); } catch (e) { showError(describeError(e, t)); return; }
     const n = res && Array.isArray(res.entries) ? res.entries.length : body.count;
     toastOk(t('ui.newOrder.created', { key: body.order.key, n }));
     poll.refreshNow();
     dlg.close();
     if (onCreated) onCreated(res);
-  }
+  }, { onChange: setBusy });
 
   dlg.addEventListener('keydown', (ev) => ev.stopPropagation()); // los atajos globales no actúan con el panel abierto
   dlg.addEventListener('close', () => {

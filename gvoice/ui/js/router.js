@@ -3,6 +3,7 @@
    #/                              proyectos
    #/p/<proyecto>[/orders]         un proyecto
    #/p/<proyecto>/o/<clave codificada>   un pedido (la clave de una frase lleva «/»: va con encodeURIComponent)
+   #/p/<proyecto>/o/<clave codificada>/ab?a=<id>&b=<id>   comparación A/B de dos tomas del pedido (F5.5)
    Opcional: ...?a=<id> enfoca esa toma al abrir el pedido; #/p/<proyecto>?type=voice|line&chosen=true|false filtra la lista. */
 
 const listeners = new Set();
@@ -15,6 +16,7 @@ export function parse(hash = location.hash) {
   try { seg = pathPart.split('/').filter(Boolean).map(decodeURIComponent); } catch { return { name: 'notfound', query }; } // %E0%A4 mal formado
   if (seg.length === 0) return { name: 'projects', query };
   if (seg[0] === 'p' && seg[1]) {
+    if (seg[2] === 'o' && seg[3] && seg[4] === 'ab' && seg.length === 5) return { name: 'compare', project: seg[1], key: seg[3], query };
     if (seg[2] === 'o' && seg[3]) return { name: 'order', project: seg[1], key: seg[3], query };
     if (seg[2] === undefined || seg[2] === 'orders') return { name: 'project', project: seg[1], tab: 'orders', query };
   }
@@ -28,6 +30,10 @@ export const to = {
     return `#/p/${encodeURIComponent(p)}/${tab}${qs ? '?' + qs : ''}`;
   },
   order: (p, key, attempt) => `#/p/${encodeURIComponent(p)}/o/${encodeURIComponent(key)}${attempt ? '?a=' + attempt : ''}`,
+  compare: (p, key, a, b) => {
+    const qs = new URLSearchParams(Object.entries({ a, b }).filter(([, v]) => v !== undefined && v !== null && v !== '')).toString();
+    return `#/p/${encodeURIComponent(p)}/o/${encodeURIComponent(key)}/ab${qs ? '?' + qs : ''}`;
+  },
 };
 
 export function navigate(hash) { if (location.hash !== hash) location.hash = hash; else emit(); }

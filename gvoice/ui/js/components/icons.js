@@ -1,4 +1,4 @@
-/* Nuevo en gvoice (no copiado de gimg) (F5.4). Iconos de la interfaz: serie propia de línea simple, legible a 24 px
+/* Nuevo en gvoice (no copiado de gimg) (F5.4; `swap` y `back`, F5.5). Iconos de la interfaz: serie propia de línea simple, legible a 24 px
    (sin lucide), hecha con `createElementNS` (sin archivos externos, compatible con la CSP). Van con `aria-hidden`: el
    texto que los acompaña es lo que se lee. Los avisos de la ficha llevan los suyos en sheet-warnings.js. */
 
@@ -12,9 +12,11 @@ const SHAPES = {
   undo: [['path', { d: 'M9 14L4 9l5-5' }], ['path', { d: 'M4 9h10a6 6 0 0 1 0 12h-3' }]],
   keys: [['path', { d: 'M3 7h18v10H3z' }], ['path', { d: 'M7 11h.5M11 11h.5M15 11h.5M8 14h8' }]],
   plus: [['path', { d: 'M12 5v14M5 12h14' }]],
+  swap: [['path', { d: 'M7 4L3 8l4 4' }], ['path', { d: 'M3 8h15' }], ['path', { d: 'M17 20l4-4-4-4' }], ['path', { d: 'M21 16H6' }]],
+  back: [['path', { d: 'M15 5l-7 7 7 7' }]],
 };
 
-/** Icono de línea de 24 px (`play`, `pause`, `check`, `undo`, `keys`, `plus`), oculto a los lectores de pantalla. */
+/** Icono de línea de 24 px (`play`, `pause`, `check`, `undo`, `keys`, `plus`, `swap`, `back`), oculto a los lectores de pantalla. */
 export function icon(name, cls = 'icon') {
   const svg = document.createElementNS(SVG_NS, 'svg');
   for (const [k, v] of Object.entries({ viewBox: '0 0 24 24', width: 20, height: 20, fill: 'none', stroke: 'currentColor',

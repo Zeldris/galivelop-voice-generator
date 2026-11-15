@@ -1,7 +1,7 @@
 /* Copiado de gimg@46248251 (D7); adaptado a gvoice: las tomas son audios (reproducir, elegir, deshacer), no imágenes.
    Atajos de teclado y del mando de la Deck. Steam Input traduce el mando a teclas (cruceta = flechas, A = Intro,
    B = Escape); además, donde el navegador expone el mando (`navigator.getGamepads`), se lee directo: cruceta = tomas,
-   A = reproducir/pausar, X = elegir, Y = deshacer, B = pausar. Los de la galería los ejecuta order-view.js con
+   A = reproducir/pausar, X = elegir, Y = deshacer, B = pausar, LB/RB = cambiar A↔B (comparación A/B, F5.5). Los de la galería los ejecuta order-view.js con
    `keyAction`/`padActions` (puras); aquí van los globales y el diálogo de ayuda, que se arma en JS (sin tocar el HTML).
    Ninguno actúa mientras el foco está en un campo de texto. */
 
@@ -23,6 +23,7 @@ export const SHORTCUTS = [
     [['C'], 'ui.shortcuts.candidate'],
     [['D'], 'ui.shortcuts.discard'],
     [['G'], 'ui.shortcuts.another'],
+    [['X'], 'ui.shortcuts.swap'],
   ]],
   ['ui.shortcuts.group.pad', [
     [['✚'], 'ui.shortcuts.padDpad'],
@@ -30,6 +31,7 @@ export const SHORTCUTS = [
     [['X'], 'ui.shortcuts.choose'],
     [['Y'], 'ui.shortcuts.undo'],
     [['B'], 'ui.shortcuts.padPause'],
+    [['LB', 'RB'], 'ui.shortcuts.swap'],
   ]],
 ];
 
@@ -51,7 +53,7 @@ export function isTyping(target) {
 /* Tecla → acción de la galería. Las flechas y Intro valen siempre; las letras, solo con los atajos de una tecla
    encendidos (`letters`). Pura: la usa la vista y la prueban los tests. Con Ctrl, Meta o Alt no hay acción. */
 const KEYS = { ArrowLeft: 'prev', ArrowUp: 'prev', ArrowRight: 'next', ArrowDown: 'next', Enter: 'toggle', Escape: 'pause' };
-const LETTERS = { p: 'toggle', e: 'choose', u: 'undo', c: 'candidate', d: 'discard', g: 'another' };
+const LETTERS = { p: 'toggle', e: 'choose', u: 'undo', c: 'candidate', d: 'discard', g: 'another', x: 'swap' };
 
 export function keyAction(e, letters = true) {
   if (e.ctrlKey || e.metaKey || e.altKey) return null;
@@ -60,8 +62,8 @@ export function keyAction(e, letters = true) {
   return letters && typeof e.key === 'string' ? (LETTERS[e.key.toLowerCase()] || null) : null;
 }
 
-/* Botones del mando estándar (W3C): 0 = A, 1 = B, 2 = X, 3 = Y, 12..15 = cruceta arriba, abajo, izquierda, derecha. */
-const PAD = { 0: 'toggle', 1: 'pause', 2: 'choose', 3: 'undo', 12: 'prev', 13: 'next', 14: 'prev', 15: 'next' };
+/* Botones del mando estándar (W3C): 0 = A, 1 = B, 2 = X, 3 = Y, 4 y 5 = LB y RB, 12..15 = cruceta arriba, abajo, izquierda, derecha. */
+const PAD = { 0: 'toggle', 1: 'pause', 2: 'choose', 3: 'undo', 4: 'swap', 5: 'swap', 12: 'prev', 13: 'next', 14: 'prev', 15: 'next' };
 
 /** Acciones nuevas de un mando: las de los botones que ahora están pulsados y antes no (`before` es el array
     de booleanos del sondeo anterior). Devuelve {actions, pressed}. Pura. */

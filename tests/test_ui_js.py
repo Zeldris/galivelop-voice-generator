@@ -1525,7 +1525,7 @@ out({
   buckets: [m.bucketsFor(0), m.bucketsFor(300), m.bucketsFor(20), m.bucketsFor(100000)],
   resample: [m.resample([0.1, 0.9, 0.2, 0.4], 2), m.resample([0.5], 3), m.resample([], 3)],
   rects: m.barRects([0, 0.5, 1], 12, 64), fraction: [m.fractionAt(150, { left: 50, width: 200 }), m.fractionAt(0, { left: 50, width: 200 }), m.fractionAt(999, { left: 50, width: 200 }), m.fractionAt(5, { left: 0, width: 0 })],
-  keys: [keyAction({ key: 'ArrowRight' }), keyAction({ key: 'E' }), keyAction({ key: 'e' }, false), keyAction({ key: 'Enter' }, false), keyAction({ key: 'e', ctrlKey: true }), keyAction({ key: ' ' }), keyAction({ key: 'x' })],
+  keys: [keyAction({ key: 'ArrowRight' }), keyAction({ key: 'E' }), keyAction({ key: 'e' }, false), keyAction({ key: 'Enter' }, false), keyAction({ key: 'e', ctrlKey: true }), keyAction({ key: ' ' }), keyAction({ key: 'z' })],
 });
 """)
         self.assertEqual(got["states"], ["discarded", "chosen", "new", "new"])
@@ -1539,6 +1539,285 @@ out({
         self.assertEqual(got["rects"], [{"x": 0, "y": 32, "w": 3, "h": 1}, {"x": 4, "y": 16, "w": 3, "h": 32}, {"x": 8, "y": 0, "w": 3, "h": 64}])
         self.assertEqual(got["fraction"], [0.5, 0, 1, 0])
         self.assertEqual(got["keys"], ["next", "choose", None, "toggle", None, "toggle", None])
+
+    # ---- F5.5: comparación A/B ----
+
+    def test_compare_model_picks_the_pair_and_the_switch_point(self):
+        got = self.run_js("""
+const { pickPair, switchPoint } = await mod('js/compare-model.js');
+const t = (id, audioMs = 1000) => (audioMs === null ? { id } : { id, audioMs });
+const order = (chosen, ...attempts) => ({ chosen, attempts });
+const four = order(3, t(1), t(2, null), t(3), t(4));
+out({
+  noQuery: pickPair(four, {}), validQuery: pickPair(four, { a: '4', b: '1' }), onlyA: pickPair(four, { a: '4' }), onlyB: pickPair(four, { b: '4' }),
+  invalid: pickPair(four, { a: '2', b: '99' }), notNumbers: pickPair(four, { a: 'x', b: '' }), same: pickPair(four, { a: '1', b: '1' }),
+  noChosen: pickPair(order(null, t(5), t(6)), {}), chosenNoAudio: pickPair(order(2, t(1), t(2, null), t(3)), {}),
+  chosenFirstAudioB: pickPair(order(1, t(1), t(2)), {}), undefQuery: pickPair(four), unsorted: pickPair(order(null, t(9), t(7)), {}),
+  oneAudio: pickPair(order(1, t(1), t(2, null)), {}), none: pickPair(order(null), {}), noAttempts: pickPair({ chosen: null }, {}), nullOrder: pickPair(null, {}),
+  sp: [switchPoint(1.25, 3), switchPoint(1.25, 1), switchPoint(1.25, 1.25), switchPoint(-2, 3), switchPoint(NaN, 3), switchPoint(2, NaN), switchPoint(2, undefined), switchPoint(0, 0)],
+});
+""")
+        self.assertEqual(got["noQuery"], {"a": 3, "b": 1})            # a = la elegida (con audio); b = la primera otra
+        self.assertEqual(got["validQuery"], {"a": 4, "b": 1})
+        self.assertEqual(got["onlyA"], {"a": 4, "b": 1})
+        self.assertEqual(got["onlyB"], {"a": 3, "b": 4})
+        self.assertEqual(got["invalid"], {"a": 3, "b": 1})            # 2 no tiene audio, 99 no existe
+        self.assertEqual(got["notNumbers"], {"a": 3, "b": 1})
+        self.assertEqual(got["same"], {"a": 1, "b": 3})               # a == b: b se busca otra
+        self.assertEqual(got["noChosen"], {"a": 5, "b": 6})
+        self.assertEqual(got["chosenNoAudio"], {"a": 1, "b": 3})
+        self.assertEqual(got["chosenFirstAudioB"], {"a": 1, "b": 2})
+        self.assertEqual(got["undefQuery"], {"a": 3, "b": 1})
+        self.assertEqual(got["unsorted"], {"a": 7, "b": 9})
+        for k in ("oneAudio", "none", "noAttempts", "nullOrder"):
+            self.assertIsNone(got[k], k)
+        self.assertEqual(got["sp"], [{"pos": 1.25, "atEnd": False}, {"pos": 1, "atEnd": True}, {"pos": 1.25, "atEnd": True},
+                                     {"pos": 0, "atEnd": False}, {"pos": 0, "atEnd": False}, {"pos": 2, "atEnd": False},
+                                     {"pos": 2, "atEnd": False}, {"pos": 0, "atEnd": True}])
+
+    def test_router_compare_route_with_a_key_that_has_slashes(self):
+        got = self.run_js("""
+const { parse, to } = await mod('js/router.js');
+const key = 'narrator/intro-01';
+const hash = to.compare('mi mundo', key, 3, 5);
+out({ hash, parsed: parse(hash), bare: to.compare('p', key), onlyA: to.compare('p', key, 2), plain: parse('#/p/mundo/o/narrator%2Fintro-01'),
+  typed: parse('#/p/mundo/o/k/ab'), wrongTail: parse('#/p/mundo/o/k/ab/x').name });
+""")
+        self.assertEqual(got["hash"], "#/p/mi%20mundo/o/narrator%2Fintro-01/ab?a=3&b=5")
+        self.assertEqual(got["parsed"], {"name": "compare", "project": "mi mundo", "key": "narrator/intro-01", "query": {"a": "3", "b": "5"}})
+        self.assertEqual((got["bare"], got["onlyA"]), ("#/p/p/o/narrator%2Fintro-01/ab", "#/p/p/o/narrator%2Fintro-01/ab?a=2"))
+        self.assertEqual(got["plain"]["name"], "order")
+        self.assertEqual((got["typed"]["name"], got["typed"]["query"]), ("compare", {}))
+        self.assertEqual(got["wrongTail"], "order")  # lo que no es «ab» sigue siendo el pedido, como antes
+
+    def test_swap_is_x_and_the_shoulder_buttons_and_is_in_the_help(self):
+        got = self.run_js(self.FAKE_DOM + """
+const { keyAction, padActions, SHORTCUTS } = await mod('js/components/shortcuts.js');
+const buttons = (n) => Array.from({ length: 17 }, (_, i) => ({ pressed: n.includes(i), value: 0 }));
+const labels = SHORTCUTS.map(([g, items]) => [g, items.filter(([, l]) => l === 'ui.shortcuts.swap').map(([k]) => k)]);
+out({ x: keyAction({ key: 'x' }), X: keyAction({ key: 'X' }), noLetters: keyAction({ key: 'x' }, false), ctrl: keyAction({ key: 'x', ctrlKey: true }),
+  arrows: keyAction({ key: 'ArrowRight' }, false), pad: [4, 5, 6].map((i) => padActions([], buttons([i])).actions), labels });
+""")
+        self.assertEqual((got["x"], got["X"], got["noLetters"], got["ctrl"]), ("swap", "swap", None, None))
+        self.assertEqual(got["arrows"], "next")
+        self.assertEqual(got["pad"], [["swap"], ["swap"], []])
+        self.assertEqual(got["labels"], [["ui.shortcuts.group.global", []], ["ui.shortcuts.group.gallery", [["X"]]], ["ui.shortcuts.group.pad", [["LB", "RB"]]]])
+
+    COMPARE_ENV = ORDER_ENV + """
+const { compareView } = await mod('js/components/compare-view.js');
+const mountCmp = async (key, query = {}) => {
+  const view = compareView({ project: 'example-world', key, query });
+  doc.body.append(view.node);
+  await until(() => view.node.find((e) => e.tag === 'audio').length === 2 && view.node.find((e) => e.tag === 'audio').every((a) => a.src));
+  await sleep(20);
+  return view;
+};
+const audios = (view) => view.node.find((e) => e.tag === 'audio');
+const sidesOf = (view) => view.node.find((e) => e.className.split(' ').includes('compare-side'));
+const state = (a, b) => ({ a: { paused: a.paused, t: a.currentTime }, b: { paused: b.paused, t: b.currentTime } });
+const playBtn = (view) => view.node.find((e) => e.className.includes('compare-play'))[0];
+const swapBtn = (view) => btn(view.node, 'Cambiar A↔B');
+"""
+
+    def test_compare_swap_keeps_the_point_and_the_play_state(self):
+        got = self.run_js(self.COMPARE_ENV + """
+const r = {};
+// 1) sonando en A, A en 1,25 s: el cambio deja A en pausa y B sonando desde 1,25 s
+let view = await mountCmp('narrator', { a: '2', b: '3' });
+let [A, B] = audios(view);
+r.layout = { sides: sidesOf(view).map((s) => s.dataset.side), titles: sidesOf(view).map((s) => s.find((e) => e.tag === 'h2')[0].textContent),
+  selects: sidesOf(view).map((s) => s.find((e) => e.tag === 'select')[0].value), chosenSide: sidesOf(view).map((s) => s.classList.contains('is-chosen')),
+  activeText: sidesOf(view).map((s) => s.textContent.includes('Suena este lado')), hash: location.hash };
+playBtn(view).click(); await until(() => !A.paused);
+A.currentTime = 1.25;
+swapBtn(view).click(); await until(() => !B.paused);
+r.playing = { ...state(A, B), label: playBtn(view).textContent, active: sidesOf(view).map((s) => s.textContent.includes('Suena este lado')), current: sidesOf(view).map((s) => s.attrs['aria-current'] || null) };
+swapBtn(view).click(); await until(() => !A.paused);        // y de vuelta: A desde donde estaba B
+r.back = state(A, B);
+view.cleanup();
+// 2) en pausa: el cambio deja B en el punto y en pausa
+view = await mountCmp('narrator', { a: '2', b: '3' }); [A, B] = audios(view);
+A.currentTime = 1.25; swapBtn(view).click(); await sleep(30);
+r.paused = state(A, B);
+// 3) B más corta que el punto: se queda al final y no suena; A se pausa
+view.cleanup();
+view = await mountCmp('narrator', { a: '2', b: '3' }); [A, B] = audios(view);
+B.duration = 1.0;
+playBtn(view).click(); await until(() => !A.paused);
+A.currentTime = 1.25; swapBtn(view).click(); await sleep(30);
+r.short = { ...state(A, B), hint: view.node.textContent.includes('La toma B es más corta') };
+view.cleanup();
+out(r);
+""", timeout=60)
+        self.assertEqual(got["layout"]["sides"], ["a", "b"])
+        self.assertEqual(got["layout"]["titles"], ["A Toma 2", "B Toma 3"])
+        self.assertEqual(got["layout"]["selects"], ["2", "3"])
+        self.assertEqual(got["layout"]["chosenSide"], [True, False])
+        self.assertEqual(got["layout"]["activeText"], [True, False])  # el lado activo lo dice con texto
+        self.assertEqual(got["layout"]["hash"], "#/p/example-world/o/narrator/ab?a=2&b=3")
+        self.assertEqual(got["playing"]["a"], {"paused": True, "t": 1.25})
+        self.assertEqual(got["playing"]["b"], {"paused": False, "t": 1.25})
+        self.assertEqual(got["playing"]["active"], [False, True])
+        self.assertEqual(got["playing"]["current"], [None, "true"])
+        self.assertIn("Pausar", got["playing"]["label"])
+        self.assertEqual(got["back"]["a"]["paused"], False)
+        self.assertEqual(got["back"]["b"]["paused"], True)
+        self.assertEqual(got["paused"], {"a": {"paused": True, "t": 1.25}, "b": {"paused": True, "t": 1.25}})
+        self.assertEqual(got["short"]["a"]["paused"], True)
+        self.assertEqual(got["short"]["b"], {"paused": True, "t": 1.0})
+        self.assertTrue(got["short"]["hint"])
+
+    def test_compare_keys_and_buttons_do_the_same_swap(self):
+        got = self.run_js(self.COMPARE_ENV + """
+const r = {};
+const view = await mountCmp('narrator', { a: '2', b: '3' });
+const [A, B] = audios(view);
+const active = () => sidesOf(view).map((s) => s.textContent.includes('Suena este lado') ? s.dataset.side : '').join('');
+press(' '); await until(() => !A.paused);                   // reproducir
+A.currentTime = 1.25;
+press('ArrowRight'); await until(() => !B.paused); r.next = { ...state(A, B), active: active() };
+press('ArrowRight'); r.nextAgain = { ...state(A, B), active: active() };            // ya en B: nada
+B.currentTime = 2.5;
+press('ArrowLeft'); await until(() => !A.paused); r.prev = { ...state(A, B), active: active() };
+A.currentTime = 0.5;
+press('x'); await until(() => !B.paused); r.x = { ...state(A, B), active: active() };
+press('Escape'); r.escape = { ...state(A, B), active: active() };                    // pausa del lado activo
+// lo mismo con las flechas arriba y abajo, y con el botón
+press('ArrowUp'); r.up = active(); press('ArrowDown'); r.down = active();
+swapBtn(view).click(); r.button = active();
+// los campos de texto y las letras apagadas
+const sel = sidesOf(view)[0].find((e) => e.tag === 'select')[0];
+sel.dispatchEvent({ type: 'keydown', key: 'x' }); r.inSelect = active();
+store.set('gvoice.oneKey', 'off'); press('x'); r.lettersOff = active(); press('ArrowRight'); r.arrowsOn = active();
+store.delete('gvoice.oneKey');
+// el mando: LB y RB, y no actúa con un campo o un diálogo
+let pad = { connected: true, buttons: [] };
+const buttons = (n) => Array.from({ length: 17 }, (_, i) => ({ pressed: n.includes(i), value: 0 }));
+view.cleanup();
+Object.defineProperty(globalThis, 'navigator', { value: { getGamepads: () => [pad] }, configurable: true });
+const view2 = await mountCmp('narrator', { a: '2', b: '3' });
+const active2 = () => sidesOf(view2).map((s) => s.textContent.includes('Suena este lado') ? s.dataset.side : '').join('');
+const tap = async (n) => { pad = { connected: true, buttons: buttons(n) }; await sleep(160); pad = { connected: true, buttons: buttons([]) }; await sleep(160); };
+await tap([5]); r.rb = active2(); await tap([4]); r.lb = active2();
+view2.cleanup();
+await tap([5]); r.afterCleanup = active2();
+out(r);
+""", timeout=60)
+        self.assertEqual(got["next"], {"a": {"paused": True, "t": 1.25}, "b": {"paused": False, "t": 1.25}, "active": "b"})
+        self.assertEqual(got["nextAgain"]["active"], "b")
+        self.assertEqual(got["prev"], {"a": {"paused": False, "t": 2.5}, "b": {"paused": True, "t": 2.5}, "active": "a"})
+        self.assertEqual(got["x"], {"a": {"paused": True, "t": 0.5}, "b": {"paused": False, "t": 0.5}, "active": "b"})
+        self.assertEqual(got["escape"]["b"]["paused"], True)
+        self.assertEqual((got["up"], got["down"], got["button"]), ("a", "b", "a"))
+        self.assertEqual(got["inSelect"], "a")                 # un campo no dispara atajos
+        self.assertEqual(got["lettersOff"], "a")               # sin atajos de una tecla, x no hace nada
+        self.assertEqual(got["arrowsOn"], "b")
+        self.assertEqual((got["rb"], got["lb"]), ("b", "a"))
+        self.assertEqual(got["afterCleanup"], "a")
+
+    def test_compare_wave_click_moves_both_audios_and_a_shorter_one_stays_at_its_end(self):
+        got = self.run_js(self.COMPARE_ENV + """
+const view = await mountCmp('narrator', { a: '2', b: '3' });
+const [A, B] = audios(view);
+B.duration = 1.0; A.duration = 3.5;
+const waves = view.node.find((e) => e.attrs.role === 'slider');
+waves[0].dispatchEvent({ type: 'click', clientX: 150 });    // mitad de A (3,5 s) = 1,75 s
+const r = { click: state(A, B), hint: view.node.textContent.includes('La toma B es más corta') };
+waves[0].dispatchEvent({ type: 'keydown', key: 'ArrowLeft' });      // 5 % menos: otra posición en los dos
+r.key = state(A, B);
+B.duration = 4.0;
+waves[1].dispatchEvent({ type: 'click', clientX: 75 });     // un cuarto de B (4 s) = 1 s
+r.fromB = state(A, B);
+r.times = view.node.find((e) => e.className.includes('take-time')).map((e) => e.textContent);
+view.cleanup();
+out(r);
+""")
+        self.assertEqual(got["click"], {"a": {"paused": True, "t": 1.75}, "b": {"paused": True, "t": 1.0}})
+        self.assertTrue(got["hint"])
+        self.assertAlmostEqual(got["key"]["a"]["t"], 1.575)
+        self.assertEqual(got["key"]["b"]["t"], 1.0)
+        self.assertEqual((got["fromB"]["a"]["t"], got["fromB"]["b"]["t"]), (1.0, 1.0))
+        self.assertEqual(got["times"], ["0:01 / 0:04", "0:01 / 0:04"])
+
+    def test_compare_changes_a_side_take_updates_the_hash_and_chooses_one_at_a_time(self):
+        got = self.run_js(self.COMPARE_ENV + """
+const r = {};
+const view = await mountCmp('narrator', { a: '2', b: '3' });
+const selOf = (n) => sidesOf(view)[n].find((e) => e.tag === 'select')[0];
+const optsOf = (n) => selOf(n).find((e) => e.tag === 'option').map((o) => [o.value, o.disabled]);
+r.opts = optsOf(0);
+const oldA = audios(view)[0]; const madeBefore = made.length; const revokedBefore = revoked.length;
+selOf(0).value = '3'; selOf(0).dispatchEvent('change');      // la toma del otro lado: no se acepta
+r.sameAsOther = { hash: location.hash, value: selOf(0).value, kept: audios(view)[0] === oldA };
+selOf(0).value = '1'; selOf(0).dispatchEvent('change');
+await until(() => audios(view)[0].src && made.length === madeBefore + 1);
+r.changed = { hash: location.hash, value: selOf(0).value, replaced: audios(view)[0] !== oldA, revoked: revoked.length - revokedBefore, title: sidesOf(view)[0].find((e) => e.tag === 'h2')[0].textContent,
+  chosenA: sidesOf(view)[0].classList.contains('is-chosen'), opts: optsOf(1) };
+// elegir: A (toma 1) está descartada, B (3) se puede elegir
+const chooseA = btn(view.node, 'Elegir A'); const chooseB = btn(view.node, 'Elegir B');
+r.before = { a: chooseA.disabled, b: chooseB.disabled };
+chooseA.click(); await sleep(30); r.noCall = seen.filter((s) => s[1].includes('/choose')).length;
+chooseB.click(); chooseB.click();
+await until(() => btn(view.node, 'Elegir B').disabled);
+r.after = { calls: seen.filter((s) => s[1].includes('/choose')).map((s) => s[2]), a: btn(view.node, 'Elegir A').disabled, b: btn(view.node, 'Elegir B').disabled,
+  chosen: sidesOf(view).map((s) => s.classList.contains('is-chosen')), toast: toasts().includes('toma 3') };
+// la tecla «e» elige el lado activo (A: la 1, descartada: nada)
+press('e'); await sleep(30); r.keyChoose = seen.filter((s) => s[1].includes('/choose')).length;
+view.cleanup();
+const cleaned = { listeners: doc.listenerCount(), revokedAll: made.every((u) => revoked.includes(u)) };
+r.cleaned = cleaned;
+out(r);
+""", timeout=60)
+        self.assertEqual(got["opts"], [["1", False], ["2", False], ["3", True]])
+        self.assertEqual(got["sameAsOther"], {"hash": "#/p/example-world/o/narrator/ab?a=2&b=3", "value": "2", "kept": True})
+        self.assertEqual(got["changed"]["hash"], "#/p/example-world/o/narrator/ab?a=1&b=3")
+        self.assertEqual((got["changed"]["value"], got["changed"]["replaced"], got["changed"]["revoked"]), ("1", True, 1))
+        self.assertEqual(got["changed"]["title"], "A Toma 1")
+        self.assertFalse(got["changed"]["chosenA"])
+        self.assertEqual(got["changed"]["opts"], [["1", True], ["2", False], ["3", False]])
+        self.assertEqual(got["before"], {"a": True, "b": False})
+        self.assertEqual(got["noCall"], 0)
+        self.assertEqual(got["after"]["calls"], [{"attempt": 3}])  # dos clics seguidos: una sola petición
+        self.assertEqual((got["after"]["a"], got["after"]["b"]), (True, True))  # A sigue descartada; B ya es la elegida
+        self.assertEqual(got["after"]["chosen"], [False, True])
+        self.assertTrue(got["after"]["toast"])
+        self.assertEqual(got["keyChoose"], 1)
+        self.assertEqual(got["cleaned"], {"listeners": 0, "revokedAll": True})
+
+    def test_compare_needs_two_takes_with_audio_and_order_view_links_to_it(self):
+        got = self.run_js(self.COMPARE_ENV + """
+const r = {};
+const one = compareView({ project: 'example-world', key: 'orc', query: {} });
+doc.body.append(one.node);
+await until(() => one.node.textContent.includes('al menos dos tomas'));
+r.one = { audios: audios(one).length, links: one.node.find((e) => e.tag === 'a').map((a) => a.attrs.href), live: doc.listenerCount() };
+one.cleanup(); r.one.after = doc.listenerCount();
+const missing = compareView({ project: 'example-world', key: 'nope', query: {} });
+doc.body.append(missing.node);
+await until(() => missing.node.find((e) => e.attrs.role === 'alert').length > 0);
+r.missing = missing.node.find((e) => e.tag === 'a').length; missing.cleanup();
+// el pedido: «Comparar A/B» con la toma enfocada y la elegida; con una sola toma, apagado y con su pista
+const view = await mount('narrator');
+const cmp = () => btn(view.node, 'Comparar A/B');
+r.order = { disabled: cmp().disabled };
+cmp().click(); r.hash = location.hash;
+press('ArrowRight'); cmp().click(); r.hashRight = location.hash;
+const before = seen.length; const tabBefore = cards(view).map((c) => c.attrs.tabindex).join();
+press('x'); await sleep(20);
+r.swapInOrder = { calls: seen.length - before, tab: cards(view).map((c) => c.attrs.tabindex).join() === tabBefore, paused: audios(view).every((a) => a.paused) };
+view.cleanup();
+const orc = await mount('orc');
+r.orc = { disabled: btn(orc.node, 'Comparar A/B').disabled, hint: orc.node.textContent.includes('al menos dos tomas con audio') };
+orc.cleanup();
+out(r);
+""", timeout=60)
+        self.assertEqual(got["one"], {"audios": 0, "links": ["#/p/example-world/o/orc"] * 2, "live": 1, "after": 0})
+        self.assertEqual(got["missing"], 1)
+        self.assertFalse(got["order"]["disabled"])
+        self.assertEqual(got["hash"], "#/p/example-world/o/narrator/ab?a=2&b=1")   # la enfocada (la elegida) contra otra con audio
+        self.assertEqual(got["hashRight"], "#/p/example-world/o/narrator/ab?a=3&b=2")  # la enfocada contra la elegida
+        self.assertEqual(got["swapInOrder"], {"calls": 0, "tab": True, "paused": True})
+        self.assertEqual(got["orc"], {"disabled": True, "hint": True})
 
 
 if __name__ == "__main__":

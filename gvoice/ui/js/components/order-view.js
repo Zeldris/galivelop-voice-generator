@@ -8,10 +8,11 @@
 import { h, replace, closest } from '../dom.js';
 import { t } from '../i18n.js';
 import { api, describeError } from '../api.js';
-import { to } from '../router.js';
+import { to, navigate } from '../router.js';
 import { busy, latest, lifetime, STALE } from '../async-guard.js';
 import { openEntries, pendingTakes, undoTarget } from '../take-model.js';
 import { MAX_COUNT } from '../order-model.js';
+import { pickPair } from '../compare-model.js';
 import { takeCard } from './take-card.js';
 import { icon } from './icons.js';
 import { warningIcon } from './sheet-warnings.js';
@@ -40,10 +41,14 @@ export function orderView(route) {
   const pending = h('p.hint', { aria: { live: 'polite' } });
   const count = h('input', { id: 'more-count', type: 'number', min: 1, max: MAX_COUNT, step: 1, value: 1 });
   const moreBtn = h('button.btn', { type: 'button', onclick: () => more() }, icon('plus'), ' ', t('ui.order.more'));
+  let compareHash = null;
+  const compareBtn = h('button.btn', { type: 'button', disabled: true, onclick: () => { if (compareHash) navigate(compareHash); } }, icon('swap'), ' ', t('ui.compare.open'));
+  const compareHint = h('p.hint', { hidden: true }, t('ui.compare.openHint'));
   const helpBtn = h('button.btn.btn-ghost', { type: 'button', onclick: () => openHelp(helpBtn) }, icon('keys'), ' ', t('ui.shortcuts.open'), ' ', h('kbd.kbd', {}, '?'));
   const panel = h('aside.order-panel', { aria: { label: t('ui.order.panel') } },
     h('div.card', {}, h('h2', {}, t('ui.order.election')), chosenLine, undoBtn, undoHint),
     printsNote,
+    h('div.card', {}, h('h2', {}, t('ui.compare.title')), compareBtn, compareHint),
     h('div.card', {}, h('h2', {}, t('ui.order.moreTitle')), h('div.field', {}, h('label', { for: 'more-count' }, t('ui.order.moreCount')), count), moreBtn, pending),
     helpBtn);
   const list = h('section', {}, h('h2', {}, t('ui.order.takes')), emptyNote, gallery);
@@ -138,6 +143,15 @@ export function orderView(route) {
     printsNote.hidden = order.type !== 'voice';
     const n = pendingTakes(entries);
     pending.textContent = n ? t('ui.order.pending', { n }) : '';
+    paintCompare();
+  }
+
+  /** «Comparar A/B»: la toma enfocada (si tiene audio) contra la elegida u otra con audio; sin dos tomas con audio, apagado. */
+  function paintCompare() {
+    const pair = order ? pickPair(order, { a: current, b: order.chosen }) : null;
+    compareHash = pair ? to.compare(project, key, pair.a, pair.b) : null;
+    compareBtn.disabled = !pair;
+    compareHint.hidden = Boolean(pair);
   }
 
   /* ---- acciones (las tarjetas las llaman; cada fallo, con su aviso) ---- */
@@ -197,6 +211,7 @@ export function orderView(route) {
   const takeIds = () => [...cards.keys()].sort((a, b) => a - b);
   function setCurrent(id, focus = false) {
     current = id;
+    paintCompare();
     for (const [cid, c] of cards) c.node.setAttribute('tabindex', cid === id ? '0' : '-1');
     const c = cards.get(id);
     if (c && focus) { c.focus(); if (c.node.scrollIntoView) c.node.scrollIntoView({ block: 'nearest' }); }

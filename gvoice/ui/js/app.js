@@ -1,4 +1,4 @@
-/* Copiado de gimg@46248251 (D7); adaptado a gvoice: la carcasa (F5.1) y las vistas de proyectos (F5.2) y de pedido (F5.4).
+/* Copiado de gimg@46248251 (D7); adaptado a gvoice: la carcasa (F5.1) y las vistas de proyectos (F5.2), de pedido (F5.4) y de comparación A/B (F5.5).
    Arranque de Galivelop Voice Generator: idioma, tema, textos estáticos, banda «sin servicio», rutas y avisos.
    Con `?mock=1` en la URL carga /ui/mock/api-mock.js y sustituye el transporte (prototipo sin API). */
 
@@ -13,6 +13,7 @@ import { toastError } from './components/toast.js';
 import { projectsView } from './components/projects-view.js';
 import { projectView } from './components/project-view.js';
 import { orderView } from './components/order-view.js';
+import { compareView } from './components/compare-view.js';
 import { initShortcuts } from './components/shortcuts.js';
 
 async function boot() {
@@ -62,7 +63,7 @@ function render(route) {
   try {
     if (route.name === 'notfound') host.append(h('div.empty', {}, h('p', {}, t('ui.nav.notFound')), h('a.btn', { href: to.projects() }, t('ui.nav.projects'))));
     else {
-      const view = route.name === 'projects' ? projectsView() : route.name === 'project' ? projectView(route) : orderView(route);
+      const view = route.name === 'projects' ? projectsView() : route.name === 'project' ? projectView(route) : route.name === 'compare' ? compareView(route) : orderView(route);
       host.append(view.node);
       cleanup = view.cleanup || null;
     }
@@ -74,6 +75,7 @@ function render(route) {
 }
 
 function titleOf(route) {
+  if (route.name === 'compare') return `${t('ui.compare.title')} · ${route.key}`;
   if (route.name === 'order') return route.key;
   if (route.name === 'project') return route.project;
   return t('ui.projects.title');
@@ -82,10 +84,11 @@ function titleOf(route) {
 function crumbs(route) {
   const sep = () => h('span.sep', { aria: { hidden: true } }, '›');
   const parts = [h('a', { href: to.projects() }, t('ui.nav.projects'))];
-  if (route.name === 'project' || route.name === 'order') {
+  if (route.name === 'project' || route.name === 'order' || route.name === 'compare') {
     parts.push(sep(), route.name === 'project' ? h('b', { aria: { current: 'page' } }, route.project) : h('a', { href: to.project(route.project) }, route.project));
   }
   if (route.name === 'order') parts.push(sep(), h('b', { aria: { current: 'page' } }, route.key));
+  if (route.name === 'compare') parts.push(sep(), h('a', { href: to.order(route.project, route.key) }, route.key), sep(), h('b', { aria: { current: 'page' } }, t('ui.compare.crumb')));
   replace(el('crumbs'), parts);
 }
 

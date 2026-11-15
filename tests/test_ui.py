@@ -99,18 +99,10 @@ class Static(unittest.TestCase):
             self.assertIn("warning." + code, es, code)
 
     def test_js_behaviours_checked_by_text(self):
-        router, theme, mock, app, i18n_js = (read(f) for f in (
-            "js/router.js", "js/components/theme.js", "mock/api-mock.js", "js/app.js", "js/i18n.js"))
+        # router, theme, mock transport and i18n load are covered by behaviour in tests/test_ui_js.py (node)
+        router, app = (read(f) for f in ("js/router.js", "js/app.js"))
         self.assertNotIn("pedidos", router)  # D9: the URL segment is English
-        self.assertIn("'orders'", router)
-        self.assertRegex(router, r"try \{[^}]*decodeURIComponent")  # a malformed hash is not an exception
-        self.assertIn("|| 'light'", theme)  # light by default (plan)
-        self.assertNotIn("|| 'auto'", theme)
-        self.assertRegex(mock, r"running\.cancelRequested[^}]*'cancelled'")
-        self.assertIn("'api.method_not_allowed'", mock)
-        self.assertNotRegex(mock, r"body\.count\) \|\| 1")  # count 0 is a 400, not 1
         self.assertLess(app.index("onOffline("), app.index("i18n.load("))  # the band hears a boot that finds the API down
-        self.assertNotRegex(i18n_js, r"catch\s*(\(\w+\))?\s*\{\s*dict")  # a failed load keeps the previous dictionary
 
 
 def luminance(hexcolor):

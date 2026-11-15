@@ -74,6 +74,20 @@ async function request(method, path, body, withHeaders = false) {
   return withHeaders ? { json, header: (name) => res.headers.get(name) } : json;
 }
 
+/** URL to give an `<audio src>`. Without a transport the browser asks the server itself (no fetch of the WAV); with
+ *  one (simulator, tests) the transport's blob becomes an object URL: free it with `revokeAudioUrl`. */
+async function audioUrl(p, key, id) {
+  const url = withLang(paths.audio(p, key, id));
+  if (!state.transport) return url;
+  const res = await state.transport('GET', url);
+  if (res.status >= 400) throw new ApiError(res.status, res.json);
+  return URL.createObjectURL(res.blob);
+}
+/** Revokes only object URLs (`blob:`); a plain server URL is left alone. */
+function revokeAudioUrl(url) {
+  if (typeof url === 'string' && url.startsWith('blob:')) URL.revokeObjectURL(url);
+}
+
 export const get = (path) => request('GET', path);
 export const post = (path, body = {}) => request('POST', path, body);
 export const put = (path, body = {}) => request('PUT', path, body);
@@ -113,6 +127,8 @@ export const paths = {
 
 /* ---- llamadas con nombre (lo que consumen los componentes) ---- */
 export const api = {
+  audioUrl,
+  revokeAudioUrl,
   health: () => get(paths.health()),
   locales: (lang) => get(paths.locales(lang)),
   projects: () => get(paths.projects()),

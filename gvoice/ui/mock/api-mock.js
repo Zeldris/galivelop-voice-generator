@@ -176,13 +176,15 @@ function wavOf(samples) {
   new Int16Array(buf, 44).set(samples);
   return new Blob([buf], { type: 'audio/wav' });
 }
-function peaksOf(samples, n) {
-  const step = Math.max(1, Math.floor(samples.length / n));
+/* Same rules as gvoice/peaks.py (a test keeps them equal): bucket i spans floor(i*L/n)..floor((i+1)*L/n), an empty
+   bucket is 0, and the peak is max/32768 rounded half-up to 3 decimals, in integers. */
+export function peaksOf(samples, n) {
+  const L = samples.length;
   const out = [];
   for (let i = 0; i < n; i++) {
     let max = 0;
-    for (let j = i * step; j < Math.min(samples.length, (i + 1) * step); j++) max = Math.max(max, Math.abs(samples[j]));
-    out.push(Math.round(max / 32768 * 1000) / 1000);
+    for (let j = Math.floor(i * L / n); j < Math.floor((i + 1) * L / n); j++) max = Math.max(max, Math.abs(samples[j]));
+    out.push(Math.min(1000, Math.floor((2000 * max + 32768) / 65536)) / 1000);
   }
   return out;
 }
@@ -320,8 +322,9 @@ route('GET', '/api/projects/{p}/orders/{key}/attempts/{id}/audio', (c) => {
 route('GET', '/api/projects/{p}/orders/{key}/attempts/{id}/peaks', (c) => {
   const r = lookupTake(c);
   if (r.error) return r.error;
-  const n = c.query.get('n') === null ? 200 : Number(c.query.get('n'));
-  if (!Number.isInteger(n) || n < 1 || n > 4000) return fail(c.lang, 400, 'api.bad_param', { name: 'n' });
+  const raw = c.query.get('n');
+  const n = raw === null ? 400 : Number(raw);  // 400 = DEFAULT_N of gvoice/peaks.py
+  if (raw === '' || !Number.isInteger(n) || n < 16 || n > 2000) return fail(c.lang, 400, 'api.bad_param', { name: 'n' });
   return ok({ peaks: peaksOf(samplesOf(c.params.p, c.params.key, r.take), n), audioMs: r.take.audioMs });
 });
 

@@ -3,9 +3,11 @@ temporary directory, imports the real modules of ``gvoice/ui/`` by ``file://`` U
 import json
 import re
 import shutil
+import struct
 import subprocess
 import tempfile
 import unittest
+import wave
 from pathlib import Path
 
 from gvoice import schema
@@ -797,6 +799,92 @@ process.exit(0);
         self.assertEqual(got["lastSheet"], {"age": "child"})  # la línea mal escrita queda fuera de la ficha
         self.assertEqual((got["fixed"], got["ok"]), ([], 1))
         self.assertEqual((got["afterClose"], got["removed"]), (0, False))
+
+    def test_peaks_parity_between_simulator_and_python(self):
+        """The simulator's peaksOf and gvoice.peaks must give the same peaks for the same Int16 samples."""
+        import random
+        from gvoice import peaks as pk
+        rng = random.Random(7)
+        cases = [
+            [rng.randint(-32768, 32767) for _ in range(1000)],
+            [rng.randint(-32768, 32767) for _ in range(1003)],          # L not divisible by n
+            [0] * 7 + [-32768, 2048, 6144, 32767, 100, 1],              # L < n: empty buckets; half-way ties
+            [2048 * k for k in range(-16, 16)] * 3,
+        ]
+        for n in (16, 400, 2000):
+            for samples in cases:
+                with self.subTest(n=n, length=len(samples)):
+                    with tempfile.TemporaryDirectory() as tmp:
+                        path = Path(tmp) / "a.wav"
+                        with wave.open(str(path), "wb") as w:
+                            w.setnchannels(1)
+                            w.setsampwidth(2)
+                            w.setframerate(24000)
+                            w.writeframes(struct.pack(f"<{len(samples)}h", *samples))
+                        want = pk.peaks(path, n)["peaks"]
+                    got = self.run_js(self.mock_script(f"""
+const {{ peaksOf }} = await mod('mock/api-mock.js');
+out(peaksOf(Int16Array.from({json.dumps(samples)}), {n}));
+"""))
+                    self.assertEqual(got, want)
+
+    def test_api_mock_peaks_route_validates_n_like_python(self):
+        got = self.run_js(self.mock_script("""
+const list = (await call('GET', '/api/projects/example-world/orders')).json;
+const o = (list.orders || list)[0];
+const key = o.key;
+const take = (await call('POST', `/api/projects/example-world/orders/${key}/attempts`, { count: 1 })).json;
+const id = (take.attempts || take)[0].id;
+const base = `/api/projects/example-world/orders/${key}/attempts/${id}/peaks`;
+const r = {};
+for (const q of ['', '?n=16', '?n=2000', '?n=15', '?n=2001', '?n=abc', '?n=', '?n=20.5']) {
+  const x = await call('GET', base + q);
+  r[q] = [x.status, x.code || x.json.peaks.length];
+}
+out(r);
+"""))
+        self.assertEqual(got, {"": [200, 400], "?n=16": [200, 16], "?n=2000": [200, 2000], "?n=15": [400, "api.bad_param"],
+                               "?n=2001": [400, "api.bad_param"], "?n=abc": [400, "api.bad_param"],
+                               "?n=": [400, "api.bad_param"], "?n=20.5": [400, "api.bad_param"]})
+
+    def test_api_audio_url_without_transport_is_the_server_url(self):
+        got = self.run_js("""
+const store = new Map();
+globalThis.localStorage = { getItem: () => null, setItem: () => {} };
+const calls = [];
+globalThis.fetch = async (...a) => { calls.push(a); throw new Error('no fetch expected'); };
+const revoked = [];
+globalThis.URL.revokeObjectURL = (u) => revoked.push(u);
+const { api } = await mod('js/api.js');
+const url = await api.audioUrl('mi mundo', 'narrator/x-1', 'a 1');
+api.revokeAudioUrl(url); api.revokeAudioUrl('blob:abc'); api.revokeAudioUrl(null);
+out({ url, calls: calls.length, revoked });
+""")
+        self.assertEqual(got["url"], "/api/projects/mi%20mundo/orders/narrator%2Fx-1/attempts/a%201/audio?lang=es")
+        self.assertEqual(got["calls"], 0)
+        self.assertEqual(got["revoked"], ["blob:abc"])
+
+    def test_api_audio_url_with_transport_makes_an_object_url_and_raises_on_errors(self):
+        got = self.run_js("""
+globalThis.localStorage = { getItem: () => null, setItem: () => {} };
+const made = [];
+globalThis.URL.createObjectURL = (b) => { made.push(b.size); return 'blob:fake/' + made.length; };
+const { api, setTransport, ApiError } = await mod('js/api.js');
+const seen = [];
+setTransport(async (method, url) => {
+  seen.push([method, url]);
+  if (url.includes('/missing/')) return { status: 404, json: { error: { code: 'api.not_found', message: 'nope' } } };
+  return { status: 200, blob: new Blob(['abcd'], { type: 'audio/wav' }) };
+});
+const r = { url: await api.audioUrl('w', 'k', 'a1') };
+try { await api.audioUrl('w', 'k', 'missing'); r.thrown = null; } catch (e) { r.thrown = [e instanceof ApiError, e.status, e.code]; }
+r.seen = seen; r.made = made;
+out(r);
+""")
+        self.assertEqual(got["url"], "blob:fake/1")
+        self.assertEqual(got["made"], [4])
+        self.assertEqual(got["seen"][0], ["GET", "/api/projects/w/orders/k/attempts/a1/audio?lang=es"])
+        self.assertEqual(got["thrown"], [True, 404, "api.not_found"])
 
     def test_sheet_from_fields_ignores_empty_fields_and_reports_bad_extra(self):
         got = self.run_js("""

@@ -43,7 +43,7 @@ Cada fase es una rama y un pull request a `main`, con las tres fases de revisió
 | F2 Motor real | `instalar.sh` (D17); envoltorio de `qwen-tts`/`qwen-codec` con el perfil `steam-deck` (D15) y vigilante de memoria; **banco como orden** (`gvoice bench`) que repite las medidas de `docs/investigacion/2026-10-25-banco-deck.md` y escribe su tabla | Diseñar, fijar y producir una voz real en la Deck (comprobación manual de la persona) |
 | F3 Efectos y paquete | Cadenas de efectos compiladas a `ffmpeg` (D12) con escucha previa; exportación del paquete de voces (D13); guía de integración (`tts-server`, `ffmpeg`, Web Audio aproximado, niveles D14) | Un paquete exportado se reproduce con `tts-server` + `ffmpeg` siguiendo la guía |
 | F4 API y arranque | API HTTP (solo localhost) y arranque bajo demanda; unidad `systemd --user` opcional | Tests de la API; `gvoice` arranca el servicio solo |
-| F5 Interfaz | Proyectos; pedidos; galería de tomas con reproductor y comparación; ficha con avisos; efectos con escucha; es/en | Recorrido completo en el navegador |
+| F5 Interfaz | Proyectos; pedidos; galería de tomas con reproductor y comparación; ficha con avisos; efectos con escucha; es/en. Hoja de ruta en § «F5 en detalle» | Recorrido completo en el navegador |
 | F6 Piloto WMF | Configuración de ejemplo con narrador y orco; propuesta para el repo de WMF (integración y corrección de su documento 02 con lo aprendido aquí) | WMF reproduce una voz del paquete sin el generador |
 | F7 Fauna | Pedidos `sound`, registro de licencias CC0 por archivo, cadenas por especie | Una especie con sus variantes por acción |
 
@@ -127,6 +127,81 @@ sorpresas).
 | F2.4 | `instalar.sh` (D17) con `--dry-run` | Tests de las órdenes en la Deck y en otra distribución; `bash -n` en el check |
 | F2.5 | `gvoice bench` y su tabla (hecho) | Tests de la matriz y de la tabla con el motor falso |
 | F2.6 | Comprobación en la Deck (la persona): instalar, diseñar, fijar y producir una voz real; `gvoice bench` | La persona lo confirma; resultados en `docs/investigacion/` |
+
+## F5 en detalle (hoja de ruta, 2026-11-15)
+
+Borrador para la persona; nada de esto está implementado. **Avance: 0 %.** No hay interfaz, ni API (F4), ni efectos
+(F3). La base que usará ya existe: proyectos, pedidos, tomas, elegir y deshacer, cola, avisos de la ficha y textos
+es/en (F1), además del motor real (F2).
+
+### De dónde sale
+
+- **Estilo:** la hoja de voces de GVIG, `galivelop-image-generator@46248251` `docs/marcas/galivelop-voice-generator/hoja.md`.
+  Solo valen los bloques vigentes: Identidad (l.32), Interfaz (l.89), Recursos (l.126) y Familia (l.155). Las
+  secciones 0-15, `biblia.md` y los SVG de `logos/` son histórico.
+  - Hereda del Portal papel, tinta, cerúleo `#0072a8`, peligro `#a3135f`, chaflanes 28/14/10, retícula de 24 px y
+    las tipografías Big Shoulders Display, Literata y JetBrains Mono (OFL).
+  - Solo cambia el acento:
+
+    | Token | Claro | Oscuro | Uso |
+    |---|---|---|---|
+    | vivo | `#d9467a` | `#d9467a` | foco, punto y marca; nunca lleva texto encima |
+    | hondo | `#ce3c71` | `#ce3c71` | bloques, logo y texto de acento; texto blanco encima (4,66:1) |
+    | enlace | hondo | `#e75485` | enlaces |
+    | tinte | `#f7e6ed` | `#321f2f` | fondos suaves |
+
+  - Reglas:
+    - Tema claro por defecto.
+    - No se añade un cuarto color.
+    - El peligro va siempre con ✗ y texto, y se comprueba en la primera pantalla.
+    - La toma elegida se marca con un visto o un subrayado, nunca solo con color.
+    - Los iconos son una serie propia, de línea simple y legibles a 24 px, sin lucide.
+- **Código:** la interfaz de GVIG (`gimg/ui/`, su F4, hecha en la 0.4.0).
+  - Es de JS vanilla con módulos ES, sin build y con CSP estricta. El DOM se arma con `h()`, sin `innerHTML`.
+  - Se copian casi tal cual, con la cabecera `Copiado de gimg@46248251` (D7):
+    - **Núcleo JS:** `dom`, `router`, `store`, `i18n`, `api` (con transporte simulado y `?mock=1`) y `queue-poll`.
+    - **Componentes JS:** `toast`, `confirm`, `lightbox` (como diálogo), `theme`, `shortcuts` (teclado y mando de
+      la Deck), `queue-bar`, `projects-view`, `project-view`, `compare-view` y `new-order`.
+    - **Estilos y fuentes:** `tokens.css` (con el acento cambiado), `base.css`, `layout.css`, `fonts/` y `OFL.txt`.
+    - **Servidor estático:** el de `gimg/server.py` (`_static`, CSP y `no-cache`).
+    - **Tests:** `test_ui.py` (CSP, imports, claves es/en y rutas de la API) y el arnés de Chrome de
+      `test_ui_browser.py`.
+  - No sirve lo que es solo de imágenes: tarjeta de intento, plantillas, composición, taller y medidas de marca.
+- **Otros fronts:** el Portal (React) es la fuente de los tokens (`src/estilos/global.css`). Ni el Portal, ni el
+  instalador WMF, ni WMF tienen reproductor ni forma de onda, así que **el audio se escribe de cero**. Se usará
+  `<audio>` nativo y la forma de onda en `<canvas>`, las dos cosas permitidas por la CSP.
+
+### Pasos propuestos [P]
+
+F5 necesita la API (F4) y, para los efectos, F3. **Propuesta:** hacer F4 y F5 juntas tras F3, como GVIG adelantó su
+interfaz (su D39).
+
+| Paso | Qué | Hecho cuando |
+|---|---|---|
+| F5.0 | Recursos de marca (los pide la persona en una sesión de GVIG; ver abajo) | Archivos en `gvoice/ui/assets/` |
+| F5.1 | Base copiada de `gimg/ui`: `index.html`, tokens con el acento de voces, CSS, fuentes, núcleo JS, servidor estático con CSP y tests estáticos | Tests de CSP, imports y claves es/en; contraste de los tokens |
+| F5.2 | Proyectos y pedidos (`voice`, `line`): lista, filtros y «Nuevo pedido» | Recorrido con `?mock=1` y con el motor falso |
+| F5.3 | Ficha de diseño con avisos (`sheet.py`), cada uno con icono y texto | Tests de cada aviso en pantalla |
+| F5.4 | Galería de tomas: reproductor, forma de onda (picos calculados en el servidor con `wave`), elegir/deshacer y estado de las huellas | Reproducir, elegir y deshacer con teclado y mando |
+| F5.5 | Comparación A/B: dos tomas de la misma frase, cambio al mismo punto | Test en navegador del cambio |
+| F5.6 | Efectos con escucha previa: editor de la cadena de vocabulario cerrado (D12), escucha generada por `ffmpeg` en el servidor | Escucha previa igual al grafo exportado |
+| F5.7 | Cola, es/en, tema y pantallas de 360, 768 y 1280 px (arnés de Chrome) | `test_ui_browser` en verde |
+| F5.8 | Recorrido en la Deck, con mando, y en escritorio (la persona) | La persona lo confirma |
+
+### Lo que hay que pedir a la persona
+
+- **Logo:** símbolo y lockup, sin dibujar todavía (hoja l.131-133).
+  - Símbolo: monograma en `#fbfcfd` sobre cuadrado con chaflán en `#ce3c71`, hecho con `gimg brand square`.
+  - Lockup: hecho con `gimg brand wordmark "GALIVELOP VOICE GENERATOR"`.
+  - Hasta tenerlo, la interfaz lleva el nombre en texto.
+- **Favicon:** el símbolo, a 16 px.
+- **Iconos de interfaz:** tomas, huella, cola, efectos, reproducir/pausa y A/B. La hoja los deja para F5. Hay que
+  decidir quién los dibuja: GVIG con `gimg brand` o este repo a mano siguiendo la hoja.
+- **Nombres de los tokens de acento:** la hoja los deja a este repo. La propuesta es usar los de `gimg/ui/css/tokens.css`
+  (`--accent`, `--accent-text`, `--accent-fill`, `--accent-soft`).
+- **Dudas abiertas de la hoja que tocan a la interfaz:** la 4 (el acento se parece al peligro: 7° de tono y 1,60:1) y
+  la 3 (texto sobre el vivo).
+- **Audio de ejemplo para el simulador:** no hace falta pedirlo. Se genera con `wave` en los tests.
 
 ## Pendiente
 

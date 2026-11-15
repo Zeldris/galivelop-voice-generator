@@ -1,4 +1,4 @@
-/* Copiado de gimg@46248251 (D7); adaptado a gvoice: solo la carcasa (F5.1). Las vistas llegan con F5.2 y siguientes.
+/* Copiado de gimg@46248251 (D7); adaptado a gvoice: la carcasa (F5.1) y las vistas de proyectos y pedidos (F5.2); el pedido llega con F5.3.
    Arranque de Galivelop Voice Generator: idioma, tema, textos estáticos, banda «sin servicio», rutas y avisos.
    Con `?mock=1` en la URL carga /ui/mock/api-mock.js y sustituye el transporte (prototipo sin API). */
 
@@ -10,6 +10,8 @@ import * as router from './router.js';
 import { to } from './router.js';
 import { initTheme } from './components/theme.js';
 import { toastError } from './components/toast.js';
+import { projectsView } from './components/projects-view.js';
+import { projectView } from './components/project-view.js';
 
 async function boot() {
   const params = new URLSearchParams(location.search);
@@ -45,17 +47,22 @@ async function boot() {
   try { await api.health(); } catch { /* sin API todavía (F4): la carcasa no la necesita; la banda avisa si no hay servidor */ }
 }
 
-let current = null;
+/* Cada vista devuelve {node, cleanup?}: el nodo se pinta en #main y `cleanup` (si la vista la necesita) se llama
+   al cambiar de ruta, antes de pintar la siguiente. */
+let cleanup = null;
 function render(route) {
   const main = el('main');
-  if (current && current.cleanup) current.cleanup();
+  if (cleanup) { try { cleanup(); } catch (e) { console.error(e); } cleanup = null; }
   const host = h('div');
   main.replaceChildren(host);
-  current = host;
   crumbs(route);
   try {
     if (route.name === 'notfound') host.append(h('div.empty', {}, h('p', {}, t('ui.nav.notFound')), h('a.btn', { href: to.projects() }, t('ui.nav.projects'))));
-    else host.append(soon(route));
+    else {
+      const view = route.name === 'projects' ? projectsView() : route.name === 'project' ? projectView(route) : { node: soon(route) };
+      host.append(view.node);
+      cleanup = view.cleanup || null;
+    }
   } catch (e) {
     console.error(e);
     toastError(t('ui.error.generic', { message: e.message || String(e) }));
@@ -63,7 +70,7 @@ function render(route) {
   document.title = `${titleOf(route)} · Galivelop Voice Generator`;
 }
 
-/** La vista vacía de cada ruta, hasta que llegue la real (F5.2: proyectos y pedidos). */
+/** La vista vacía del pedido, hasta que llegue la real (F5.3 y F5.4). */
 function soon(route) {
   return h('section.empty', {}, h('h1', {}, titleOf(route)), h('p', {}, t('ui.soon.text')));
 }

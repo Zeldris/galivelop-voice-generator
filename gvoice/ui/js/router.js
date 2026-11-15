@@ -3,7 +3,7 @@
    #/                              proyectos
    #/p/<proyecto>[/orders]         un proyecto
    #/p/<proyecto>/o/<clave codificada>   un pedido (la clave de una frase lleva «/»: va con encodeURIComponent)
-   Opcional: ...?a=<id> enfoca esa toma al abrir el pedido. */
+   Opcional: ...?a=<id> enfoca esa toma al abrir el pedido; #/p/<proyecto>?type=voice|line&chosen=true|false filtra la lista. */
 
 const listeners = new Set();
 
@@ -23,11 +23,17 @@ export function parse(hash = location.hash) {
 
 export const to = {
   projects: () => '#/',
-  project: (p, tab = 'orders') => `#/p/${encodeURIComponent(p)}/${tab}`,
+  project: (p, tab = 'orders', query = {}) => {
+    const qs = new URLSearchParams(Object.entries(query).filter(([, v]) => v !== undefined && v !== null && v !== '')).toString();
+    return `#/p/${encodeURIComponent(p)}/${tab}${qs ? '?' + qs : ''}`;
+  },
   order: (p, key, attempt) => `#/p/${encodeURIComponent(p)}/o/${encodeURIComponent(key)}${attempt ? '?a=' + attempt : ''}`,
 };
 
 export function navigate(hash) { if (location.hash !== hash) location.hash = hash; else emit(); }
+
+/** Cambia el hash sin avisar a nadie (ni `hashchange` ni repintar): para los filtros, que la vista aplica ella misma. */
+export function replaceHash(hash) { if (location.hash !== hash) history.replaceState(null, '', hash); }
 
 export function onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 

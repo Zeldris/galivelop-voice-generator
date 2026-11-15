@@ -1,5 +1,6 @@
 /* Copiado de gimg@46248251 (D7); adaptado a gvoice: de `components.css` solo lo que usan los componentes copiados
-   (avisos flotantes y confirmación modal). Los de las vistas (galería de tomas, reproductor…) llegan con F5.2 y siguientes. */
+   (avisos flotantes y confirmación modal) y, desde F5.2, las vistas de proyectos y pedidos. Los de la galería de tomas y
+   el reproductor llegan con F5.4. */
 
 /* avisos flotantes (aria-live) */
 .toasts { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 40; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; width: min(92vw, 520px); }
@@ -9,9 +10,29 @@
 .toast .btn { margin-left: auto; }
 .toast > :not(.btn) { min-width: 0; }
 
+/* proyectos: registrar uno y quitarlo */
+.add-project { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; margin-bottom: 14px; }
+.project-card .row { margin-top: 4px; }
+.project-card h2 a { color: var(--text); text-decoration: none; }
+.project-card h2 a:hover { color: var(--accent-text); }
+
+/* pedidos: una fila por pedido (sin miniatura: son voces) */
+.order-row { grid-template-columns: minmax(0, 1fr) auto; }
+.order-row .text { margin-top: 4px; color: var(--text-2); font-size: 15px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.order-row .chip { white-space: normal; }
+
+/* nuevo pedido */
+dialog.new-order { width: min(94vw, 640px); max-height: 94vh; overflow-y: auto; }
+dialog.new-order h3 { margin: 4px 0 0; }
+.no-form { display: grid; gap: var(--gap); }
+
 /* confirmación modal */
 dialog.confirm { width: min(92vw, 420px); }
 @media (max-width: 600px) {
   dialog { max-width: 96vw; padding: 12px; }
   dialog.confirm { width: 96vw; }
+  dialog.new-order { width: 96vw; }
+  .add-project { grid-template-columns: 1fr; }
+  .order-row { grid-template-columns: minmax(0, 1fr); }
+  .order-row > :last-child { grid-column: auto; }
 }

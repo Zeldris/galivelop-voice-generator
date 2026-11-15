@@ -8,6 +8,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from gvoice import schema
+
 UI = Path(__file__).resolve().parent.parent / "gvoice" / "ui"
 NODE = shutil.which("node")
 MIN_NODE = 18  # ES modules, structuredClone, global fetch/URL
@@ -154,6 +156,168 @@ out({ first, dark: document.documentElement.dataset.theme, saved: store.get('gvo
 """)
         self.assertEqual(got["first"], {"theme": "light", "value": "light"})
         self.assertEqual((got["dark"], got["saved"]), ("dark", "dark"))
+
+
+    def test_router_project_query_roundtrip(self):
+        got = self.run_js("""
+const { parse, to } = await mod('js/router.js');
+const h = to.project('mi mundo', 'orders', { type: 'voice', chosen: '', other: undefined });
+out({ h, back: parse(h), plain: to.project('mundo'), both: to.project('mundo', 'orders', { type: 'line', chosen: 'false' }) });
+""")
+        self.assertEqual(got["h"], "#/p/mi%20mundo/orders?type=voice")
+        self.assertEqual((got["back"]["name"], got["back"]["project"], got["back"]["query"]), ("project", "mi mundo", {"type": "voice"}))
+        self.assertEqual(got["plain"], "#/p/mundo/orders")
+        self.assertEqual(got["both"], "#/p/mundo/orders?type=line&chosen=false")
+
+    def test_filters_roundtrip_with_the_url(self):
+        got = self.run_js("""
+const { filtersFromQuery, filtersToQuery } = await mod('js/order-model.js');
+const { parse, to } = await mod('js/router.js');
+const cases = [{}, { type: 'voice' }, { chosen: 'true' }, { type: 'line', chosen: 'false' }];
+const trips = cases.map((c) => filtersToQuery(filtersFromQuery(parse(to.project('p', 'orders', c)).query)));
+out({
+  trips, empty: filtersFromQuery({}), full: filtersFromQuery({ type: 'line', chosen: 'false' }),
+  junk: filtersFromQuery({ type: 'sound', chosen: 'maybe' }), noEmpty: filtersToQuery({ type: '', chosen: '' }),
+  junkOut: filtersToQuery({ type: 'x', chosen: 'y' }),
+});
+""")
+        self.assertEqual(got["trips"], [{}, {"type": "voice"}, {"chosen": "true"}, {"type": "line", "chosen": "false"}])
+        self.assertEqual(got["empty"], {"type": "", "chosen": ""})
+        self.assertEqual(got["full"], {"type": "line", "chosen": "false"})
+        self.assertEqual(got["junk"], {"type": "", "chosen": ""})  # a value outside the list is "all", never sent to the API
+        self.assertEqual((got["noEmpty"], got["junkOut"]), ({}, {}))
+
+    def test_order_summary(self):
+        got = self.run_js("""
+const { orderSummary } = await mod('js/order-model.js');
+out({
+  voice: orderSummary({ key: 'orc', type: 'voice', testText: 'Blood.', attempts: [{ id: 1 }, { id: 2 }], chosen: null }),
+  line: orderSummary({ key: 'narrator/a', type: 'line', voice: 'narrator', text: 'Hi', attempts: [{ id: 1 }], chosen: 1 }),
+  count: orderSummary({ key: 'x', type: 'voice', attemptCount: 4 }),
+  none: orderSummary({ key: 'y', type: 'line', voice: 'v' }),
+});
+""")
+        self.assertEqual(got["voice"], {"key": "orc", "type": "voice", "voice": "", "text": "Blood.", "takes": 2, "chosen": False, "chosenId": None})
+        self.assertEqual(got["line"], {"key": "narrator/a", "type": "line", "voice": "narrator", "text": "Hi", "takes": 1, "chosen": True, "chosenId": 1})
+        self.assertEqual((got["count"]["takes"], got["count"]["chosen"]), (4, False))
+        self.assertEqual((got["none"]["takes"], got["none"]["text"]), (0, ""))
+
+    def build(self, fields):
+        """Run the real buildOrder on ``fields`` (a dict of form values) and return {body, errors}."""
+        return self.run_js(f"const {{ buildOrder }} = await mod('js/order-model.js'); out(buildOrder({json.dumps(fields)}));")
+
+    def assert_valid_order(self, body):
+        errors = schema.validate(body["order"], schema.load_schema("order"))
+        self.assertEqual(errors, [], errors)
+
+    VOICE = {"type": "voice", "key": "narrator", "testText": "The law admits no exceptions.", "seed": "1234", "count": "3",
+             "sheet": {"gender": "male", "age": " middle-aged adult ", "pitch": "", "tone": "authoritative"},
+             "extra": "breathing: audible between sentences\n\n"}
+
+    def test_build_voice_order_meets_the_schema(self):
+        got = self.build(self.VOICE)
+        self.assertEqual(got["errors"], [])
+        self.assertEqual(got["body"]["count"], 3)
+        self.assertEqual(got["body"]["order"], {
+            "type": "voice", "key": "narrator", "testText": "The law admits no exceptions.", "seed": 1234,
+            "designSheet": {"gender": "male", "age": "middle-aged adult", "tone": "authoritative", "extra": {"breathing": "audible between sentences"}}})
+        self.assert_valid_order(got["body"])
+        # without seed or extra attributes: no `seed` and no `extra`, and still valid (an empty sheet is allowed)
+        minimal = self.build({"type": "voice", "key": "orc/boss", "testText": "Blood.", "seed": "", "count": ""})
+        self.assertEqual(minimal["body"]["order"], {"type": "voice", "key": "orc/boss", "testText": "Blood.", "designSheet": {}})
+        self.assertEqual(minimal["body"]["count"], 1)
+        self.assert_valid_order(minimal["body"])
+
+    def test_build_line_order_meets_the_schema(self):
+        got = self.build({"type": "line", "voice": "narrator", "lineId": "intro-01", "text": " Long ago. ", "seed": "7", "count": "2"})
+        self.assertEqual(got["errors"], [])
+        self.assertEqual(got["body"], {"order": {"type": "line", "key": "narrator/intro-01", "voice": "narrator", "text": "Long ago.", "seed": 7}, "count": 2})
+        self.assert_valid_order(got["body"])
+
+    def test_build_rejects_missing_required_fields_with_their_reason(self):
+        voice = self.build({"type": "voice", "key": " ", "testText": "", "count": "1"})
+        self.assertIsNone(voice["body"])
+        self.assertEqual([(e["field"], e["code"]) for e in voice["errors"]], [("key", "required"), ("testText", "required")])
+        line = self.build({"type": "line", "voice": "", "lineId": "", "text": "  ", "count": "1"})
+        self.assertIsNone(line["body"])
+        self.assertEqual([(e["field"], e["code"]) for e in line["errors"]],
+                         [("voice", "required"), ("lineId", "required"), ("text", "required")])
+        self.assertEqual(self.build({"type": "sound"})["errors"], [{"field": "type", "code": "required"}])
+
+    def test_build_rejects_keys_that_break_the_pattern(self):
+        for bad in ("Narrator", "-x", "a b", "a//b", "/a", "a/", "../x", "ñu"):
+            got = self.build({"type": "voice", "key": bad, "testText": "x"})
+            self.assertEqual([(e["field"], e["code"]) for e in got["errors"]], [("key", "pattern")], bad)
+        for bad in ("Intro", "a/b", "x y", "_x"):
+            got = self.build({"type": "line", "voice": "narrator", "lineId": bad, "text": "x"})
+            self.assertEqual([(e["field"], e["code"]) for e in got["errors"]], [("lineId", "pattern")], bad)
+        got = self.build({"type": "line", "voice": "Narrator", "lineId": "a", "text": "x"})
+        self.assertEqual([(e["field"], e["code"]) for e in got["errors"]], [("voice", "pattern")])
+        # what the client accepts, the schema accepts; a key of 100 characters is the last valid one
+        ok = self.build({"type": "voice", "key": "a" * 100, "testText": "x"})
+        self.assertEqual(ok["errors"], [])
+        self.assert_valid_order(ok["body"])
+        long = self.build({"type": "voice", "key": "a" * 101, "testText": "x"})
+        self.assertEqual(long["errors"], [{"field": "key", "code": "too_long", "params": {"max": 100}}])
+        self.assertTrue(schema.validate({"type": "voice", "key": "a" * 101, "testText": "x", "designSheet": {}}, schema.load_schema("order")))
+        long_line = self.build({"type": "line", "voice": "a" * 60, "lineId": "b" * 60, "text": "x"})
+        self.assertEqual(long_line["errors"], [{"field": "lineId", "code": "too_long", "params": {"max": 100}}])
+
+    def test_build_rejects_bad_seed_count_extra_and_long_text(self):
+        def reasons(**f):
+            base = {"type": "voice", "key": "v", "testText": "x"}
+            return [(e["field"], e["code"]) for e in self.build({**base, **f})["errors"]]
+        self.assertEqual(reasons(seed="-1"), [("seed", "seed")])
+        self.assertEqual(reasons(seed="1.5"), [("seed", "seed")])
+        self.assertEqual(reasons(seed="4294967296"), [("seed", "seed")])
+        self.assertEqual(reasons(seed="4294967295"), [])
+        self.assertEqual(reasons(seed="0"), [])
+        self.assertEqual(reasons(count="0"), [("count", "count")])
+        self.assertEqual(reasons(count="51"), [("count", "count")])
+        self.assertEqual(reasons(count="abc"), [("count", "count")])
+        self.assertEqual(reasons(count="50"), [])
+        bad = self.build({"type": "voice", "key": "v", "testText": "x", "extra": "ok: yes\nno colon here"})
+        self.assertEqual(bad["errors"], [{"field": "extra", "code": "extra", "params": {"line": "no colon here"}}])
+        self.assertEqual(reasons(extra="name:"), [("extra", "extra")])
+        self.assertEqual(reasons(testText="x" * 1001), [("testText", "too_long")])
+        self.assertEqual([(e["field"], e["code"]) for e in self.build({"type": "line", "voice": "v", "lineId": "a", "text": "x" * 4001})["errors"]], [("text", "too_long")])
+        # all the problems at once, in form order
+        many = self.build({"type": "voice", "key": "", "testText": "", "seed": "x", "count": "0"})
+        self.assertEqual([e["field"] for e in many["errors"]], ["key", "testText", "seed", "count"])
+
+    def test_api_mock_filters_orders_by_type_and_chosen(self):
+        got = self.run_js(self.mock_script("""
+const keys = async (q) => { const r = await call('GET', '/api/projects/example-world/orders' + q); return { status: r.status, keys: Array.isArray(r.json) ? r.json.map((o) => o.key) : null, code: r.code }; };
+out({
+  all: await keys(''), voice: await keys('?type=voice'), line: await keys('?type=line'),
+  chosen: await keys('?chosen=true'), unchosen: await keys('?chosen=false'), both: await keys('?type=voice&chosen=false'),
+  badType: await keys('?type=sound'), badChosen: await keys('?chosen=maybe'),
+});
+"""))
+        self.assertEqual(got["all"]["keys"], ["narrator", "narrator/intro-01", "narrator/intro-02", "orc"])
+        self.assertEqual(got["voice"]["keys"], ["narrator", "orc"])
+        self.assertEqual(got["line"]["keys"], ["narrator/intro-01", "narrator/intro-02"])
+        self.assertEqual(got["chosen"]["keys"], ["narrator", "narrator/intro-01", "narrator/intro-02"])
+        self.assertEqual(got["unchosen"]["keys"], ["orc"])
+        self.assertEqual(got["both"]["keys"], ["orc"])
+        self.assertEqual((got["badType"]["status"], got["badType"]["code"]), (400, "api.bad_param"))
+        self.assertEqual((got["badChosen"]["status"], got["badChosen"]["code"]), (400, "api.bad_param"))
+
+    def test_api_mock_accepts_the_built_orders_and_lists_them(self):
+        got = self.run_js(self.mock_script("""
+const { buildOrder } = await mod('js/order-model.js');
+const send = async (fields) => { const { body } = buildOrder(fields); const r = await call('POST', '/api/projects/example-world/orders', body); return { status: r.status, code: r.code, entries: r.json.entries && r.json.entries.length }; };
+const voice = await send({ type: 'voice', key: 'wizard', testText: 'Fly.', sheet: { age: 'elderly man' }, count: '2' });
+const line = await send({ type: 'line', voice: 'narrator', lineId: 'outro', text: 'The end.', count: '1' });
+const orphan = await send({ type: 'line', voice: 'wizard', lineId: 'a', text: 'x', count: '1' });
+const list = await call('GET', '/api/projects/example-world/orders?chosen=false');
+out({ voice, line, orphan, unchosen: list.json.map((o) => o.key) });
+"""))
+        self.assertEqual(got["voice"], {"status": 200, "entries": 2})
+        self.assertEqual(got["line"], {"status": 200, "entries": 1})
+        # a line of a voice with no chosen take is refused by the API, with its reason
+        self.assertEqual((got["orphan"]["status"], got["orphan"]["code"]), (409, "order.voice_not_fixed"))
+        self.assertEqual(got["unchosen"], ["narrator/outro", "orc", "wizard"])
 
 
 if __name__ == "__main__":

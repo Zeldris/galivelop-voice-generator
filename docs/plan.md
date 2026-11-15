@@ -130,7 +130,7 @@ sorpresas).
 
 ## F5 en detalle (hoja de ruta, 2026-11-15)
 
-Borrador para la persona; solo F5.1 está implementado. **Avance: F5.1 hecho (1 de 9 pasos, ~10 %).** Hay base de interfaz, contrato y simulador; no hay API (F4) ni efectos
+Borrador para la persona; solo F5.1-F5.2 están implementados. **Avance: F5.1-F5.2 hechos (2 de 9 pasos, ~20 %).** Hay base de interfaz, contrato y simulador; no hay API (F4) ni efectos
 (F3). La base que usará ya existe: proyectos, pedidos, tomas, elegir y deshacer, cola, avisos de la ficha y textos
 es/en (F1), además del motor real (F2).
 
@@ -184,7 +184,7 @@ de `changeSize.block`; el comportamiento del JS se prueba con `node` en `tests/t
 |---|---|---|
 | F5.0 | Recursos de marca (los pide la persona en una sesión de GVIG; ver abajo) | Archivos en `gvoice/ui/assets/` |
 | F5.1 | **Hecho (2026-11-15).** Base copiada de `gimg/ui`: `index.html`, tokens con el acento de voces, CSS, fuentes, núcleo JS, servidor estático con CSP y tests estáticos; contrato en `docs/api.md` | Tests de CSP, imports y claves es/en; contraste de los tokens |
-| F5.2 | Proyectos y pedidos (`voice`, `line`): lista, filtros y «Nuevo pedido» | Recorrido con `?mock=1` y con el motor falso |
+| F5.2 | **Hecho (2026-11-15).** Proyectos (lista, registrar por carpeta, quitar con confirmación), pedidos del proyecto con filtros `type`/`chosen` en la URL (`#/p/<p>/orders?type=&chosen=`) y «Nuevo pedido» (`voice` con ficha de diseño y `line` con voz e id; cuerpo validado como `order.schema.json`); `app.js` ya limpia cada vista al cambiar de ruta; lógica pura en `ui/js/order-model.js` | Recorrido con `?mock=1` hecho en Chrome (1280 y 360 px, sin errores de consola ni de CSP). **Pendiente:** «con el motor falso» queda para cuando F4 implemente la API |
 | F5.3 | Ficha de diseño con avisos (`sheet.py`), cada uno con icono y texto | Tests de cada aviso en pantalla |
 | F5.4 | Galería de tomas: reproductor, forma de onda (picos calculados en el servidor con `wave`), elegir/deshacer y estado de las huellas | Reproducir, elegir y deshacer con teclado y mando |
 | F5.5 | Comparación A/B: dos tomas de la misma frase, cambio al mismo punto | Test en navegador del cambio |

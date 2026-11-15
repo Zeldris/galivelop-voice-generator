@@ -28,6 +28,9 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 ## Pendiente
 
 - Mando por Gamepad API sin probar en la Deck (de la persona, F5.8); F5.4 solo lo cubre con tests.
+  La revisión de bloque F5.4 añadió deduplicar teclado y mando (Steam Input convierte el mando en teclas): comprobar en la Deck que cada pulsación actúa una sola vez.
+
+- Hallazgos leves de la revisión de bloque F5.4, sin arreglar en este PR: `peaks.py` toma la duración y las cubetas de la cabecera de un WAV truncado, no de los frames leídos; `loading()` está copiado en `projects-view.js`, `project-view.js` y `order-view.js`.
 
 - Hallazgos leves de la revisión de bloque F5.3, sin arreglar en este PR: `sheetWarnings` de `sheet-warnings.js` solo lo usan los tests y el respaldo del icono está en dos sitios (`warningItems` y `warningIcon`); el botón que abre el diálogo de la ficha se pierde si la lista se rehace con el diálogo abierto, y el foco cae a `body`.
 - Hallazgo leve de la revisión de bloque F5.2, sin arreglar en este PR: los tests del JS pasaron de `test_ui.py` (estáticos) a `test_ui_js.py`, que se salta entero sin `node` ≥ 18; en la Deck (Flatpak) el check local no los corre: comprobar si hay `node` allí o dejar los estáticos como respaldo.

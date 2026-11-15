@@ -1,0 +1,114 @@
+/* Copiado de gimg@46248251 (D7); adaptado a gvoice: el acento de voces (hoja de GVIG, bloque Interfaz).
+   Galivelop Voice Generator · tokens de diseño, a partir de la hoja de estilo r10 de GVIG.
+   Acento de voces: «vivo» #d9467a (foco, filetes, punto; nunca lleva texto encima) = --accent y --focus; «hondo»
+   #ce3c71 (relleno con texto blanco, 4,66:1) = --accent-fill; enlace = --accent-text (hondo en claro, #e75485 en
+   oscuro); tinte = --accent-soft. No hay cuarto color.
+   Tema claro por defecto; oscuro por prefers-color-scheme o por data-theme="dark" en <html>.
+   Contrastes comprobados por tests/test_ui.py; lo que la hoja no nombra se deriva de su paleta [derivado].
+   Reglas heredadas del Portal: sin radios (salvo el punto de estado y .spin), sin desenfoques ni degradados (salvo la
+   retícula), chaflán con clip-path arriba a la derecha, líneas antes que sombras. */
+
+/* Fuentes sin red (D6): TTF variables en gvoice/ui/fonts/ (OFL, ver fonts/OFL.txt). */
+@font-face { font-family: "Big Shoulders Display"; src: url("/ui/fonts/BigShouldersDisplay.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Literata"; src: url("/ui/fonts/Literata.ttf") format("truetype"); font-weight: 200 900; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url("/ui/fonts/JetBrainsMono.ttf") format("truetype"); font-weight: 100 800; font-display: swap; }
+
+:root {
+  /* tema claro (por defecto) */
+  --bg: #fbfcfd;
+  --surface: #ffffff;
+  --surface-2: #f1f6f9;
+  --preview-light: #fbfcfd;   /* fondos fijos de las vistas previas de logo (papel y oscuro de la identidad vigente): no cambian con el tema */
+  --preview-dark: #0d171e;
+  --border: #6f8493;          /* bordes de campos y controles (≥ 3:1) */
+  --rule: #b9cbd6;            /* filetes y separadores (decorativos) */
+  --text: #13212b;
+  --text-2: #4a5c69;
+  --text-3: #5a6d7a;          /* metadatos y rótulos menores */
+  --accent: #d9467a;          /* «vivo»: filetes, estado activo, foco; nunca lleva texto encima */
+  --accent-text: #ce3c71;     /* enlace y acento cuando es texto («hondo» en claro; ≥ 4,5:1 sobre el fondo y el papel) */
+  --accent-fill: #ce3c71;     /* «hondo»: relleno del botón primario; blanco encima 4,66:1 */
+  --on-accent: #ffffff;
+  --accent-soft: #f7e6ed;     /* «tinte»: fondos suaves */
+  --family: #0072a8;          /* solo el enlace «parte de Galivelop» */
+  --ok: #3f5a4b;
+  --warn: #8a5a00;
+  --bad: #a3135f;
+  --on-status: #ffffff;
+  --on-image: #ffffff;        /* texto sobre el velo de una imagen: no cambia con el tema */
+  --focus: #d9467a;
+  --grid: #e3edf3;            /* retícula de fondo */
+  --shadow: 0 12px 32px -18px rgb(19 33 43 / .35);   /* solo paneles flotantes */
+  --overlay: rgb(6 18 28 / .68);
+
+  --font-title: "Big Shoulders Display", "Arial Narrow", sans-serif;
+  --font-body: "Literata", Georgia, serif;
+  --font-mono: "JetBrains Mono", "Adwaita Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+
+  --chamfer-l: 28px;          /* chaflán arriba a la derecha: diálogos / tarjetas / piezas pequeñas */
+  --chamfer: 14px;
+  --chamfer-s: 10px;
+  --grid-step: 24px;
+  --gap: 12px;
+  --tap: 44px;                /* objetivo táctil mínimo (Deck) */
+  --header-h: 56px;
+  --panel-w: 380px;
+  --focus-w: 3px;
+
+  color-scheme: light;
+}
+
+/* tema oscuro: por prefers-color-scheme o por selector (data-theme en <html>) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d171e;
+    --surface: #111f29;
+    --surface-2: #16242e;
+    --border: #6f8493;
+    --rule: #2b3d49;
+    --text: #e6eef3;
+    --text-2: #9fb2bf;
+    --text-3: #7d919e;
+    --accent: #d9467a;
+    --accent-text: #e75485;
+    --accent-fill: #ce3c71;
+    --on-accent: #ffffff;
+    --accent-soft: #321f2f;
+    --family: #5cc8f2;
+    --ok: #8fb09e;
+    --warn: #f2c14e;
+    --bad: #f27ab0;
+    --on-status: #0d171e;
+    --focus: #d9467a;
+    --grid: #16242e;
+    --shadow: 0 12px 32px -18px rgb(0 0 0 / .7);
+    --overlay: rgb(6 18 28 / .78);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0d171e;
+  --surface: #111f29;
+  --surface-2: #16242e;
+  --border: #6f8493;
+  --rule: #2b3d49;
+  --text: #e6eef3;
+  --text-2: #9fb2bf;
+  --text-3: #7d919e;
+  --accent: #d9467a;
+  --accent-text: #e75485;
+  --accent-fill: #ce3c71;
+  --on-accent: #ffffff;
+  --accent-soft: #321f2f;
+  --family: #5cc8f2;
+  --ok: #8fb09e;
+  --warn: #f2c14e;
+  --bad: #f27ab0;
+  --on-status: #0d171e;
+  --focus: #d9467a;
+  --grid: #16242e;
+  --shadow: 0 12px 32px -18px rgb(0 0 0 / .7);
+  --overlay: rgb(6 18 28 / .78);
+  color-scheme: dark;
+}

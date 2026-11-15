@@ -14,7 +14,7 @@ import sys
 import traceback
 from pathlib import Path
 
-from . import __version__, bench, engine, i18n, limits, models, orders, projects, queue, sheet, worker
+from . import __version__, bench, engine, i18n, limits, models, orders, projects, queue, server, sheet, worker
 from .errors import GvoiceError
 
 LANGS = ("es", "en")
@@ -99,6 +99,8 @@ def _build(lang: str) -> argparse.ArgumentParser:
          opt("--devices", "cli.arg.bench_devices"), opt("--steps", "cli.arg.bench_steps"),
          opt("--seed", "cli.arg.bench_seed", type=int, default=bench.DEFAULT_SEED),
          opt("--out", "cli.arg.bench_out"))
+    leaf(top, "ui", "cli.cmd.ui", opt("--port", "cli.arg.port", type=int, default=server.DEFAULT_PORT),
+         opt("--host", "cli.arg.host", default="127.0.0.1"))
     leaf(top, "work", "cli.cmd.work", opt("--once", "cli.arg.once", action="store_true"))
     leaf(top, "version", "cli.cmd.version")
     return parser
@@ -341,6 +343,8 @@ def _run(args, out: _Out) -> int:
         return _models(args, sub, out)
     elif cmd == "bench":
         return _bench(args, out)
+    elif cmd == "ui":
+        return server.serve(args.port, args.host, out.lang)
     elif cmd == "work":
         handled = worker.run(once=args.once, lang=out.lang)
         out.data({"processed": handled}) if out.as_json else out.line("cli.out.processed", count=handled)

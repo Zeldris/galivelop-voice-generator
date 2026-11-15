@@ -1,0 +1,17 @@
+/* Copiado de gimg@46248251 (D7); adaptado a gvoice: de `components.css` solo lo que usan los componentes copiados
+   (avisos flotantes y confirmación modal). Los de las vistas (galería de tomas, reproductor…) llegan con F5.2 y siguientes. */
+
+/* avisos flotantes (aria-live) */
+.toasts { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 40; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; width: min(92vw, 520px); }
+.toast { display: flex; gap: 10px; align-items: center; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-left-width: 3px; color: var(--text); box-shadow: var(--shadow); font-size: 15px; line-height: 1.45; }
+.toast-ok { border-color: var(--ok); }
+.toast-bad { border-color: var(--bad); }
+.toast .btn { margin-left: auto; }
+.toast > :not(.btn) { min-width: 0; }
+
+/* confirmación modal */
+dialog.confirm { width: min(92vw, 420px); }
+@media (max-width: 600px) {
+  dialog { max-width: 96vw; padding: 12px; }
+  dialog.confirm { width: 96vw; }
+}

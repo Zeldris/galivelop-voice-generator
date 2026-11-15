@@ -9,9 +9,9 @@
 | Campo | Valor |
 |---|---|
 | **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; sigue tras el PR #5, con `main` en `d7d5095`) |
-| **Fase / tarea** | F5 Interfaz, en la nube (decisión de la persona del 2026-11-15) mientras F2.6 espera a la Deck. F5.3 hecha y revisada (Presupuesto de compactaciones: 1). Hoja de ruta: `docs/plan.md` § «F5 en detalle». F2 sigue abierta solo por F2.6 (la persona) |
+| **Fase / tarea** | F5 Interfaz, en la nube (decisión de la persona del 2026-11-15) mientras F2.6 espera a la Deck. **F5.4 Galería de tomas en curso** (Presupuesto de compactaciones: 2; la rama ya lleva 1). Hoja de ruta: `docs/plan.md` § «F5 en detalle». F2 sigue abierta solo por F2.6 (la persona) |
 | **Último punto estable** | Retro F5.3 aplicada: P1 `gvoice/ui/js/async-guard.js` (`latest`, `busy`, `lifetime`; ya lo usan `sheet-check.js`, `project-view.js`, `projects-view.js`, `sheet-dialog.js` y `new-order.js`) y P2 DOM falso compartido `tests/ui_fake_dom.mjs` (con tests de la guarda, de la vista de proyecto y del panel de «Nuevo pedido» `voice`); 578 tests en verde, 1 saltado |
-| **Siguiente paso** | F5.4 Galería de tomas (`docs/plan.md` § «F5 en detalle»): reproductor, forma de onda, elegir/deshacer, estado de las huellas. En paralelo, la persona: F2.6 en la Deck |
+| **Siguiente paso** | F5.4 en dos encargos: (A) `gvoice/peaks.py` (picos con `wave`) y audio del simulador en `api.js`; (B) vista de pedido con galería de tomas (`order-view.js`, reproductor, forma de onda en `<canvas>`, elegir/deshacer, huellas) y `shortcuts.js` de `gimg@46248251`. Luego revisión de bloque F5.4 |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`) |
 
 ## Para la próxima publicación

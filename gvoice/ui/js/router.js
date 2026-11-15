@@ -23,16 +23,18 @@ export function parse(hash = location.hash) {
   return { name: 'notfound', query };
 }
 
+const qs = (query) => new URLSearchParams(Object.entries(query).filter(([, v]) => v !== undefined && v !== null && v !== '')).toString();
+
 export const to = {
   projects: () => '#/',
   project: (p, tab = 'orders', query = {}) => {
-    const qs = new URLSearchParams(Object.entries(query).filter(([, v]) => v !== undefined && v !== null && v !== '')).toString();
-    return `#/p/${encodeURIComponent(p)}/${tab}${qs ? '?' + qs : ''}`;
+    const q = qs(query);
+    return `#/p/${encodeURIComponent(p)}/${tab}${q ? '?' + q : ''}`;
   },
   order: (p, key, attempt) => `#/p/${encodeURIComponent(p)}/o/${encodeURIComponent(key)}${attempt ? '?a=' + attempt : ''}`,
   compare: (p, key, a, b) => {
-    const qs = new URLSearchParams(Object.entries({ a, b }).filter(([, v]) => v !== undefined && v !== null && v !== '')).toString();
-    return `#/p/${encodeURIComponent(p)}/o/${encodeURIComponent(key)}/ab${qs ? '?' + qs : ''}`;
+    const q = qs({ a, b });
+    return `#/p/${encodeURIComponent(p)}/o/${encodeURIComponent(key)}/ab${q ? '?' + q : ''}`;
   },
 };
 

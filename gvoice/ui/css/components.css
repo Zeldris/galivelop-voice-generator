@@ -111,6 +111,7 @@ dialog.shortcuts .row { margin-top: 12px; }
 .compare-side.is-active { border-left: 8px solid var(--accent); }
 .compare-side.is-active .compare-take { text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 4px; }
 .compare-side.is-chosen { border-color: var(--ok); }
+.compare-side.is-active.is-chosen { border-left-color: var(--accent); }
 .compare-title { margin: 0; display: flex; align-items: baseline; gap: 10px; font-size: 20px; }
 .compare-letter { font: 700 56px/1 var(--font-title); color: var(--accent-text); }
 .compare-audio { display: none; }

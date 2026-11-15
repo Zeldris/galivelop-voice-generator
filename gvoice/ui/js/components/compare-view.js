@@ -12,7 +12,7 @@ import { t } from '../i18n.js';
 import { api, describeError } from '../api.js';
 import { to, replaceHash } from '../router.js';
 import { busy, latest, lifetime, STALE } from '../async-guard.js';
-import { bucketsFor, canChoose, takeState } from '../take-model.js';
+import { bucketsFor, canChoose, hasAudio, takeState } from '../take-model.js';
 import { otherSide, pickPair, switchPoint } from '../compare-model.js';
 import { icon } from './icons.js';
 import { createWaveform } from './waveform.js';
@@ -21,6 +21,7 @@ import { toast, toastError, toastOk } from './toast.js';
 
 const loading = () => h('p.empty', {}, h('span.spin', { aria: { hidden: true } }), ' ', t('ui.loading'));
 const LETTER = { a: 'A', b: 'B' };
+const VIEW_ACTIONS = new Set(['toggle', 'prev', 'next', 'swap', 'choose', 'pause']);   // the rest (U, C, D, G, pad Y) do nothing here
 
 export function compareView(route) {
   const { project, key } = route;
@@ -46,12 +47,13 @@ export function compareView(route) {
 
   /* ---- un lado (A o B): su toma, su `<audio>`, su onda ---- */
   function makeSide(name, id) {
-    const s = { name, id, audio: null, url: null, srcReady: null, pendingAt: null, destroyed: false, durationMs: 0 };
+    const s = { name, id, audio: null, url: null, srcReady: null, pendingAt: null, want: false, destroyed: false, durationMs: 0 };
     const selId = `compare-take-${name}`;
     s.select = h('select', { id: selId, onchange: () => changeTake(s, Number(s.select.value)) });
     s.wave = createWaveform({ label: '', onSeek: (f) => seekShared(f * duration(s), s), valueText: (f) => `${mmss(f * duration(s) * 1000)} / ${mmss(duration(s) * 1000)}` });
     s.title = h('h2.compare-title');
-    s.chips = h('span.row.compare-chips');
+    s.activeSlot = h('span'); s.stateSlot = h('span.row');
+    s.chips = h('span.row.compare-chips', {}, s.activeSlot, s.stateSlot);
     s.meta = h('p.hint.take-meta');
     s.time = h('span.take-time.mono', { aria: { hidden: true } }, '0:00 / —');
     s.status = h('div.take-status', { aria: { live: 'polite' } });
@@ -69,7 +71,7 @@ export function compareView(route) {
     s.audio = audio; s.url = null; s.srcReady = null; s.pendingAt = null;
     const alivePlayer = () => s.audio === audio && !s.destroyed && alive();
     audio.addEventListener('play', () => { paintTransport(); startTick(); });
-    const stopped = () => { paintTransport(); paintSide(s); };
+    const stopped = () => { if (!alivePlayer()) return; paintTransport(); paintSide(s); };
     audio.addEventListener('pause', stopped);
     audio.addEventListener('ended', stopped);
     // a position asked for before the audio had its source is applied once it knows its duration
@@ -101,6 +103,7 @@ export function compareView(route) {
     s.url = null; s.audio = null;
   }
 
+  const isPlaying = (s) => Boolean(s.audio) && !s.audio.paused;
   const takeOf = (s) => (order && order.attempts.find((a) => a.id === s.id)) || null;
   const duration = (s) => {
     if (s.audio && Number.isFinite(s.audio.duration) && s.audio.duration > 0) return s.audio.duration;
@@ -110,7 +113,7 @@ export function compareView(route) {
   const timeOf = (s) => (s.pendingAt !== null ? s.pendingAt : (s.audio && s.audio.currentTime) || 0);
   function setTime(s, sec) {
     // without `src` the browser forgets a position set now when the source arrives: remember it
-    if (!s.audio.src) s.pendingAt = sec; else s.audio.currentTime = sec;
+    if (!s.audio.src) s.pendingAt = sec; else { s.pendingAt = null; s.audio.currentTime = sec; }   // the latest value always wins
     paintSide(s);
   }
   function showError(s, msg) { replace(s.status, h('p.field-error', { role: 'alert' }, '✗ ', msg)); }
@@ -122,10 +125,9 @@ export function compareView(route) {
     s.time.textContent = `${mmss(cur)} / ${total ? mmss(total) : '—'}`;
     s.wave.setProgress(total ? cur / total : 0);
   }
-  const paintBoth = () => { for (const s of Object.values(sides)) paintSide(s); };
-  function paintTransport() {
-    if (!sides) return;
-    const on = !sides[active].audio.paused;
+    function paintTransport() {
+    if (!sides || !alive()) return;
+    const on = isPlaying(sides[active]);
     replace(playIcon, icon(on ? 'pause' : 'play'));
     playLabel.textContent = t(on ? 'ui.take.pause' : 'ui.take.play');
     playBtn.setAttribute('aria-label', `${t(on ? 'ui.take.pause' : 'ui.take.play')} · ${LETTER[active]}`);
@@ -135,25 +137,21 @@ export function compareView(route) {
     const tick = () => {
       raf = null;
       if (!alive() || !sides) return;
-      paintBoth();
-      if (!sides[active].audio.paused) raf = requestAnimationFrame(tick);
+      paintSide(sides[active]);
+      if (isPlaying(sides[active])) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
   }
   function paintSides() {
-    const takes = [...order.attempts].filter((x) => typeof x.audioMs === 'number' && x.audioMs > 0).sort((x, y) => x.id - y.id);
+    const takes = [...order.attempts].filter(hasAudio).sort((x, y) => x.id - y.id);
     for (const s of Object.values(sides)) {
       const take = takeOf(s);
       const other = sides[otherSide(s.name)];
       const chosen = take && takeState(order, take) === 'chosen';
-      const on = s.name === active;
-      s.node.classList.toggle('is-active', on);
       s.node.classList.toggle('is-chosen', Boolean(chosen));
       s.node.setAttribute('aria-label', t('ui.compare.sideLabel', { side: LETTER[s.name], id: s.id }));
-      if (on) s.node.setAttribute('aria-current', 'true'); else s.node.removeAttribute('aria-current');
       replace(s.title, h('span.compare-letter', {}, LETTER[s.name]), ' ', h('span.compare-take', {}, t('ui.take.title', { id: s.id })));
-      replace(s.chips,
-        on ? h('span.chip.chip-accent', {}, h('span', { aria: { hidden: true } }, '▶ '), t('ui.compare.active')) : null,
+      replace(s.stateSlot,
         chosen ? h('span.chip.chip-fill-ok', {}, h('span', { aria: { hidden: true } }, '✓ '), t('ui.take.chosen')) : null,
         take && take.state === 'discarded' ? h('span.chip.chip-bad', {}, '✗ ', t('ui.take.state.discarded')) : null);
       replace(s.meta, [take && take.seed !== undefined && take.seed !== null ? t('ui.take.seed', { seed: take.seed }) : null, take ? mmss(take.audioMs) : null].filter(Boolean).join(' · '));
@@ -164,7 +162,17 @@ export function compareView(route) {
       chooseBtns[s.name].disabled = !take || !canChoose(order, take);
       paintSide(s);
     }
+    paintActive();
     paintTransport();
+  }
+  /** The side switch only changes classes, the «plays this side» chip and `aria-current` (no `<select>` rebuilt). */
+  function paintActive() {
+    for (const s of Object.values(sides)) {
+      const on = s.name === active;
+      s.node.classList.toggle('is-active', on);
+      if (on) s.node.setAttribute('aria-current', 'true'); else s.node.removeAttribute('aria-current');
+      replace(s.activeSlot, on ? h('span.chip.chip-accent', {}, h('span', { aria: { hidden: true } }, '▶ '), t('ui.compare.active')) : null);
+    }
   }
 
   /* ---- cambio de toma de un lado, reproducción y cambio de lado ---- */
@@ -174,29 +182,39 @@ export function compareView(route) {
     if (!Number.isInteger(id) || id === s.id) { s.select.value = s.id; return; }
     if (id === other.id) { s.select.value = s.id; return; }   // the two sides always hold different takes
     const ref = timeOf(sides[active]);
-    const wasPlaying = s.name === active && !s.audio.paused;
+    const wasPlaying = s.name === active && (isPlaying(s) || s.want);
     releaseAudio(s);
+    s.want = false;
     s.id = id; s.durationMs = 0;
     s.wave.setPeaks([]);
     attachAudio(s);
-    setTime(s, ref);
+    const sp = switchPoint(ref, duration(s));   // the new take may be shorter than the position: it stays at its end
+    setTime(s, sp.pos);
+    hintEnd(sp.atEnd ? s : null);
     syncHash();
     paintSides();
-    if (wasPlaying) play(s);
+    if (wasPlaying && !sp.atEnd) play(s);
   }
 
   async function play(s) {
     const audio = s.audio; const ready = s.srcReady;
-    if (!(await ready) || s.audio !== audio || s.destroyed || !alive()) return;
+    s.want = true;   // asked to play, the source may not be here yet: a switch meanwhile carries it to the other side
+    if (!(await ready) || s.audio !== audio || s.destroyed || !alive() || !s.want || !sides || sides[active] !== s) return;
+    s.want = false;
     replace(s.status);
-    try { await audio.play(); } catch { if (alive() && s.audio === audio) showError(s, t('ui.take.audioError')); }
+    try { await audio.play(); } catch { s.want = false; if (alive() && s.audio === audio) showError(s, t('ui.take.audioError')); }
   }
   function togglePlay() {
     if (!sides) return;
     const s = sides[active];
-    if (!s.audio.paused) s.audio.pause(); else play(s);
+    if (isPlaying(s)) s.audio.pause(); else if (s.want) s.want = false; else play(s);
   }
-  function pause() { if (sides && !sides[active].audio.paused) sides[active].audio.pause(); }
+  function pause() {
+    if (!sides) return;
+    const s = sides[active];
+    s.want = false;
+    if (isPlaying(s)) s.audio.pause();
+  }
 
   /** The shared position moves to `sec` in `from` and, clipped to its duration, in the other audio. */
   function seekShared(sec, from) {
@@ -212,13 +230,15 @@ export function compareView(route) {
   function activate(name) {
     if (!sides || name === active) return;
     const from = sides[active]; const dst = sides[name];
-    const wasPlaying = !from.audio.paused;
+    const wasPlaying = isPlaying(from) || from.want;
     const sp = switchPoint(timeOf(from), duration(dst));
     setTime(dst, sp.pos);
     active = name;
-    if (wasPlaying) { from.audio.pause(); if (!sp.atEnd) play(dst); }
+    from.want = false;
+    if (wasPlaying) { if (isPlaying(from)) from.audio.pause(); if (!sp.atEnd) play(dst); }
     hintEnd(sp.atEnd ? dst : null);
-    paintSides();
+    paintActive();
+    paintTransport();
   }
 
   /* ---- elegir ---- */
@@ -251,7 +271,7 @@ export function compareView(route) {
       if (!mounted) {
         paintHead();
         const pair = pickPair(order, route.query);
-        if (!pair) { replace(bodyHost, h('p.notice.notice-warn', { role: 'status' }, t('ui.compare.needTwo')), backLink()); mounted = true; return; }
+        if (!pair) { replace(bodyHost, h('p.notice.notice-warn', { role: 'status' }, t('ui.compare.needTwo'))); mounted = true; return; }
         sides = { a: makeSide('a', pair.a), b: makeSide('b', pair.b) };
         replace(bodyHost,
           h('div.row.compare-transport', {}, playBtn, swapBtn, chooseBtns.a, chooseBtns.b, helpBtn), hint,
@@ -282,7 +302,7 @@ export function compareView(route) {
   const onKey = (e) => {
     if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
     const action = keyAction(e, oneKeyEnabled());
-    if (!action) return;
+    if (!action || !VIEW_ACTIONS.has(action)) return;   // a key that does nothing here is not blocked
     if ((e.key === 'Enter' || e.key === ' ') && closest(e.target, 'button, a, [role="slider"], summary, dialog')) return;
     e.preventDefault();
     merged.key(action);

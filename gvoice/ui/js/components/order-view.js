@@ -143,7 +143,6 @@ export function orderView(route) {
     printsNote.hidden = order.type !== 'voice';
     const n = pendingTakes(entries);
     pending.textContent = n ? t('ui.order.pending', { n }) : '';
-    paintCompare();
   }
 
   /** «Comparar A/B»: la toma enfocada (si tiene audio) contra la elegida u otra con audio; sin dos tomas con audio, apagado. */

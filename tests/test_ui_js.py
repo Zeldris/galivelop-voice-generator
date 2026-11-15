@@ -1811,13 +1811,109 @@ r.orc = { disabled: btn(orc.node, 'Comparar A/B').disabled, hint: orc.node.textC
 orc.cleanup();
 out(r);
 """, timeout=60)
-        self.assertEqual(got["one"], {"audios": 0, "links": ["#/p/example-world/o/orc"] * 2, "live": 1, "after": 0})
+        self.assertEqual(got["one"], {"audios": 0, "links": ["#/p/example-world/o/orc"], "live": 1, "after": 0})
         self.assertEqual(got["missing"], 1)
         self.assertFalse(got["order"]["disabled"])
         self.assertEqual(got["hash"], "#/p/example-world/o/narrator/ab?a=2&b=1")   # la enfocada (la elegida) contra otra con audio
         self.assertEqual(got["hashRight"], "#/p/example-world/o/narrator/ab?a=3&b=2")  # la enfocada contra la elegida
         self.assertEqual(got["swapInOrder"], {"calls": 0, "tab": True, "paused": True})
         self.assertEqual(got["orc"], {"disabled": True, "hint": True})
+
+    def test_compare_a_late_pause_after_cleanup_does_not_throw(self):
+        got = self.run_js(self.COMPARE_ENV + """
+const view = await mountCmp('narrator', { a: '2', b: '3' });
+const [A, B] = audios(view);
+view.cleanup();
+const errs = [];
+for (const [el, ev] of [[A, 'pause'], [B, 'ended'], [A, 'play']]) { try { el.dispatchEvent(ev); } catch (e) { errs.push(String(e)); } }
+out({ errs });
+""")
+        self.assertEqual(got["errs"], [])
+
+    def test_compare_the_latest_position_wins_over_a_pending_one(self):
+        got = self.run_js(self.COMPARE_ENV + """
+const view = await mountCmp('narrator', { a: '2', b: '3' });
+const realUrl = api.audioUrl; const rel = {};
+api.audioUrl = (p, k, id) => new Promise((res) => { rel[id] = async () => res(await realUrl(p, k, id)); });
+const [oldA, B] = audios(view);
+oldA.currentTime = 1.5;
+const sel = sidesOf(view)[0].find((e) => e.tag === 'select')[0];
+sel.value = '1'; sel.dispatchEvent('change');
+const A = audios(view)[0];
+let t = 0; let src = '';   // like a browser: no position without `src`, and a new `src` restarts it
+Object.defineProperty(A, 'src', { get: () => src, set: (v) => { src = v; t = 0; } });
+Object.defineProperty(A, 'currentTime', { get: () => t, set: (v) => { if (src) t = v; } });
+await until(() => rel[1]); await rel[1](); await until(() => A.src);
+B.duration = 4.0;
+view.node.find((e) => e.attrs.role === 'slider')[1].dispatchEvent({ type: 'click', clientX: 75 });   // 1 s in B
+A.dispatchEvent('loadedmetadata');
+out({ t: A.currentTime });
+view.cleanup();
+""", timeout=60)
+        self.assertEqual(got["t"], 1.0)
+
+    def test_compare_play_asked_on_a_side_that_is_switched_away_before_its_source_arrives(self):
+        got = self.run_js(self.COMPARE_ENV + """
+const realUrl = api.audioUrl; const rel = {};
+api.audioUrl = (p, k, id) => new Promise((res) => { rel[id] = async () => res(await realUrl(p, k, id)); });
+const view = compareView({ project: 'example-world', key: 'narrator', query: { a: '2', b: '3' } });
+doc.body.append(view.node);
+await until(() => rel[2] && rel[3]);
+await rel[3](); await until(() => audios(view)[1].src);
+const [A, B] = audios(view);
+playBtn(view).click();                 // A asked to play, without source yet
+swapBtn(view).click();                 // the play intent goes to B
+await until(() => !B.paused);
+const r = { b: !B.paused, a: A.paused };
+await rel[2](); await until(() => A.src); await sleep(40);
+r.after = { a: A.paused, b: B.paused };
+view.cleanup();
+out(r);
+""", timeout=60)
+        self.assertEqual(got["b"], True)
+        self.assertEqual(got["a"], True)
+        self.assertEqual(got["after"], {"a": True, "b": False})
+
+    def test_compare_changing_a_take_clips_the_position_and_drops_the_old_hint(self):
+        got = self.run_js(self.COMPARE_ENV + """
+const r = {};
+const view = await mountCmp('narrator', { a: '2', b: '3' });
+const selOf = (n) => sidesOf(view)[n].find((e) => e.tag === 'select')[0];
+const hintOn = () => view.node.textContent.includes('La toma B es más corta');
+audios(view)[0].currentTime = 99;
+selOf(1).value = '1'; selOf(1).dispatchEvent('change');
+await until(() => audios(view)[1].src);
+audios(view)[1].dispatchEvent('loadedmetadata');
+r.clipped = { t: audios(view)[1].currentTime, hint: hintOn() };
+audios(view)[0].currentTime = 0.5;
+selOf(1).value = '3'; selOf(1).dispatchEvent('change');
+await until(() => audios(view)[1].src); audios(view)[1].dispatchEvent('loadedmetadata');
+r.moved = { t: audios(view)[1].currentTime, hint: hintOn() };
+// the active side playing, changed to a take shorter than its position: it stays at the end and does not play
+audios(view)[0].currentTime = 0.5; playBtn(view).click(); await until(() => !audios(view)[0].paused);
+audios(view)[0].currentTime = 99;
+selOf(0).value = '1'; selOf(0).dispatchEvent('change');
+await until(() => audios(view)[0].src); await sleep(40); audios(view)[0].dispatchEvent('loadedmetadata');
+r.active = { paused: audios(view)[0].paused, t: audios(view)[0].currentTime, hint: view.node.textContent.includes('La toma A es más corta') };
+view.cleanup();
+out(r);
+""", timeout=60)
+        self.assertAlmostEqual(got["clipped"]["t"], 3.05)
+        self.assertTrue(got["clipped"]["hint"])
+        self.assertEqual(got["moved"], {"t": 0.5, "hint": False})
+        self.assertEqual(got["active"]["paused"], True)
+        self.assertAlmostEqual(got["active"]["t"], 3.05)
+        self.assertTrue(got["active"]["hint"])
+
+    def test_compare_ignores_the_keys_it_does_not_use(self):
+        got = self.run_js(self.COMPARE_ENV + """
+const view = await mountCmp('narrator', { a: '2', b: '3' });
+const prevented = {};
+for (const k of ['u', 'c', 'd', 'g', 'x', 'e']) { if (press(k).defaultPrevented) prevented[k] = true; }
+view.cleanup();
+out({ prevented: Object.keys(prevented).sort() });
+""")
+        self.assertEqual(got["prevented"], ["e", "x"])
 
 
 if __name__ == "__main__":

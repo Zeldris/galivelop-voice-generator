@@ -9,9 +9,9 @@
 | Campo | Valor |
 |---|---|
 | **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; sigue tras el PR #5, con `main` en `d7d5095`) |
-| **Fase / tarea** | F5 Interfaz, en la nube (decisión de la persona del 2026-11-15) mientras F2.6 espera a la Deck. **F5.5 Comparación A/B hecha; revisión de bloque (9eb08a6..0c18b2b) con 13 hallazgos, 12 en arreglo por el implementador** (Presupuesto de compactaciones: 1; la sesión ya lleva 2, la tarea 0 al empezar). Hoja de ruta: `docs/plan.md` § «F5 en detalle». F2 sigue abierta solo por F2.6 (la persona) |
-| **Último punto estable** | F5.5 hecho (sin revisar): comparación A/B con cambio al mismo punto, probada con `node` y en Chromium; 630 tests en verde, 1 saltado. Antes, F5.4 hecho y revisado: galería de tomas con atajos de teclado y mando; revisión de bloque (289ce75..) con 14 arreglos (carga atascada, sondeo tras fallo, mando duplicado o bajo diálogo, carreras de marcas y nota, reintento de audio, onda y `peaks.py` más rápidos); 622 tests en verde, 1 saltado |
-| **Siguiente paso** | Revisión de bloque F5.5 (`/code-review` desde `9eb08a6`, el último `Findings:`); después F5.6 espera a F3, así que F5.7 (cola, es/en, tema y anchuras con el arnés de Chrome) |
+| **Fase / tarea** | F5 Interfaz, en la nube (decisión de la persona del 2026-11-15) mientras F2.6 espera a la Deck. **F5.5 Comparación A/B hecha y revisada** (Presupuesto de compactaciones: 1; la sesión ya lleva 2, la tarea 0 al empezar). Hoja de ruta: `docs/plan.md` § «F5 en detalle». F2 sigue abierta solo por F2.6 (la persona) |
+| **Último punto estable** | F5.5 hecho y revisado: comparación A/B con cambio al mismo punto, probada con `node` y en Chromium (1280 y 360 px); revisión de bloque (9eb08a6..0c18b2b) con 12 arreglos (error tras salir sonando, posición pendiente vieja, los dos lados sonando a la vez, cambio de toma sin recortar, borde del activo, teclas que no usa la vista, repintados de más); 635 tests en verde, 1 saltado |
+| **Siguiente paso** | F5.6 espera a F3, así que F5.7 (cola, es/en, tema y anchuras con el arnés de Chrome) |
 | **Check** | verde (`bash -n` de cada gancho y `unittest`) |
 
 ## Para la próxima publicación
@@ -27,7 +27,7 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 5. 2026-11-14 — Arreglos de la revisión de bloque F2.1-F2.3 (6 hallazgos): el resultado lleva el dispositivo como el perfil (`cpu`; `device_arg` solo en el argv); un proceso muerto por señal no lanza el respaldo y, con vigilante, este exige `minFreeMemoryMb` otra vez (si no, error del primer intento y nota); el motor hereda el descriptor del candado (`machine_lock.held_fds`, `pass_fds`) para que un motor huérfano siga ocupando la máquina, y `worker.run` no limpia `.qwentts-*` si el candado está ocupado; `EngineError`/`EngineTimeout`/`Cancelled` llevan `stats` (`min_free_mb`, `peak_rss_mb`) y el trabajador las pasa al registro (`log.record_for(stats=)`); pico de RSS exacto con `os.wait4` (`ru_maxrss`; `proc.returncode` fijado a mano con `waitstatus_to_exitcode`; `VmHWM` solo si `wait4` no da nada); tests del vigilante sin reloj (`WATCH_S` parcheable, lecturas de memoria inyectadas). Check verde.
 ## Pendiente
 
-- Hallazgo leve de la revisión de bloque F5.5, sin arreglar en este PR: el cableado de teclado y mando (`mergeSources`, filtros de `onKey` y de `startGamepad`) y `loading()` están copiados entre `order-view.js` y `compare-view.js`; sacar un `bindShortcuts(perform)` a `shortcuts.js`.
+- Hallazgo leve de la revisión de bloque F5.5, sin arreglar en este PR: el cableado de teclado y mando (`mergeSources`, filtros de `onKey` y de `startGamepad`) y `loading()` están copiados entre `order-view.js` y `compare-view.js`; sacar un `bindShortcuts(perform)` a `shortcuts.js`. La ayuda de atajos de la vista A/B lista también U/C/D/G, que allí no hacen nada (filtrarla por vista).
 
 - Mando por Gamepad API sin probar en la Deck (de la persona, F5.8); F5.4 solo lo cubre con tests.
   La revisión de bloque F5.4 añadió deduplicar teclado y mando (Steam Input convierte el mando en teclas): comprobar en la Deck que cada pulsación actúa una sola vez.

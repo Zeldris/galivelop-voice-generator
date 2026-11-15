@@ -17,22 +17,28 @@ async function boot() {
     const mock = await import('/ui/mock/api-mock.js');
     setTransport(mock.transport);
   }
-  await i18n.load(i18n.detect());
+  onOffline((off) => {
+    const banner = el('banner');
+    banner.hidden = !off;
+    // con el diccionario aún vacío (el arranque ya encuentra la API caída) valen los textos de reserva, nunca las claves
+    const text = (key, fallback) => (i18n.has(key) ? t(key) : fallback);
+    replace(banner, h('span.dot', { aria: { hidden: true } }), h('b', {}, text('ui.offline.title', 'Sin servicio')),
+      h('span', {}, text('ui.offline.hint', 'No responde la API local. Arranca el servidor con')), h('code.mono', {}, 'gvoice ui'),
+      h('button.btn.btn-ghost', { type: 'button', onclick: () => location.reload() }, text('ui.offline.retry', 'Reintentar')));
+  });
+
+  try { await i18n.load(i18n.detect()); } catch { /* sin servicio: la banda lo avisa y los textos de reserva del HTML se quedan */ }
   applyStatic();
   const langSel = el('lang');
   langSel.value = i18n.lang();
-  langSel.addEventListener('change', async () => { await i18n.load(langSel.value); applyStatic(); render(router.parse()); });
+  langSel.addEventListener('change', async () => {
+    try { await i18n.load(langSel.value); } catch { langSel.value = i18n.lang(); return; } // sin servicio: se queda el idioma anterior
+    applyStatic(); render(router.parse());
+  });
   // «Saltar al contenido»: sin pasar por el router de hash (#main no es una ruta); la CSP prohíbe onclick en el HTML
   const skip = document.querySelector('a.skip');
   if (skip) skip.addEventListener('click', (e) => { e.preventDefault(); el('main').focus(); });
   initTheme(el('theme'));
-
-  onOffline((off) => {
-    const banner = el('banner');
-    banner.hidden = !off;
-    replace(banner, h('span.dot', { aria: { hidden: true } }), h('b', {}, t('ui.offline.title')), h('span', {}, t('ui.offline.hint')), h('code.mono', {}, 'gvoice ui'),
-      h('button.btn.btn-ghost', { type: 'button', onclick: () => location.reload() }, t('ui.offline.retry')));
-  });
 
   router.onChange(render);
   router.start();
@@ -80,8 +86,8 @@ function crumbs(route) {
 
 /** Textos estáticos del index.html: data-i18n (contenido) y data-i18n-aria-label. */
 function applyStatic() {
-  for (const n of document.querySelectorAll('[data-i18n]')) n.textContent = t(n.dataset.i18n);
-  for (const n of document.querySelectorAll('[data-i18n-aria-label]')) n.setAttribute('aria-label', t(n.dataset.i18nAriaLabel));
+  for (const n of document.querySelectorAll('[data-i18n]')) if (i18n.has(n.dataset.i18n)) n.textContent = t(n.dataset.i18n);
+  for (const n of document.querySelectorAll('[data-i18n-aria-label]')) if (i18n.has(n.dataset.i18nAriaLabel)) n.setAttribute('aria-label', t(n.dataset.i18nAriaLabel));
 }
 
 boot().catch((e) => { console.error(e); const m = el('main'); m.replaceChildren(h('p.notice.notice-bad', { role: 'alert' }, String(e.message || e))); });

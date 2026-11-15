@@ -1,11 +1,11 @@
 /* Copiado de gimg@46248251 (D7); adaptado a gvoice.
-   Tema: auto (prefers-color-scheme), claro u oscuro; guardado en el navegador (propuesta.md «Técnica»). */
+   Tema: claro por defecto, u oscuro, o auto (prefers-color-scheme); guardado en el navegador (propuesta.md «Técnica»). */
 
 const KEY = 'gvoice.theme';
 
 export function initTheme(select) {
-  let saved = 'auto';
-  try { saved = localStorage.getItem(KEY) || 'auto'; } catch { /* sin almacenamiento */ }
+  let saved = 'light'; // claro por defecto (plan: «Tema claro por defecto»); «auto» sigue siendo una opción
+  try { saved = localStorage.getItem(KEY) || 'light'; } catch { /* sin almacenamiento */ }
   apply(saved);
   select.value = saved;
   select.addEventListener('change', () => {

@@ -1,9 +1,9 @@
 /* Copiado de gimg@46248251 (D7); adaptado a gvoice.
    Textos de la interfaz (D16): se cargan de GET /api/locales/{lang} (todo el gvoice/locales/<lang>.json, con las
-   claves `ui.*`). Si una clave falta, se devuelve la propia clave: así se ve qué falta sin romper nada.
+   claves `ui.*`). Si falla la carga, `load` conserva el diccionario anterior y relanza el fallo. Si una clave falta, se devuelve la propia clave: así se ve qué falta sin romper nada.
    Idioma: el guardado en el navegador, si no el del navegador (es/en), si no `es`. */
 
-import { api, setLang as apiSetLang } from './api.js';
+import { api, setLang as apiSetLang, getLang as apiGetLang } from './api.js';
 
 export const SUPPORTED = ['es', 'en'];
 const STORAGE_KEY = 'gvoice.lang';
@@ -20,11 +20,14 @@ export function detect() {
 
 export async function load(lang) {
   const chosen = SUPPORTED.includes(lang) ? lang : 'es';
+  // si falla (sin servicio), el diccionario y el idioma anteriores se conservan, nada se guarda y el fallo llega a quien llama
+  const previous = apiGetLang();
   apiSetLang(chosen);
   try {
     dict = await api.locales(chosen) || {};
-  } catch {
-    dict = {}; // sin servicio: las claves hacen de texto hasta que vuelva
+  } catch (e) {
+    apiSetLang(previous);
+    throw e;
   }
   current = chosen;
   document.documentElement.lang = chosen;
@@ -34,6 +37,9 @@ export async function load(lang) {
 }
 
 export function lang() { return current; }
+
+/** ¿Hay texto cargado para la clave? (sin diccionario, los textos de reserva del HTML se quedan). */
+export function has(key) { return Object.prototype.hasOwnProperty.call(dict, key); }
 
 /** fn(lang) tras cada cambio de idioma. */
 export function onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }

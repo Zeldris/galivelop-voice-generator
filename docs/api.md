@@ -8,6 +8,11 @@ implementa; hasta entonces `gvoice ui` responde 501 (`api.not_implemented`) a to
   `message` en el idioma pedido (`?lang=es|en`); códigos de `gvoice/locales/*.json` (`error.<código>`).
 - `{key}` es la clave de un pedido en **un solo segmento** (`narrator/intro-01` viaja como `narrator%2Fintro-01`).
 - Solo se atiende la cabecera `Host` local (403 `api.bad_host`); una ruta con otro método responde 405.
+- `gvoice ui --host` solo acepta direcciones locales (`127.0.0.1`, `localhost`, `::1`); otra se rechaza sin enlazar
+  (`cli.ui_host_not_local`). Con `::1` el servidor escucha en IPv6 y la URL es `http://[::1]:<puerto>/`.
+- Un segmento vacío en la ruta (`/api/projects//orders`) es 404 `api.not_found`; una sola barra final se tolera.
+- El cuerpo de una petición se lee según `Content-Length` y se descarta mientras F4 no lo use: por encima de 1 MiB, 413
+  `api.body_too_large`; un `Content-Length` no numérico o negativo, 400 `api.bad_param`.
 
 | Ruta | Qué hace |
 |---|---|

@@ -93,7 +93,9 @@ const queue = [
 /* la cola avanza sola: la que corre termina a los TAKE_MS y empieza la siguiente */
 setInterval(() => {
   const running = queue.find((e) => e.state === 'running');
-  if (running && Date.now() - Date.parse(running.startedAt) >= TAKE_MS) finishEntry(running);
+  if (running && running.cancelRequested) { // como el trabajador real: cancelada sin crear toma
+    running.state = 'cancelled'; running.pid = null; running.finishedAt = now();
+  } else if (running && Date.now() - Date.parse(running.startedAt) >= TAKE_MS) finishEntry(running);
   else if (!running) {
     const next = queue.filter((e) => e.state === 'queued').sort((a, b) => a.id - b.id)[0];
     if (next) { next.state = 'running'; next.startedAt = now(); }
@@ -218,7 +220,7 @@ route('GET', '/api/projects/{p}/orders', (c) => {
 route('POST', '/api/projects/{p}/orders', async (c) => {
   const p = c.params.p;
   if (!projects[p]) return fail(c.lang, 404, 'project.unknown', { name: p });
-  const spec = c.body && c.body.order; const count = (c.body && c.body.count) || 1;
+  const spec = c.body && c.body.order; const count = (c.body && c.body.count) ?? 1;
   if (!spec || typeof spec.key !== 'string' || !['voice', 'line'].includes(spec.type)) return fail(c.lang, 400, 'api.bad_param', { name: 'order' });
   if (!Number.isInteger(count) || count < 1 || count > 20) return fail(c.lang, 400, 'api.bad_param', { name: 'count' });
   let record = findOrder(p, spec.key);
@@ -277,7 +279,7 @@ function lookupTake(c) {
 route('POST', '/api/projects/{p}/orders/{key}/attempts', (c) => {
   const o = lookup(c);
   if (o.error) return o.error;
-  const count = (c.body && c.body.count) || 1;
+  const count = (c.body && c.body.count) ?? 1;
   if (!Number.isInteger(count) || count < 1 || count > 20) return fail(c.lang, 400, 'api.bad_param', { name: 'count' });
   const seed = c.body && Number.isInteger(c.body.seed) ? c.body.seed : null;
   return ok(Array.from({ length: count }, (_, i) => ({ ...enqueueTake(c.params.p, o, seed === null ? null : seed + i) })));
@@ -389,15 +391,19 @@ export async function transport(method, url, body) {
   const u = new URL(url, location.origin);
   const seg = u.pathname.split('/').filter(Boolean).map(decodeURIComponent);
   const lang = u.searchParams.get('lang') || 'es';
+  let shapeFound = false;
   query: for (const r of routes) {
-    if (r.method !== method || r.parts.length !== seg.length) continue;
+    if (r.parts.length !== seg.length) continue;
     const params = {};
     for (let i = 0; i < seg.length; i++) {
       if (r.parts[i].startsWith('{')) params[r.parts[i].slice(1, -1)] = seg[i];
       else if (r.parts[i] !== seg[i]) continue query;
     }
+    shapeFound = true; // la ruta existe: si el método no es el suyo, 405 como el servidor
+    if (r.method !== method) continue;
     const q = new URLSearchParams(u.search); q.delete('lang');
     return r.handler({ params, query: q, body, lang });
   }
+  if (shapeFound) return fail(lang, 405, 'api.method_not_allowed', { method });
   return fail(lang, 404, 'api.not_found', { path: u.pathname });
 }

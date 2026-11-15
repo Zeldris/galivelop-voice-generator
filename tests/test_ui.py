@@ -1,7 +1,11 @@
 """F5.1: the static interface (CSP, imports, texts, tokens), the route contract against `api.js` and the simulator,
 and the static server."""
+import http.client
 import json
 import re
+import socket
+import subprocess
+import sys
 import threading
 import unittest
 import urllib.error
@@ -9,6 +13,7 @@ import urllib.request
 from pathlib import Path
 
 from gvoice import api_contract, i18n, server
+from gvoice.errors import GvoiceError
 
 ROOT = Path(__file__).resolve().parent.parent
 UI = ROOT / "gvoice" / "ui"
@@ -92,6 +97,20 @@ class Static(unittest.TestCase):
             self.assertIn("error." + code, en, code)
         for code in re.findall(r"'(sheet\.[a-z_]+)'", src):
             self.assertIn("warning." + code, es, code)
+
+    def test_js_behaviours_checked_by_text(self):
+        router, theme, mock, app, i18n_js = (read(f) for f in (
+            "js/router.js", "js/components/theme.js", "mock/api-mock.js", "js/app.js", "js/i18n.js"))
+        self.assertNotIn("pedidos", router)  # D9: the URL segment is English
+        self.assertIn("'orders'", router)
+        self.assertRegex(router, r"try \{[^}]*decodeURIComponent")  # a malformed hash is not an exception
+        self.assertIn("|| 'light'", theme)  # light by default (plan)
+        self.assertNotIn("|| 'auto'", theme)
+        self.assertRegex(mock, r"running\.cancelRequested[^}]*'cancelled'")
+        self.assertIn("'api.method_not_allowed'", mock)
+        self.assertNotRegex(mock, r"body\.count\) \|\| 1")  # count 0 is a 400, not 1
+        self.assertLess(app.index("onOffline("), app.index("i18n.load("))  # the band hears a boot that finds the API down
+        self.assertNotRegex(i18n_js, r"catch\s*(\(\w+\))?\s*\{\s*dict")  # a failed load keeps the previous dictionary
 
 
 def luminance(hexcolor):
@@ -194,6 +213,7 @@ class Contract(unittest.TestCase):
         self.assertEqual(params, {"p": "w", "key": "narrator/intro-01"})
         self.assertEqual(api_contract.match("DELETE", ["api", "queue"])[0], "method")
         self.assertIsNone(api_contract.match("GET", ["api", "nope"])[0])
+        self.assertIsNone(api_contract.match("GET", ["api", "projects", "", "orders"])[0])
 
 
 class ServerTests(unittest.TestCase):
@@ -280,6 +300,90 @@ class ServerTests(unittest.TestCase):
             urllib.request.urlopen(req)
         self.assertEqual(cm.exception.code, 403)
         self.assertEqual(json.loads(cm.exception.read())["error"]["code"], "api.bad_host")
+
+    def test_empty_segment_is_not_found_and_one_trailing_slash_is_tolerated(self):
+        for path in ("/api/projects//orders", "/api//queue", "/api/projects/x//"):
+            status, _, body = self.get(path)
+            self.assertEqual((status, json.loads(body)["error"]["code"]), (404, "api.not_found"), path)
+        status, _, body = self.get("/api/queue/")
+        self.assertEqual((status, json.loads(body)["error"]["code"]), (501, "api.not_implemented"))
+
+    def post_raw(self, length_header, payload=b""):
+        conn = http.client.HTTPConnection("127.0.0.1", self.srv.port, timeout=10)
+        try:
+            conn.putrequest("POST", "/api/queue/clear")
+            conn.putheader("Content-Length", length_header)
+            conn.endheaders()
+            if payload:
+                conn.send(payload)
+            res = conn.getresponse()
+            return res.status, json.loads(res.read())
+        finally:
+            conn.close()
+
+    def test_big_body_is_refused_with_413_and_no_reset(self):
+        payload = b"x" * (2 << 20)
+        for _ in range(5):
+            status, body = self.post_raw(str(len(payload)), payload)
+            self.assertEqual(status, 413)
+            self.assertEqual(body["error"]["code"], "api.body_too_large")
+            self.assertEqual(body["error"]["params"]["limit"], server.MAX_BODY)
+
+    def test_small_body_gets_the_normal_reply(self):
+        for _ in range(3):
+            status, body = self.post_raw("2", b"{}")
+            self.assertEqual((status, body["error"]["code"]), (501, "api.not_implemented"))
+
+    def test_bad_content_length_is_400(self):
+        for value in ("abc", "-5", "1.5"):
+            status, body = self.post_raw(value)
+            self.assertEqual((status, body["error"]["code"], body["error"]["params"]["name"]),
+                             (400, "api.bad_param", "Content-Length"), value)
+
+
+class LocalHost(unittest.TestCase):
+    def test_only_loopback_is_accepted(self):
+        for host in ("127.0.0.1", "localhost", "::1"):
+            self.assertEqual(server.check_host(host), host)
+        for host in ("0.0.0.0", "::", "", "192.168.1.5", "example.com"):
+            with self.assertRaises(GvoiceError) as cm:
+                server.make_server(0, host)
+            self.assertEqual(cm.exception.code, "cli.ui_host_not_local", host)
+            self.assertIn(host, cm.exception.message("en")) if host else None
+
+    def test_cli_refuses_a_foreign_host_without_binding(self):
+        for lang in ("es", "en"):
+            proc = subprocess.run([sys.executable, "-m", "gvoice", "ui", "--host", "0.0.0.0", "--port", "0", "--lang", lang],
+                                  cwd=ROOT, capture_output=True, text=True, timeout=30)
+            self.assertEqual(proc.returncode, 1)
+            self.assertEqual(proc.stderr.strip(), GvoiceError("cli.ui_host_not_local", host="0.0.0.0").message(lang))
+            self.assertEqual(proc.stdout, "")
+
+    def test_server_main_refuses_a_foreign_host(self):
+        proc = subprocess.run([sys.executable, "-m", "gvoice.server", "--host", "::", "--port", "0"],
+                              cwd=ROOT, capture_output=True, text=True, timeout=30)
+        self.assertEqual(proc.returncode, 1)
+        self.assertEqual(proc.stderr.strip(), GvoiceError("cli.ui_host_not_local", host="::").message())
+
+    def test_url_host_brackets_ipv6(self):
+        self.assertEqual(server.url_host("::1"), "[::1]")
+        self.assertEqual(server.url_host("localhost"), "localhost")
+
+    def test_ipv6_loopback_is_served(self):
+        try:
+            srv = server.make_server(0, "::1")
+        except OSError:
+            self.skipTest("no IPv6 loopback")
+        server.start_thread(srv)
+        try:
+            with urllib.request.urlopen(f"http://[::1]:{srv.port}/") as r:
+                self.assertEqual(r.status, 200)
+            req = urllib.request.Request(f"http://[::1]:{srv.port}/", headers={"Host": f"[::1]:{srv.port}"})
+            with urllib.request.urlopen(req) as r:
+                self.assertEqual(r.status, 200)
+        finally:
+            srv.shutdown()
+            srv.server_close()
 
 
 if __name__ == "__main__":

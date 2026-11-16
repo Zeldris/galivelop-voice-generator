@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Copiado de gimg@46248251 (D7); adaptado a gvoice: nombre en texto (aún no hay logo), sin cola, atajos ni caja de luz. -->
+<!-- Copiado de gimg@46248251 (D7); adaptado a gvoice: nombre en texto (aún no hay logo), sin caja de luz; la cola (F5.7) sin mover ni pausar. -->
 <html lang="es">
 <head>
   <meta charset="utf-8">
@@ -21,6 +21,7 @@
     </a>
     <nav class="crumbs" id="crumbs" data-i18n-aria-label="ui.nav.crumbs"></nav>
     <div class="header-tools">
+      <div id="queue-pill"></div>
       <label class="sr-only" for="lang" data-i18n="ui.lang.label">Idioma</label>
       <select id="lang" class="select-inline">
         <option value="es">ES</option>
@@ -36,6 +37,8 @@
   </header>
 
   <div id="banner" class="banner" role="alert" hidden></div>
+
+  <aside id="queue-drawer" class="queue-drawer" data-i18n-aria-label="ui.queue.label" hidden></aside>
 
   <main id="main" class="app-main" tabindex="-1"></main>
 

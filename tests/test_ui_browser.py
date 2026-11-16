@@ -196,5 +196,57 @@ class Screens(UiBase):
         self.no_problems()
 
 
+class QueueDrawer(UiBase):
+    """The queue pill and its drawer on the simulator's queue (1 running, 1 queued, 1 failed)."""
+
+    def entry(self, n):
+        return "#queue-drawer .queue-entry[data-entry='%d']" % n
+
+    def test_pill_drawer_cancel_and_clear(self):
+        self.open("/", "document.querySelector('.queue-pill')")
+        self.page.wait("document.querySelector('.queue-pill').textContent.includes('1 en cola')")
+        self.click(".queue-pill")
+        self.page.wait("!document.getElementById('queue-drawer').hidden")
+        self.page.wait("document.querySelectorAll('#queue-drawer .queue-entry').length === 3")
+        # la fallida dice por qué, con ✗ y texto (nunca solo color)
+        failed = self.js("document.querySelector(%s).textContent" % json.dumps(self.entry(0)))
+        self.assertIn("✗", failed)
+        self.assertIn("out of memory", failed)
+        # cancelar la confirmación no toca nada
+        self.click("[data-fid=clear-all]")
+        self.page.wait("document.querySelector('dialog.confirm[open]')")
+        self.click("dialog.confirm button:not(.btn-danger)")
+        self.page.wait("!document.querySelector('dialog.confirm[open]')")
+        self.assertTrue(self.js("document.querySelector(%s).classList.contains('is-queued')" % json.dumps(self.entry(2))))
+        # confirmarla cancela lo que espera
+        self.click("[data-fid=clear-all]")
+        self.page.wait("document.querySelector('dialog.confirm[open]')")
+        self.click("dialog.confirm button.btn-danger")
+        self.page.wait("document.querySelector(%s + '.is-cancelled')" % json.dumps(self.entry(2)))
+        self.page.wait("!document.querySelector('.queue-pill').textContent.includes('en cola')")
+        # Esc cierra el cajón
+        self.page.key("Escape")
+        self.page.wait("document.getElementById('queue-drawer').hidden")
+        self.no_problems()
+
+    def test_cancel_one_entry(self):
+        self.open("/", "document.querySelector('.queue-pill')")
+        self.click(".queue-pill")
+        self.click("[data-fid=cancel-2]")
+        self.page.wait("document.querySelector(%s + '.is-cancelled')" % json.dumps(self.entry(2)))
+        self.no_problems()
+
+    def test_the_open_drawer_fits_at_360_768_and_1280(self):
+        for width in (360, 768, 1280):
+            with self.subTest(width=width):
+                self.replace_page(width, 800)
+                self.open("/", "document.querySelector('.queue-pill')")
+                self.click(".queue-pill")
+                self.page.wait("document.querySelectorAll('#queue-drawer .queue-entry').length === 3")
+                self.page.pump(0.3)
+                self.assertEqual(self.js(Screens.FIT_PROBE), [])
+        self.no_problems()
+
+
 if __name__ == "__main__":
     unittest.main()

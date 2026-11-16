@@ -26,9 +26,6 @@
 .queue-pill:hover { border-color: var(--accent); }
 .queue-pill .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); flex: none; }
 .queue-pill.is-running .dot { background: var(--ok); animation: pulse 1.6s ease-in-out infinite; }
-.queue-pill.is-paused { border-color: var(--warn); }
-.queue-pill.is-paused .dot { background: var(--warn); animation: none; }
-.queue-pill progress { width: 70px; height: 6px; }
 @keyframes pulse { 50% { opacity: .35; } }
 
 .queue-drawer {
@@ -38,14 +35,12 @@
   padding: 12px; display: grid; gap: 10px; align-content: start;
 }
 .queue-drawer[hidden] { display: none; }
-.queue-entry { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--rule); background: var(--surface-2); }
+.queue-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--rule); background: var(--surface-2); }
 .queue-entry.is-running { border-color: var(--ok); }
 .queue-entry.is-failed { border-color: var(--bad); }
-.queue-entry .thumb { width: 64px; height: 40px; object-fit: cover; background: var(--rule); }
-.queue-entry .thumb-empty { width: 64px; height: 40px; background: var(--rule); }
 .queue-entry .who { font-size: 14px; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.queue-entry .what { font-size: 13px; line-height: 1.45; color: var(--text-2); }
-.queue-entry progress { height: 6px; margin-top: 4px; }
+.queue-entry .what { font-size: 13px; line-height: 1.45; color: var(--text-2); overflow-wrap: anywhere; }
+.queue-entry .queue-error { color: var(--bad); font-weight: 600; }
 
 /* contenido */
 .app-main { padding: 14px 16px 60px; max-width: 1600px; margin: 0 auto; }
@@ -105,8 +100,7 @@
   #queue-pill { order: 2; flex: 1 0 100%; }
   #queue-pill:empty { display: none; }
   .queue-pill { width: 100%; justify-content: flex-start; }
-  .queue-pill progress { margin-left: auto; }
-  .queue-drawer { width: 100vw; border-left: 0; }
+    .queue-drawer { width: 100vw; border-left: 0; }
   .app-main { padding: 10px 12px 60px; }
   .gallery { grid-template-columns: 1fr; }
   .order-row { grid-template-columns: 64px minmax(0, 1fr); }

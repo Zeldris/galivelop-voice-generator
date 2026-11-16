@@ -1603,6 +1603,104 @@ out({ x: keyAction({ key: 'x' }), X: keyAction({ key: 'X' }), noLetters: keyActi
         self.assertEqual(got["pad"], [["swap"], ["swap"], []])
         self.assertEqual(got["labels"], [["ui.shortcuts.group.global", []], ["ui.shortcuts.group.gallery", [["X"]]], ["ui.shortcuts.group.pad", [["LB", "RB"]]]])
 
+    def test_queue_model_counts_pill_cancel_clear_visible_and_error(self):
+        got = self.run_js("""
+const m = await mod('js/queue-model.js');
+const E = (id, state, extra = {}) => ({ id, state, kind: 'line', project: 'a', key: 'k', ...extra });
+const es = [E(0, 'failed', { error: { code: 'engine.failed', params: { message: 'x' } } }), E(3, 'queued', { project: 'b' }), E(1, 'running'), E(2, 'queued'), E(4, 'done'), E(5, 'cancelled'), E(6, 'bogus')];
+out({
+  counts: m.counts(es), none: m.counts(null), pill: m.pillParts(es), idle: m.pillParts([E(9, 'done')]),
+  cancel: es.map((e) => m.canCancel(e)), cancelNull: m.canCancel(null),
+  clearAll: m.clearable(es).map((e) => e.id), clearB: m.clearable(es, 'b').map((e) => e.id),
+  all: m.visible(es, 'all').map((e) => e.id), pending: m.visible(es, 'pending').map((e) => e.id),
+  failed: m.visible(es, 'failed').map((e) => e.id), done: m.visible(es, 'done').map((e) => e.id),
+  errText: m.errorOf(E(7, 'failed', { errorText: 'ya traducido', error: { code: 'x' } })),
+  errKey: m.errorOf(es[0], (k, p) => k + ':' + p.message), errNone: m.errorOf(E(8, 'failed')), errNotFailed: m.errorOf(E(8, 'done', { errorText: 'x' })),
+});
+""")
+        self.assertEqual(got["counts"], {"running": 1, "queued": 2, "done": 1, "failed": 1, "cancelled": 1})
+        self.assertEqual(got["none"]["queued"], 0)
+        self.assertEqual(got["pill"], {"running": 1, "queued": 2, "idle": False})
+        self.assertTrue(got["idle"]["idle"])
+        self.assertEqual(got["cancel"], [False, True, True, True, False, False, False])
+        self.assertFalse(got["cancelNull"])
+        self.assertEqual((got["clearAll"], got["clearB"]), ([3, 2], [3]))  # lo que corre no se vacía
+        self.assertEqual(got["pending"], [1, 2, 3])
+        self.assertEqual((got["failed"], got["done"]), ([0], [4]))
+        self.assertEqual(got["all"][:3], [1, 2, 3])  # primero lo que corre, luego lo que espera por id
+        self.assertEqual(got["all"][3:], [6, 5, 4, 0])  # y el resto, lo más nuevo antes
+        self.assertEqual((got["errText"], got["errKey"], got["errNone"], got["errNotFailed"]), ("ya traducido", "error.engine.failed:x", None, None))
+
+    QUEUE_ENV = ORDER_ENV + """
+const { initQueueBar, toggleQueue } = await mod('js/components/queue-bar.js');
+const poll = await mod('js/queue-poll.js');
+const stores = await mod('js/store.js');
+doc.body.append(Object.assign(doc.createElement('div'), { attrs: { id: 'qpill' } }), Object.assign(doc.createElement('aside'), { attrs: { id: 'queue-drawer' }, hidden: true }));
+const pillHost = doc.getElementById('qpill'); const drawer = doc.getElementById('queue-drawer');
+initQueueBar(pillHost, drawer);
+await poll.refreshNow();
+const fid = (id) => drawer.find((e) => e.dataset && e.dataset.fid === id)[0];
+"""
+
+    def test_queue_bar_pill_drawer_cancel_and_clear(self):
+        got = self.run_js(self.QUEUE_ENV + """
+const r = {};
+r.pill = pillHost.textContent; r.closed = drawer.hidden; r.innerHtmlFree = true;
+pillHost.find((e) => e.tag === 'button')[0].click();
+r.open = !drawer.hidden;
+r.entries = drawer.find((e) => e.className.includes('queue-entry')).map((e) => e.textContent);
+r.cancelIds = drawer.find((e) => e.dataset && String(e.dataset.fid).startsWith('cancel-')).map((e) => e.dataset.fid);
+r.noMove = drawer.find((e) => e.dataset && /^(up|down|top|pause)/.test(String(e.dataset.fid))).length;
+r.clear = fid('clear-all').textContent; r.dangerClass = fid('clear-all').className.includes('btn-danger');
+// cancelar la que espera (id 2)
+fid('cancel-2').click(); await until(() => !drawer.find((e) => e.dataset && e.dataset.fid === 'cancel-2').length);
+r.afterCancel = pillHost.textContent; r.seenCancel = seen.filter((s) => s[1].includes('/cancel')).map((s) => s[0] + ' ' + s[1].split('?')[0]);
+// filtro de fallidas: su error traducido, con ✗
+fid('filter-failed').click();
+r.failed = drawer.find((e) => e.className.includes('queue-entry')).map((e) => e.textContent);
+// vaciar: sin nada esperando ya no hay botón
+r.clearGone = drawer.find((e) => e.dataset && e.dataset.fid === 'clear-all').length;
+out(r);
+""")
+        self.assertEqual(got["pill"], "1 en marcha · 1 en cola")
+        self.assertTrue(got["closed"] and got["open"])
+        self.assertEqual(len(got["entries"]), 3)
+        self.assertEqual(got["cancelIds"], ["cancel-1", "cancel-2"])
+        self.assertEqual(got["noMove"], 0)
+        self.assertIn("Vaciar cola (1)", got["clear"])
+        self.assertTrue(got["dangerClass"])
+        self.assertEqual(got["seenCancel"], ["POST /api/queue/2/cancel"])
+        self.assertEqual(got["afterCancel"], "1 en marcha")
+        self.assertEqual(len(got["failed"]), 1)
+        self.assertIn("✗ ", got["failed"][0])
+        self.assertIn("out of memory", got["failed"][0])
+        self.assertEqual(got["clearGone"], 0)
+
+    def test_queue_bar_clear_confirms_then_posts_and_cancel_declined_posts_nothing(self):
+        got = self.run_js(self.QUEUE_ENV + """
+const r = {};
+pillHost.find((e) => e.tag === 'button')[0].click();
+fid('clear-all').click();
+await until(() => doc.body.find((e) => e.tag === 'dialog').length > 0);
+const dlg = doc.body.find((e) => e.tag === 'dialog')[0];
+const buttons = dlg.find((e) => e.tag === 'button');
+r.confirmDanger = buttons[0].className.includes('btn-danger');
+buttons[1].click(); await sleep(30);                       // «Cancelar»: no se envía nada
+r.postsAfterDecline = seen.filter((s) => s[1].split('?')[0].endsWith('/clear')).length;
+fid('clear-all').click();
+await until(() => doc.body.find((e) => e.tag === 'dialog').length > 0);
+doc.body.find((e) => e.tag === 'dialog')[0].find((e) => e.tag === 'button')[0].click();
+await until(() => seen.some((s) => s[1].split('?')[0].endsWith('/clear')));
+await until(() => pillHost.textContent === '1 en marcha');
+r.clear = seen.filter((s) => s[1].split('?')[0].endsWith('/clear')).map((s) => [s[0], s[1].split('?')[0], s[2]]);
+r.toast = toasts();
+out(r);
+""")
+        self.assertTrue(got["confirmDanger"])
+        self.assertEqual(got["postsAfterDecline"], 0)
+        self.assertEqual(got["clear"], [["POST", "/api/queue/clear", {}]])
+        self.assertIn("1 entradas canceladas", got["toast"])
+
     COMPARE_ENV = ORDER_ENV + """
 const { compareView } = await mod('js/components/compare-view.js');
 const mountCmp = async (key, query = {}) => {

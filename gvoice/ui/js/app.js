@@ -1,4 +1,4 @@
-/* Copiado de gimg@46248251 (D7); adaptado a gvoice: la carcasa (F5.1) y las vistas de proyectos (F5.2), de pedido (F5.4) y de comparación A/B (F5.5).
+/* Copiado de gimg@46248251 (D7); adaptado a gvoice: la carcasa (F5.1) y las vistas de proyectos (F5.2), de pedido (F5.4), de comparación A/B (F5.5) y la barra de cola (F5.7).
    Arranque de Galivelop Voice Generator: idioma, tema, textos estáticos, banda «sin servicio», rutas y avisos.
    Con `?mock=1` en la URL carga /ui/mock/api-mock.js y sustituye el transporte (prototipo sin API). */
 
@@ -15,6 +15,8 @@ import { projectView } from './components/project-view.js';
 import { orderView } from './components/order-view.js';
 import { compareView } from './components/compare-view.js';
 import { initShortcuts } from './components/shortcuts.js';
+import { initQueueBar } from './components/queue-bar.js';
+import * as poll from './queue-poll.js';
 
 async function boot() {
   const params = new URLSearchParams(location.search);
@@ -45,6 +47,8 @@ async function boot() {
   if (skip) skip.addEventListener('click', (e) => { e.preventDefault(); el('main').focus(); });
   initTheme(el('theme'));
   initShortcuts();
+  initQueueBar(el('queue-pill'), el('queue-drawer'));
+  poll.start();
 
   router.onChange(render);
   router.start();

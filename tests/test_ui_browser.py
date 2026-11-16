@@ -16,6 +16,19 @@ ORDER = "narrator"
 
 
 @unittest.skipUnless(browser.find_chrome(), "no Chrome/Chromium found (set GVOICE_TEST_CHROME)")
+class WithTmpdir(unittest.TestCase):
+    def test_a_host_flatpak_chrome_gets_tmpdir_after_host_and_after_run(self):
+        cmd = ["flatpak-spawn", "--host", "flatpak", "run", "com.google.Chrome"]
+        self.assertEqual(browser.with_tmpdir(cmd, "/p/tmp"), [
+            "flatpak-spawn", "--host", "--env=TMPDIR=/p/tmp", "flatpak", "run", "--env=TMPDIR=/p/tmp", "com.google.Chrome"])
+        self.assertEqual(cmd[1], "--host")  # the input is not modified
+
+    def test_a_host_command_that_is_not_flatpak_run_gets_it_only_after_host_and_other_commands_none(self):
+        self.assertEqual(browser.with_tmpdir(["flatpak-spawn", "--host", "chromium"], "/t"),
+                         ["flatpak-spawn", "--host", "--env=TMPDIR=/t", "chromium"])
+        self.assertEqual(browser.with_tmpdir(["chromium-browser"], "/t"), ["chromium-browser"])
+
+
 class UiBase(unittest.TestCase):
     """One server and one browser for the whole class; each test opens a fresh tab."""
 

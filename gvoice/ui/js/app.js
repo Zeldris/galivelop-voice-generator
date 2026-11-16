@@ -15,7 +15,7 @@ import { projectView } from './components/project-view.js';
 import { orderView } from './components/order-view.js';
 import { compareView } from './components/compare-view.js';
 import { initShortcuts } from './components/shortcuts.js';
-import { initQueueBar } from './components/queue-bar.js';
+import { initQueueBar, closeQueue } from './components/queue-bar.js';
 import * as poll from './queue-poll.js';
 
 async function boot() {
@@ -46,7 +46,7 @@ async function boot() {
   const skip = document.querySelector('a.skip');
   if (skip) skip.addEventListener('click', (e) => { e.preventDefault(); el('main').focus(); });
   initTheme(el('theme'));
-  initShortcuts();
+  initShortcuts({ closeAll: closeQueue });
   initQueueBar(el('queue-pill'), el('queue-drawer'));
   poll.start();
 

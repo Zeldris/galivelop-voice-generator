@@ -16,6 +16,7 @@ import { bucketsFor, canChoose, hasAudio, takeState } from '../take-model.js';
 import { otherSide, pickPair, switchPoint } from '../compare-model.js';
 import { icon } from './icons.js';
 import { createWaveform } from './waveform.js';
+import { isQueueOpen } from './queue-bar.js';
 import { helpOpen, isTyping, keyAction, mergeSources, oneKeyEnabled, openHelp, startGamepad } from './shortcuts.js';
 import { toast, toastError, toastOk } from './toast.js';
 
@@ -300,6 +301,7 @@ export function compareView(route) {
   }
   const merged = mergeSources(perform);   // Steam Input sends the pad as keys too: one press, one action
   const onKey = (e) => {
+    if (isQueueOpen() || e.defaultPrevented) return;   // el cajón de la cola está encima: la vista de debajo no actúa
     if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
     const action = keyAction(e, oneKeyEnabled());
     if (!action || !VIEW_ACTIONS.has(action)) return;   // a key that does nothing here is not blocked
@@ -310,7 +312,7 @@ export function compareView(route) {
   document.addEventListener('keydown', onKey);
   const stopPad = startGamepad((action) => {
     const a = document.activeElement;
-    if (isTyping(a) || helpOpen() || closest(a, 'dialog')) return;
+    if (isQueueOpen() || isTyping(a) || helpOpen() || closest(a, 'dialog')) return;
     merged.pad(action);
   });
 

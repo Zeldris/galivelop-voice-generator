@@ -16,6 +16,7 @@ import { pickPair } from '../compare-model.js';
 import { takeCard } from './take-card.js';
 import { icon } from './icons.js';
 import { warningIcon } from './sheet-warnings.js';
+import { isQueueOpen } from './queue-bar.js';
 import { helpOpen, isTyping, keyAction, mergeSources, oneKeyEnabled, openHelp, startGamepad } from './shortcuts.js';
 import { toast, toastError, toastOk } from './toast.js';
 
@@ -237,6 +238,7 @@ export function orderView(route) {
   }
   const merged = mergeSources(perform);   // Steam Input sends the pad as keys too: one press, one action
   const onKey = (e) => {
+    if (isQueueOpen() || e.defaultPrevented) return;   // el cajón de la cola está encima: la vista de debajo no actúa
     if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
     const action = keyAction(e, oneKeyEnabled());
     if (!action) return;
@@ -249,7 +251,7 @@ export function orderView(route) {
     const stopPad = startGamepad((action) => {
     // the same filters as the keyboard: not while typing in a field or with a dialog (the help) open
     const a = document.activeElement;
-    if (isTyping(a) || helpOpen() || closest(a, 'dialog')) return;
+    if (isQueueOpen() || isTyping(a) || helpOpen() || closest(a, 'dialog')) return;
     merged.pad(action);
   });
   gallery.addEventListener('focusin', (e) => {

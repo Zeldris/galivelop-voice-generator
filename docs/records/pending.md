@@ -45,3 +45,11 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
 - Para proponer al flujo: R1-R5 de `docs/records/retro-2026-11-14-gw-update.md`, R3 de `docs/records/retro-2026-11-11-f1.md`, R2-R3 de `docs/records/retro-2026-10-25-f0.md`, R2-R4 de `docs/records/retro-2026-10-25-diseno-voces.md`, y las aplazadas de la retro anterior: rama por defecto del flujo en 0.1.0; camino para CI
   agotado (`ci-local.sh`); 2 tests de `scout-updates` fallan fuera del flujo; `gw-init` debe decir que no se llame a
   `register_repo_root`.
+- Leves de la revisión de bloque de F5.7 (2026-11-16), sin arreglar:
+  - `queue-model.js` `errorOf`: un `error.code` sin clave `error.<code>` ni `errorText` deja la fallida sin motivo; recurrir a un texto con el código.
+  - `queue-bar.js`: un `state` o `kind` desconocido enseña la clave en crudo (`ui.queue.state.x`); usar el valor crudo si `i18n` no la tiene.
+  - `queue-bar.js`: `aria-label` en un `div` sin rol (la entrada); darle `role: 'group'`.
+  - `store.queueCounts()` repite `queue-model.counts()` y nadie lo usa.
+  - `tests/test_ui_browser.py`: `setUpClass` crea `cls.tmp` y nadie lo usa.
+  - `tests/test_ui_browser.py`: sin Chrome se salta también en el CI (REVIEW.md pide fallar allí); y `find_chrome()` corre al importar (en el Flatpak, un `flatpak-spawn --host flatpak info` en cada `discover`): moverlo a `setUpClass`.
+  - `tests/browser.py` `goto()`: espera `readyState === 'complete'`, que ya es cierto en el documento anterior; esperar `Page.loadEventFired` o el cambio de `location.href`.

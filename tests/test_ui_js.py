@@ -1645,7 +1645,7 @@ const fid = (id) => drawer.find((e) => e.dataset && e.dataset.fid === id)[0];
     def test_queue_bar_pill_drawer_cancel_and_clear(self):
         got = self.run_js(self.QUEUE_ENV + """
 const r = {};
-r.pill = pillHost.textContent; r.closed = drawer.hidden; r.innerHtmlFree = true;
+r.pill = pillHost.textContent; r.closed = drawer.hidden;
 pillHost.find((e) => e.tag === 'button')[0].click();
 r.open = !drawer.hidden;
 r.entries = drawer.find((e) => e.className.includes('queue-entry')).map((e) => e.textContent);
@@ -1684,6 +1684,7 @@ fid('clear-all').click();
 await until(() => doc.body.find((e) => e.tag === 'dialog').length > 0);
 const dlg = doc.body.find((e) => e.tag === 'dialog')[0];
 const buttons = dlg.find((e) => e.tag === 'button');
+r.message = dlg.textContent;
 r.confirmDanger = buttons[0].className.includes('btn-danger');
 buttons[1].click(); await sleep(30);                       // «Cancelar»: no se envía nada
 r.postsAfterDecline = seen.filter((s) => s[1].split('?')[0].endsWith('/clear')).length;
@@ -1699,7 +1700,139 @@ out(r);
         self.assertTrue(got["confirmDanger"])
         self.assertEqual(got["postsAfterDecline"], 0)
         self.assertEqual(got["clear"], [["POST", "/api/queue/clear", {}]])
-        self.assertIn("1 entradas canceladas", got["toast"])
+        self.assertIn("1 entrada cancelada.", got["toast"])
+        self.assertNotIn("1 entradas", got["toast"])
+        self.assertIn("Se cancelará 1 entrada que espera. Lo que ya está en marcha sigue hasta terminar.", got["message"])
+
+    def test_queue_open_blocks_the_keys_of_the_order_and_compare_views(self):
+        got = self.run_js(self.COMPARE_ENV + """
+const { initQueueBar, toggleQueue } = await mod('js/components/queue-bar.js');
+doc.body.append(Object.assign(doc.createElement('div'), { attrs: { id: 'qpill' } }), Object.assign(doc.createElement('aside'), { attrs: { id: 'queue-drawer' }, hidden: true }));
+initQueueBar(doc.getElementById('qpill'), doc.getElementById('queue-drawer'));
+const r = {};
+const order = await mount('narrator');
+const focused = () => cards(order).map((c) => c.focused).join();
+const f0 = focused(); const posts0 = seen.filter((s) => s[0] === 'POST').length;
+toggleQueue(true);
+press('ArrowRight'); press('g'); press('d'); press('p'); await sleep(30);
+r.orderBlocked = focused() === f0 && seen.filter((s) => s[0] === 'POST').length === posts0 && audioOf(order, 2).paused;
+toggleQueue(false);
+press('ArrowRight'); r.orderFree = focused() !== f0;
+order.cleanup();
+const view = await mountCmp('narrator', { a: '2', b: '3' });
+const active = () => sidesOf(view).map((s) => s.textContent.includes('Suena este lado') ? s.dataset.side : '').join('');
+toggleQueue(true);
+const before = active(); press('x'); press('ArrowRight'); await sleep(30);
+r.compareBlocked = active() === before && audios(view).every((a) => a.paused);
+toggleQueue(false);
+press('x'); await until(() => active() !== before); r.compareFree = true;
+out(r);
+""")
+        self.assertEqual(got, {"orderBlocked": True, "orderFree": True, "compareBlocked": True, "compareFree": True})
+
+    def test_queue_bar_cancel_moves_the_focus_to_the_next_entry_or_to_close(self):
+        got = self.run_js(self.QUEUE_ENV + """
+const r = {};
+pillHost.find((e) => e.tag === 'button')[0].click();
+const fidOf = () => (doc.activeElement && doc.activeElement.dataset ? doc.activeElement.dataset.fid : null);
+r.ids = drawer.find((e) => e.dataset && /^(cancel|go)-/.test(String(e.dataset.fid))).map((e) => e.dataset.fid);
+fid('cancel-2').focus(); fid('cancel-2').click();
+await until(() => !drawer.find((e) => e.dataset && e.dataset.fid === 'cancel-2').length);
+r.afterWaiting = fidOf();                                  // desapareció: la siguiente entrada (la fallida, con su enlace)
+fid('cancel-1').focus(); fid('cancel-1').click();
+await until(() => fid('cancel-1').disabled && fidOf() !== 'cancel-1');
+r.afterRunning = fidOf();                                  // queda deshabilitado: la siguiente entrada
+fid('go-0').focus();
+stores.set('queue', []);                                   // sin entradas: nada a lo que ir, y el foco que se pierde va a «cerrar»
+r.empty = fidOf();
+out(r);
+""")
+        self.assertEqual(got["ids"], ["cancel-1", "cancel-2", "go-0"])
+        self.assertEqual(got["afterWaiting"], "go-0")
+        self.assertEqual(got["afterRunning"], "go-2")  # la de antes ya cancelada, que ahora solo ofrece ir al pedido
+        self.assertEqual(got["empty"], "close")
+
+    def test_queue_bar_cancel_says_requested_for_a_running_entry_and_ignores_a_second_press(self):
+        got = self.run_js(self.QUEUE_ENV + """
+const r = {};
+let release; const held = new Promise((res) => { release = res; });
+setTransport(async (method, url, body) => { seen.push([method, url, body]); if (method === 'POST' && url.includes('/cancel')) await held; return mock.transport(method, url, body); });
+pillHost.find((e) => e.tag === 'button')[0].click();
+fid('cancel-1').click(); fid('cancel-1').click();            // doble pulsación mientras el POST va en curso
+await sleep(30);
+r.disabledWhileInFlight = fid('cancel-1').disabled;
+r.postsWhileInFlight = seen.filter((s) => s[1].includes('/cancel')).length;
+release();
+await until(() => toasts().includes('Cancelación pedida'));
+await sleep(30);
+r.posts = seen.filter((s) => s[1].includes('/cancel')).length;
+r.toast = toasts();
+r.errors = doc.getElementById('alerts').textContent;
+out(r);
+""")
+        self.assertTrue(got["disabledWhileInFlight"])
+        self.assertEqual((got["postsWhileInFlight"], got["posts"]), (1, 1))
+        self.assertIn("Cancelación pedida para la entrada 1.", got["toast"])
+        self.assertNotIn("Entrada 1 cancelada.", got["toast"])
+        self.assertEqual(got["errors"], "")
+
+    def test_queue_bar_cancel_of_a_waiting_entry_says_cancelled_and_the_button_is_back_after_a_failure(self):
+        got = self.run_js(self.QUEUE_ENV + """
+const r = {};
+pillHost.find((e) => e.tag === 'button')[0].click();
+fid('cancel-2').click();
+await until(() => toasts().includes('cancelada'));
+r.toast = toasts();
+out(r);
+""")
+        self.assertIn("Entrada 2 cancelada.", got["toast"])
+
+    def test_queue_bar_follows_the_language_and_the_route(self):
+        got = self.run_js(self.QUEUE_ENV + """
+const r = {};
+const router = await mod('js/router.js');
+pillHost.find((e) => e.tag === 'button')[0].click();
+r.es = pillHost.textContent;
+const E = (id, project) => ({ id, kind: 'line', project, key: 'k' + id, state: 'queued', seed: 1, cancelRequested: false });
+stores.set('queue', [E(1, 'example-world'), E(2, 'other')]);
+const clearProject = () => drawer.find((e) => e.dataset && e.dataset.fid === 'clear-project').map((e) => e.textContent);
+r.noRoute = clearProject();
+location.hash = '#/p/other/orders'; router.navigate('#/p/other/orders');
+r.routeOther = clearProject();
+location.hash = '#/p/example-world/orders'; router.navigate('#/p/example-world/orders');
+r.routeWorld = clearProject();
+const en = JSON.parse(readFileSync(new URL(UI + '/../locales/en.json').pathname, 'utf8'));
+globalThis.fetch = async () => ({ json: async () => en });
+await i18n.load('en');
+r.en = pillHost.textContent;
+out(r);
+""")
+        self.assertEqual(got["es"], "1 en marcha · 1 en cola")
+        self.assertEqual(got["noRoute"], [])
+        self.assertEqual(got["routeOther"], ["Vaciar cola de other (1)"])
+        self.assertEqual(got["routeWorld"], ["Vaciar cola de example-world (1)"])
+        self.assertEqual(got["en"], "2 queued")
+
+    def test_queue_bar_escape_goes_through_the_shortcuts_hook_and_help_closes_first(self):
+        got = self.run_js(self.QUEUE_ENV + """
+const { initShortcuts, openHelp, helpOpen } = await mod('js/components/shortcuts.js');
+const { closeQueue, isQueueOpen } = await mod('js/components/queue-bar.js');
+initShortcuts({ closeAll: closeQueue });
+const r = {};
+const pill = () => pillHost.find((e) => e.tag === 'button')[0];
+pill().click();
+const esc = () => doc.body.dispatchEvent({ type: 'keydown', key: 'Escape' });
+openHelp(); esc();                                          // con la ayuda encima, solo se cierra la ayuda
+r.afterHelpEsc = { help: helpOpen(), queue: isQueueOpen() };
+fid('close').focus(); const ev = esc();                     // el foco dentro del cajón: vuelve a la píldora
+r.afterEsc = { queue: isQueueOpen(), hidden: drawer.hidden, focusOnPill: doc.activeElement === pill(), prevented: ev.defaultPrevented };
+pill().click(); doc.body.focus(); esc();                    // el foco fuera del cajón: no se le roba
+r.outside = { queue: isQueueOpen(), focusOnPill: doc.activeElement === pill() };
+out(r);
+""")
+        self.assertEqual(got["afterHelpEsc"], {"help": False, "queue": True})
+        self.assertEqual(got["afterEsc"], {"queue": False, "hidden": True, "focusOnPill": True, "prevented": True})
+        self.assertEqual(got["outside"], {"queue": False, "focusOnPill": False})
 
     COMPARE_ENV = ORDER_ENV + """
 const { compareView } = await mod('js/components/compare-view.js');

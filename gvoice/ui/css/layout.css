@@ -100,7 +100,7 @@
   #queue-pill { order: 2; flex: 1 0 100%; }
   #queue-pill:empty { display: none; }
   .queue-pill { width: 100%; justify-content: flex-start; }
-    .queue-drawer { width: 100vw; border-left: 0; }
+  .queue-drawer { width: 100vw; border-left: 0; }
   .app-main { padding: 10px 12px 60px; }
   .gallery { grid-template-columns: 1fr; }
   .order-row { grid-template-columns: 64px minmax(0, 1fr); }

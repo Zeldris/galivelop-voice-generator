@@ -53,6 +53,22 @@ def scratch_dir(prefix):
     return tempfile.mkdtemp(prefix=prefix, dir=base)
 
 
+def with_tmpdir(command, tmp):
+    """The command line with ``TMPDIR=tmp`` also reaching a host/flatpak Chrome: ``flatpak-spawn --host`` and
+    ``flatpak run`` do not pass the caller's environment on, so it goes as ``--env=`` after ``--host`` and after ``run``."""
+    command = list(command)
+    if not command or os.path.basename(command[0]) != "flatpak-spawn":
+        return command
+    flag = "--env=TMPDIR=" + tmp
+    if "--host" in command:
+        command.insert(command.index("--host") + 1, flag)
+    for i in range(len(command) - 1):
+        if command[i] == "flatpak" and command[i + 1] == "run":
+            command.insert(i + 2, flag)
+            break
+    return command
+
+
 class CdpError(Exception):
     pass
 
@@ -264,6 +280,7 @@ class Browser:
             tmp = os.path.join(self.profile, "tmp")
             os.makedirs(tmp, exist_ok=True)
             env = dict(os.environ, TMPDIR=tmp)
+            args = with_tmpdir(args, tmp)
             self.proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
                                          start_new_session=True, env=env)
             self.ws_url = self._find_ws_url()
@@ -293,7 +310,8 @@ class Browser:
             if found:
                 return found[0]
             if os.path.exists(active):
-                lines = open(active).read().split()
+                with open(active) as fh:
+                    lines = fh.read().split()
                 if len(lines) >= 2:
                     return "ws://127.0.0.1:%s%s" % (lines[0], lines[1])
             if self.proc.poll() is not None:

@@ -21,16 +21,48 @@ let open = false;
 let hosts = null;
 let lastSig = null;
 let focusables = new Map(); // data-fid -> nodo del último pintado (para devolver el foco tras repintar)
+const inFlight = new Set(); // ids de entradas con su POST de cancelar en curso (hasta que acaba el refresco)
 
 function reg(fid, node) { focusables.set(fid, node); return node; }
 
 export function initQueueBar(pillHost, drawerHost) {
   hosts = { pillHost, drawerHost };
   store.subscribe('queue', render);
-  document.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Escape' && open) toggleQueue(false);
-  });
+  i18n.onChange(() => render());     // la píldora y el cajón cambian de idioma al momento
+  router.onChange(() => render());   // «Vaciar cola de <proyecto>» sigue al proyecto actual
   render();
+}
+
+/** Para el gancho de cierre de `initShortcuts` (Esc): cierra el cajón si está abierto y devuelve si lo cerró. El foco
+    vuelve a la píldora solo si estaba dentro del cajón. */
+export function closeQueue() {
+  if (!open) return false;
+  const inside = hosts && within(document.activeElement, hosts.drawerHost);
+  open = false;
+  render();
+  if (inside) { const pill = focusables.get('pill'); if (pill) pill.focus(); }
+  return true;
+}
+
+function within(node, root) {
+  for (let n = node; n; n = n.parentNode) if (n === root) return true;
+  return false;
+}
+
+/** Pone el foco en el primer control de la entrada siguiente a `fid` (en el orden del último pintado) o, si no hay, en cerrar. */
+function refocusAfter(order, fid) {
+  const usable = (id) => { const n = focusables.get(id); return n && !n.disabled ? n : null; };
+  const rest = order.slice(order.indexOf(fid) + 1).filter((id) => /^(cancel|go)-/.test(id));
+  const seen = new Set();
+  for (const id of rest) {
+    const entryId = id.replace(/^(cancel|go)-/, '');
+    if (seen.has(entryId)) continue;
+    seen.add(entryId);
+    const n = usable(`cancel-${entryId}`) || usable(`go-${entryId}`);
+    if (n) { n.focus(); return; }
+  }
+  const close = usable('close');
+  if (close) close.focus();
 }
 
 export function toggleQueue(force) {
@@ -52,14 +84,23 @@ function render() {
   if (!hosts) return;
   const entries = store.get('queue');
   // Solo se repinta si cambia lo que se ve (cada sondeo vuelve a llamar aquí).
-  const sig = JSON.stringify([i18n.lang(), open, filter, entries, router.parse().project || null]);
+  const sig = JSON.stringify([i18n.lang(), open, filter, entries, router.parse().project || null, [...inFlight]]);
   if (sig === lastSig) return;
   lastSig = sig;
   const active = document.activeElement;
+  const order = [...focusables.keys()];
   const fid = [...focusables].find(([, n]) => n === active);
   paint(entries);
-  const again = fid && focusables.get(fid[0]);
-  if (again && again !== document.activeElement) again.focus();
+  if (!fid) return;
+  const again = focusables.get(fid[0]);
+  const pending = /^cancel-(.+)$/.exec(fid[0]);
+  // el botón de la entrada desapareció o quedó deshabilitado (cancelada): el foco pasa a la siguiente entrada o a «cerrar»
+  // (mientras su POST va en curso se queda donde está: si falla, el botón sigue ahí)
+  if (!again || (again.disabled && !(pending && inFlight.has(Number(pending[1]))))) {
+    if (open && /^(cancel|go)-/.test(fid[0])) refocusAfter(order, fid[0]);
+    return;
+  }
+  if (again !== document.activeElement) again.focus();
 }
 
 function paint(entries) {
@@ -102,9 +143,9 @@ function entry(e) {
   const problem = errorOf(e, (key, params) => (i18n.has(key) ? t(key, params) : null));
   const actions = [];
   if (canCancel(e)) {
-    actions.push(reg(`cancel-${e.id}`, h('button.btn.btn-danger', { type: 'button', disabled: e.cancelRequested === true, data: { fid: `cancel-${e.id}` }, aria: { label: `${t('ui.queue.cancel')}: ${who}` }, onclick: () => cancel(e) }, t('ui.queue.cancel'))));
+    actions.push(reg(`cancel-${e.id}`, h('button.btn.btn-danger', { type: 'button', disabled: e.cancelRequested === true || inFlight.has(e.id), data: { fid: `cancel-${e.id}` }, aria: { label: `${t('ui.queue.cancel')}: ${who}` }, onclick: () => cancel(e) }, t('ui.queue.cancel'))));
   } else if (e.project && e.key && e.kind !== 'prints') {
-    actions.push(h('a.btn', { href: to.order(e.project, e.key), data: { fid: `go-${e.id}` }, onclick: () => toggleQueue(false) }, t('ui.queue.goToOrder')));
+    actions.push(reg(`go-${e.id}`, h('a.btn', { href: to.order(e.project, e.key), data: { fid: `go-${e.id}` }, onclick: () => toggleQueue(false) }, t('ui.queue.goToOrder'))));
   }
   return h('div.queue-entry', { class: `is-${e.state}`, data: { entry: e.id }, aria: { label: `${who}: ${what.join(', ')}` } },
     h('div', {}, h('div.who', {}, who), h('div.what', {}, what.join(' · ')),
@@ -113,24 +154,30 @@ function entry(e) {
 }
 
 async function cancel(e) {
+  if (inFlight.has(e.id)) return;
+  inFlight.add(e.id);
+  render();
   try {
     await api.cancel(e.id);
-    toast(t('ui.queue.cancelled', { id: e.id }));
-    await refreshNow();
-  } catch (err) { toastError(describeError(err, t)); await refreshNow(); }
+    toast(t(e.state === 'running' ? 'ui.queue.cancelRequested' : 'ui.queue.cancelled', { id: e.id }));
+  } catch (err) { toastError(describeError(err, t)); }
+  try { await refreshNow(); } finally { inFlight.delete(e.id); render(); }
 }
+
+// claves literales (el test de textos las busca así): singular con n === 1, plural en lo demás
+const plural = (one, other, n) => t(n === 1 ? one : other, { n });
 
 /** «Vaciar cola»: confirma y cancela todo lo que espera (de un proyecto, si se da). Lo que corre no se toca. */
 async function clearQueue(project, n) {
   const fid = project ? 'clear-project' : 'clear-all';
   const ok = await confirmAction({
-    title: t('ui.queue.clearTitle'), message: t('ui.queue.clearMessage', { n }), confirmLabel: t('ui.queue.clearConfirm'),
+    title: t('ui.queue.clearTitle'), message: plural('ui.queue.clearMessage.one', 'ui.queue.clearMessage.other', n), confirmLabel: t('ui.queue.clearConfirm'),
     opener: () => focusables.get(fid) || focusables.get('pill'),
   });
   if (!ok) return;
   try {
     const cancelled = await api.clearQueue(project);
-    toast(t('ui.queue.cleared', { n: Array.isArray(cancelled) ? cancelled.length : n }));
+    toast(plural('ui.queue.cleared.one', 'ui.queue.cleared.other', Array.isArray(cancelled) ? cancelled.length : n));
     await refreshNow();
   } catch (err) { toastError(describeError(err, t)); await refreshNow(); }
 }

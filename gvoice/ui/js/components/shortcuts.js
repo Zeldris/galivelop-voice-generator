@@ -116,7 +116,13 @@ export function helpOpen() { return help !== null; }
 
 export function initShortcuts({ closeAll = () => {} } = {}) {
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { closeHelp(); closeAll(); return; }
+    if (e.key === 'Escape') {
+      // con la ayuda abierta encima, Esc solo cierra la ayuda; `closeAll()` devuelve true si cerró algo (entonces las vistas ignoran la tecla)
+      const wasHelp = help !== null;
+      closeHelp();
+      if (!wasHelp && closeAll() === true) e.preventDefault();
+      return;
+    }
     if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === '?' && oneKeyEnabled()) { e.preventDefault(); openHelp(); } // «?» es un atajo de una tecla (WCAG 2.1.4)
   });

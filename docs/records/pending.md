@@ -1,0 +1,47 @@
+# Pendiente
+
+Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en este archivo.
+
+## Pendiente
+
+- Hallazgo leve de la revisión de bloque F5.5, sin arreglar en este PR: el cableado de teclado y mando (`mergeSources`, filtros de `onKey` y de `startGamepad`) y `loading()` están copiados entre `order-view.js` y `compare-view.js`; sacar un `bindShortcuts(perform)` a `shortcuts.js`. La ayuda de atajos de la vista A/B lista también U/C/D/G, que allí no hacen nada (filtrarla por vista).
+
+- Mando por Gamepad API sin probar en la Deck (de la persona, F5.8); F5.4 solo lo cubre con tests.
+  La revisión de bloque F5.4 añadió deduplicar teclado y mando (Steam Input convierte el mando en teclas): comprobar en la Deck que cada pulsación actúa una sola vez.
+
+- Hallazgos leves de la revisión de bloque F5.4, sin arreglar en este PR: `peaks.py` toma la duración y las cubetas de la cabecera de un WAV truncado, no de los frames leídos; `loading()` está copiado en `projects-view.js`, `project-view.js` y `order-view.js`.
+
+- Hallazgos leves de la revisión de bloque F5.3, sin arreglar en este PR: `sheetWarnings` de `sheet-warnings.js` solo lo usan los tests y el respaldo del icono está en dos sitios (`warningItems` y `warningIcon`); el botón que abre el diálogo de la ficha se pierde si la lista se rehace con el diálogo abierto, y el foco cae a `body`.
+- Hallazgo leve de la revisión de bloque F5.2, sin arreglar en este PR: los tests del JS pasaron de `test_ui.py` (estáticos) a `test_ui_js.py`, que se salta entero sin `node` ≥ 18; en la Deck (Flatpak) el check local no los corre: comprobar si hay `node` allí o dejar los estáticos como respaldo.
+- **F5, decisiones y recursos para la persona** (`docs/plan.md` § «F5 en detalle»): confirmar los pasos [P] y el orden F3 → F4+F5; encargar en GVIG el logo (símbolo + lockup) y decidir quién dibuja los iconos de interfaz.
+- `gvoice ui --host ::1` (IPv6) sin probar: el contenedor de la nube no tiene IPv6 y `test_ipv6_loopback_is_served` se salta; lo comprueba la persona en la Deck o su equipo.
+- Hallazgos leves de la revisión de bloque F5.1, sin arreglar en este PR: el simulador devuelve `blob` para el audio, pero `api.js` `request` solo devuelve `json` y `<audio src>` iría al servidor real (resolver en F5.4); `describeError` nunca llega a `ui.error.code`; carrera en `i18n.load` con cambios rápidos de idioma; `api.bad_host` no hace caso de `?lang=`; `cli.py` importa `server` en cada orden; `server.main` repite el argparse de `gvoice ui`; `api.js` tiene `withHeaders` y `put` muertos; `api_contract.match` parte los patrones y `i18n.available()` hace glob en cada petición.
+- Hallazgos leves de la revisión de bloque F2.4-F2.5, sin arreglar en este PR: `bench._wait_for_memory` duplica `worker._wait_for_memory`; `instalar.sh --dry-run` dice «modelos: verificados»; `gvoice bench --steps design --models …` ignora `--models` sin avisar y la comprobación de lista vacía de `cli.py` ~297 es enrevesada.
+- Hallazgos leves de la revisión de bloque F2.1-F2.3, sin arreglar en este PR (no vuelven a revisarse en él):
+  - stdout del motor descartado (`stdout=DEVNULL`): mejor al mismo archivo que stderr.
+  - `read_wav_ms` con `wave` no lee WAV en coma flotante: comprobar en F2.6 qué escribe `qwen-tts`.
+  - Un respaldo que funcionó no deja rastro (`fallback_from`).
+  - Un binario de respaldo ausente falla sin decirlo.
+  - `check_installed` no comprueba los modelos de huellas.
+  - El rollback de huellas puede borrar el par bueno anterior, y `print_not_written` pasa `path.suffix` en vez de la ruta.
+  - Carreras de señales en `_kill_group`/`Popen`.
+  - `recover_orphans` antes de `clean_workdirs` deja carpetas `q<entrada>` vacías.
+  - Espera de memoria aunque `_take` devuelva un intento ya hecho.
+  - El comentario de `engine_qwentts.py:49` sobre el proyecto.
+  - `models fetch` concurrentes comparten `.part`, sin fsync de la carpeta y con progreso solo al 0 y 100 %.
+  - `is_cancel_requested` cada 50 ms.
+  - `MemoryTests` de `tests/test_worker.py` está tras `unittest.main()`.
+- Proponer a la persona añadir `bash -n instalar.sh` a `check` de `.claude/gw.json` y a `.github/workflows/check.yml` (`.claude/` está protegido); mientras, `tests/test_install.py` lo corre.
+- Hallazgos leves de la revisión de F1, sin arreglar en este PR (no vuelven a revisarse en él):
+  - `queue.json` borrado o rehecho reinicia `nextId`, y una entrada nueva casa con un intento viejo por `queueEntry` (`worker._take`, carpeta `attempts/q<id>`).
+  - Al recuperar una entrada cancelada que ya movió `audio.wav`, el audio queda huérfano (`queue._recover`).
+  - Tener audio se decide por `audioMs` y no por el archivo: `QwenTtsEngine` (F2.2) lo da siempre, leído del `.wav`.
+  - Rendimiento: `order list` hace `list_orders` por voz (cuadrático); `list_orders` recorre también `attempts/`; `FakeEngine` arma las muestras en una lista; `should_cancel` abre una transacción de cola cada 20-50 ms; `production_model` se comprueba dos veces; `_check_key` valida el esquema varias veces.
+  - Sin uso en `gvoice/`: `queue.next_queued`, `clear`, `worker_alive`, `log.estimate`. (`machine_lock.busy` solo lo usan los tests.)
+  - Las lecturas de la cola toman `worker.lock` compartido, y un sondeo muy seguido puede impedir arrancar `gvoice work` (`worker.already_running`).
+- Hallazgos leves de la revisión de F0, sin arreglar en este PR: el mensaje de `propertyNames` sale con «()» vacío cuando el motivo no es un `pattern` (p. ej. un `enum`) y solo cuenta el primer motivo (`gvoice/schema.py`); `i18n.t()` lanza `KeyError` si a un idioma le falta un parámetro del texto y no mira `LANGUAGE`; los commits `81d76f1` y `7cebd24` de F0 tienen `Siguiente:` separado de la atribución por una línea en blanco.
+- Escucha del banco y registro del núcleo tras Vulkan: los dos, de la persona (ver «Pendiente» en `docs/plan.md`).
+- Para la persona, en `galivelop-image-generator`: su check `bash -n a b c` solo comprueba `a` (R3 de la retro de F0).
+- Para proponer al flujo: R1-R5 de `docs/records/retro-2026-11-14-gw-update.md`, R3 de `docs/records/retro-2026-11-11-f1.md`, R2-R3 de `docs/records/retro-2026-10-25-f0.md`, R2-R4 de `docs/records/retro-2026-10-25-diseno-voces.md`, y las aplazadas de la retro anterior: rama por defecto del flujo en 0.1.0; camino para CI
+  agotado (`ci-local.sh`); 2 tests de `scout-updates` fallan fuera del flujo; `gw-init` debe decir que no se llame a
+  `register_repo_root`.

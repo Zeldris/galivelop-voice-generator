@@ -137,6 +137,16 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(cm.exception.params["allowed"], "1.7b-voicedesign")
         limits.check_model("produce", "anything", {})  # no models in the profile
 
+    def test_meminfo_and_proc_status_paths_come_from_the_environment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            info, status = Path(tmp) / "m", Path(tmp) / "s{pid}"
+            info.write_text("MemAvailable: 3145728 kB\n")
+            Path(tmp, "s42").write_text("VmHWM:\t 1048576 kB\n")
+            with mock.patch.dict(os.environ, {limits.MEMINFO_ENV: str(info), limits.PROC_STATUS_ENV: str(status)}):
+                self.assertEqual(limits.available_memory_mb(), 3072)
+                self.assertEqual(limits.peak_rss_mb(42), 1024)
+                self.assertIsNone(limits.peak_rss_mb(43))
+
     def test_available_memory(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "meminfo"
@@ -147,6 +157,15 @@ class CheckTests(unittest.TestCase):
             p.write_text("MemAvailable: lots kB\n")
             self.assertIsNone(limits.available_memory_mb(str(p)))
             self.assertIsNone(limits.available_memory_mb(str(Path(d) / "nope")))
+
+    def test_total_memory(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "meminfo"
+            p.write_text("MemTotal:  16384000 kB\nMemAvailable: 1024 kB\n")
+            with mock.patch.dict(os.environ, {limits.MEMINFO_ENV: str(p)}):
+                self.assertEqual(limits.total_memory_mb(), 16000)
+            p.write_text("MemAvailable: 1024 kB\n")
+            self.assertIsNone(limits.total_memory_mb(str(p)))
 
     def test_messages(self):
         for lang in ("es", "en"):

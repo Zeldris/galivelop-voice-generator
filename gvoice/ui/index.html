@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<!-- Copiado de gimg@46248251 (D7); adaptado a gvoice: nombre en texto (aún no hay logo), sin caja de luz; la cola (F5.7) sin mover ni pausar. -->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Galivelop Voice Generator</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/ui/css/tokens.css">
+  <link rel="stylesheet" href="/ui/css/base.css">
+  <link rel="stylesheet" href="/ui/css/layout.css">
+  <link rel="stylesheet" href="/ui/css/components.css">
+</head>
+<body>
+  <a class="skip" href="#main" data-i18n="ui.nav.skip">Saltar al contenido</a>
+
+  <header class="app-header">
+    <a class="brand" href="#/" data-i18n-aria-label="ui.nav.projects">
+      <span>Galivelop Voice Generator</span>
+    </a>
+    <nav class="crumbs" id="crumbs" data-i18n-aria-label="ui.nav.crumbs"></nav>
+    <div class="header-tools">
+      <div id="queue-pill"></div>
+      <label class="sr-only" for="lang" data-i18n="ui.lang.label">Idioma</label>
+      <select id="lang" class="select-inline">
+        <option value="es">ES</option>
+        <option value="en">EN</option>
+      </select>
+      <label class="sr-only" for="theme" data-i18n="ui.theme.label">Tema</label>
+      <select id="theme" class="select-inline">
+        <option value="auto" data-i18n="ui.theme.auto">Automático</option>
+        <option value="dark" data-i18n="ui.theme.dark">Oscuro</option>
+        <option value="light" data-i18n="ui.theme.light">Claro</option>
+      </select>
+    </div>
+  </header>
+
+  <div id="banner" class="banner" role="alert" hidden></div>
+
+  <aside id="queue-drawer" class="queue-drawer" data-i18n-aria-label="ui.queue.label" hidden></aside>
+
+  <main id="main" class="app-main" tabindex="-1"></main>
+
+  <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+  <div id="alerts" class="sr-only" role="alert" aria-live="assertive"></div>
+
+  <script type="module" src="/ui/js/app.js"></script>
+</body>
+</html>

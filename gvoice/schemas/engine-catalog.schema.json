@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Engine catalog",
+  "description": "Data about one speech engine: where its source is, the commit it was tested at and the model files it needs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "engine",
+    "repo",
+    "commit",
+    "models"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Schema reference so editors can validate and complete the file."
+    },
+    "engine": {
+      "$ref": "common.schema.json#/$defs/name",
+      "description": "Engine name; the file is gvoice/engines/<engine>.json."
+    },
+    "repo": {
+      "type": "string",
+      "pattern": "^https://[^\\s]+$",
+      "description": "Source repository of the engine."
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Engine commit the catalog was measured with."
+    },
+    "models": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Model files the engine needs.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "file",
+          "url",
+          "bytes",
+          "sha256",
+          "use"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9.-]*$",
+            "description": "Model id (lowercase letters, digits, dots and hyphens), as in the machine profiles and printModels."
+          },
+          "file": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "description": "File name inside the models folder (a plain name, never a path)."
+          },
+          "url": {
+            "type": "string",
+            "pattern": "^https://[^\\s]+$",
+            "description": "Where to download the file."
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Exact size of the file in bytes."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "SHA-256 of the file, lowercase hex."
+          },
+          "use": {
+            "type": "string",
+            "enum": [
+              "design",
+              "base",
+              "codec"
+            ],
+            "description": "What the model is for: design a voice, produce lines with a fixed voice, or encode and decode audio."
+          }
+        }
+      }
+    }
+  }
+}

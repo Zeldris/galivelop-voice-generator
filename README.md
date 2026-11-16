@@ -15,6 +15,18 @@ motor de pruebas. **Aún no genera voces de verdad**: el motor real llega en F2.
 Detalle, decisiones D1-D17 y criterios de cierre en [`docs/plan.md`](docs/plan.md); vocabulario en
 [`GLOSSARY.md`](GLOSSARY.md).
 
+## Instalar el motor real
+
+```sh
+bash instalar.sh               # compila CPU y Vulkan, baja los modelos y prueba que arrancan (sin root)
+bash instalar.sh --dry-run     # imprime las órdenes sin ejecutarlas; también `--cpu-only` y `--skip-models`
+export GVOICE_ENGINE=qwentts   # o {"engine": "qwentts"} en config.json
+```
+
+En SteamOS (sin compilador) compila con el SDK de Flatpak `org.freedesktop.Sdk//25.08` (`flatpak --user`, D17); dentro
+de un Flatpak usa su compilador y prueba los binarios en el anfitrión; en otra distribución, `cmake`, `g++` y `git`.
+Deja `qwen-tts` y `qwen-codec` en `<datos>/engine/bin-cpu/` y `bin-vulkan/`.
+
 ## Uso
 
 ```sh
@@ -26,6 +38,8 @@ python3 -m gvoice choose <proyecto> narrator 1       # fija la voz y encola sus 
 python3 -m gvoice attempt new <proyecto> narrator    # otra toma; también `mark`, `note`
 python3 -m gvoice undo <proyecto> narrator           # vuelve a la referencia anterior
 python3 -m gvoice queue list                         # también `queue cancel <entrada>`
+python3 -m gvoice models verify                       # también `list` y `fetch` (baja lo que falte); `--engine qwentts`
+python3 -m gvoice bench --devices Vulkan0,cpu       # mide diseñar, fijar y producir con el motor y escribe `bench.md` (tabla del banco) en `<datos>/bench/<fecha>/`; también `--models`, `--steps`, `--seed`, `--out`
 ```
 
 `order list` y `order show` marcan las frases elegidas con una referencia que ya no es la vigente (desfasadas, D10).
@@ -43,6 +57,7 @@ gvoice/                 paquete Python (solo stdlib; código y contrato en ingl�
   i18n.py, locales/     textos es/en
   schemas/              un esquema por documento
   machine_profiles/     perfiles de máquina (steam-deck, D15)
+  engines/              catálogos de motor (qwentts: modelos, URL, tamaño y sha256, D18)
 examples/               un ejemplo válido por esquema (el pedido, uno voice y uno line)
 tests/                  unittest
 ```
@@ -58,6 +73,7 @@ Esquemas en `gvoice/schemas/`:
 | Cadena de efectos (vocabulario cerrado) | `effect-chain.schema.json` |
 | Paquete de voces: `pack.json` y `voice.json` | `pack.schema.json`, `voice.schema.json` |
 | Definiciones compartidas (`$ref`, un dato en un solo sitio) | `common.schema.json` |
+| Catálogo de motor (`gvoice/engines/<motor>.json`) | `engine-catalog.schema.json` |
 
 Ejemplo de configuración de proyecto: [`examples/galivelop-voices.json`](examples/galivelop-voices.json); el resto de ejemplos están en [`examples/`](examples/).
 

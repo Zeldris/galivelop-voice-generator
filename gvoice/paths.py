@@ -11,13 +11,29 @@ from .errors import GvoiceError, PathError
 
 
 
+def _xdg_base(xdg: str):
+    """``$<xdg>`` if it is absolute (the XDG spec says to ignore relative values), else ``None``.
+
+    Inside a Flatpak (``FLATPAK_ID`` set, e.g. VS Code on the Deck) the XDG folders point to the sandbox,
+    ``~/.var/app/<id>/...``, where the ``gvoice`` of the host never looks: those are ignored, so both sides share
+    ``~/.config``, ``~/.local/share`` and ``~/.local/state``."""
+    base = os.environ.get(xdg)
+    if not base or not os.path.isabs(base):
+        return None
+    if os.environ.get("FLATPAK_ID"):
+        sandbox = Path.home() / ".var" / "app"
+        if Path(base) == sandbox or sandbox in Path(base).parents:
+            return None
+    return Path(base)
+
+
 def _home_dir(own: str, xdg: str, fallback: tuple) -> Path:
     explicit = os.environ.get(own)
     if explicit:
         return Path(explicit)
-    base = os.environ.get(xdg)
-    if base and os.path.isabs(base):  # the XDG spec says to ignore relative values
-        return Path(base) / "galivelop-voice"
+    base = _xdg_base(xdg)
+    if base is not None:
+        return base / "galivelop-voice"
     return Path.home().joinpath(*fallback)
 
 
@@ -36,9 +52,9 @@ def state_dir() -> Path:
     explicit = os.environ.get("GVOICE_STATE_HOME")
     if explicit:
         return Path(explicit)
-    base = os.environ.get("XDG_STATE_HOME")
-    if base and os.path.isabs(base):
-        return Path(base) / "galivelop"
+    base = _xdg_base("XDG_STATE_HOME")
+    if base is not None:
+        return base / "galivelop"
     return Path.home() / ".local" / "state" / "galivelop"
 
 

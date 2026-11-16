@@ -99,12 +99,43 @@ def check_model(use: str, model: str, machine: dict) -> None:
         raise LimitError("limit.model", model=model, use=use, allowed=", ".join(allowed))
 
 
-def available_memory_mb(meminfo: str = "/proc/meminfo"):
-    """``MemAvailable`` in MB, or ``None`` where it cannot be read."""
+MEMINFO_ENV = "GVOICE_MEMINFO"  # tests: a file with the format of /proc/meminfo
+PROC_STATUS_ENV = "GVOICE_PROC_STATUS"  # tests: a file in the format of /proc/<pid>/status; ``{pid}`` is replaced
+
+
+def _meminfo_mb(field: str, meminfo: str | None = None):
+    """Field `field` of ``/proc/meminfo`` (kB) in MB, or ``None`` where it cannot be read. `meminfo` defaults to
+    ``$GVOICE_MEMINFO``, else ``/proc/meminfo``."""
+    meminfo = meminfo or os.environ.get(MEMINFO_ENV) or "/proc/meminfo"
     try:
         with open(meminfo, encoding="ascii") as fh:
             for line in fh:
-                if line.startswith("MemAvailable:"):
+                if line.startswith(field + ":"):
+                    return int(line.split()[1]) // 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return None
+
+
+def available_memory_mb(meminfo: str | None = None):
+    """``MemAvailable`` in MB, or ``None`` where it cannot be read. `meminfo` defaults to ``$GVOICE_MEMINFO``, else
+    ``/proc/meminfo``."""
+    return _meminfo_mb("MemAvailable", meminfo)
+
+
+def total_memory_mb(meminfo: str | None = None):
+    """``MemTotal`` in MB, or ``None`` where it cannot be read (same source as `available_memory_mb`)."""
+    return _meminfo_mb("MemTotal", meminfo)
+
+
+def peak_rss_mb(pid: int):
+    """Peak resident memory (``VmHWM``) of process `pid` in MB, or ``None`` if it cannot be read (it is gone, or
+    there is no ``/proc``). The file is ``$GVOICE_PROC_STATUS`` (``{pid}`` replaced) when set."""
+    template = os.environ.get(PROC_STATUS_ENV) or "/proc/{pid}/status"
+    try:
+        with open(template.format(pid=pid), encoding="ascii", errors="replace") as fh:
+            for line in fh:
+                if line.startswith("VmHWM:"):
                     return int(line.split()[1]) // 1024
     except (OSError, ValueError, IndexError):
         pass

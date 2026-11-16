@@ -35,6 +35,35 @@ class FolderTests(unittest.TestCase):
             self.assertEqual(paths.data_dir(), Path("/h/.local/share/galivelop-voice"))
 
 
+class FlatpakTests(unittest.TestCase):
+    """Inside the VS Code Flatpak the XDG folders point to the sandbox; gvoice uses the host folders instead."""
+
+    def env(self, **kw):
+        base = {k: "" for k in ("GVOICE_CONFIG_HOME", "GVOICE_DATA_HOME", "GVOICE_STATE_HOME", "XDG_CONFIG_HOME",
+                                "XDG_DATA_HOME", "XDG_STATE_HOME", "FLATPAK_ID")}
+        base.update(HOME="/h", **kw)
+        return mock.patch.dict(os.environ, base)
+
+    def test_sandbox_xdg_is_ignored_inside_flatpak(self):
+        app = "/h/.var/app/com.visualstudio.code"
+        with self.env(FLATPAK_ID="com.visualstudio.code", XDG_DATA_HOME=app + "/data",
+                      XDG_CONFIG_HOME=app + "/config", XDG_STATE_HOME=app + "/.local/state"):
+            self.assertEqual(paths.data_dir(), Path("/h/.local/share/galivelop-voice"))
+            self.assertEqual(paths.engine_dir(), Path("/h/.local/share/galivelop-voice/engine"))
+            self.assertEqual(paths.config_dir(), Path("/h/.config/galivelop-voice"))
+            self.assertEqual(paths.state_dir(), Path("/h/.local/state/galivelop"))
+
+    def test_explicit_and_other_xdg_still_win_inside_flatpak(self):
+        with self.env(FLATPAK_ID="com.visualstudio.code", XDG_DATA_HOME="/h/.var/app/x/data", GVOICE_DATA_HOME="/d"):
+            self.assertEqual(paths.data_dir(), Path("/d"))
+        with self.env(FLATPAK_ID="com.visualstudio.code", XDG_DATA_HOME="/y"):
+            self.assertEqual(paths.data_dir(), Path("/y/galivelop-voice"))
+
+    def test_outside_flatpak_the_xdg_value_is_kept(self):
+        with self.env(XDG_DATA_HOME="/h/.var/app/x/data"):
+            self.assertEqual(paths.data_dir(), Path("/h/.var/app/x/data/galivelop-voice"))
+
+
 class EngineModelsTests(unittest.TestCase):
     def test_engine_and_models_under_data(self):
         with mock.patch.dict(os.environ, {"GVOICE_DATA_HOME": "/d", "GVOICE_MODELS_HOME": ""}):

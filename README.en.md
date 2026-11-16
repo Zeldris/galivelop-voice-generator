@@ -15,6 +15,18 @@ test engine. **It does not generate real voices yet**: the real engine arrives i
 Details, decisions D1-D17 and exit criteria in [`docs/plan.md`](docs/plan.md) (Spanish); vocabulary in
 [`GLOSSARY.md`](GLOSSARY.md) (Spanish).
 
+## Installing the real engine
+
+```sh
+bash instalar.sh               # builds CPU and Vulkan, downloads the models, checks they start (no root)
+bash instalar.sh --dry-run     # prints the commands without running them; also `--cpu-only` and `--skip-models`
+export GVOICE_ENGINE=qwentts   # or {"engine": "qwentts"} in config.json
+```
+
+On SteamOS (no compiler) it builds with the Flatpak SDK `org.freedesktop.Sdk//25.08` (`flatpak --user`, D17); inside a
+Flatpak it uses that compiler and probes the binaries on the host; on other distributions, `cmake`, `g++` and `git`.
+It leaves `qwen-tts` and `qwen-codec` in `<data>/engine/bin-cpu/` and `bin-vulkan/`.
+
 ## Usage
 
 ```sh
@@ -26,6 +38,8 @@ python3 -m gvoice choose <project> narrator 1        # fixes the voice and queue
 python3 -m gvoice attempt new <project> narrator     # another take; also `mark`, `note`
 python3 -m gvoice undo <project> narrator            # back to the previous reference
 python3 -m gvoice queue list                         # also `queue cancel <entry>`
+python3 -m gvoice models verify                       # also `list` and `fetch` (downloads what is missing); `--engine qwentts`
+python3 -m gvoice bench --devices Vulkan0,cpu       # times design, print and produce with the engine and writes `bench.md` (the bench table) in `<data>/bench/<date>/`; also `--models`, `--steps`, `--seed`, `--out`
 ```
 
 `order list` and `order show` mark the chosen lines made with a reference that is no longer the current one (stale,
@@ -43,6 +57,7 @@ gvoice/                 Python package (stdlib only; code and contract in Englis
   i18n.py, locales/     es/en texts
   schemas/              one schema per document
   machine_profiles/     machine profiles (steam-deck, D15)
+  engines/              engine catalogs (qwentts: models, URL, size and sha256, D18)
 examples/               one valid example per schema (order: one voice, one line)
 tests/                  unittest
 ```
@@ -58,6 +73,7 @@ Schemas in `gvoice/schemas/`:
 | Effect chain (closed vocabulary) | `effect-chain.schema.json` |
 | Voice pack: `pack.json` and `voice.json` | `pack.schema.json`, `voice.schema.json` |
 | Shared definitions (`$ref`, one fact in one place) | `common.schema.json` |
+| Engine catalog (`gvoice/engines/<engine>.json`) | `engine-catalog.schema.json` |
 
 Example project configuration: [`examples/galivelop-voices.json`](examples/galivelop-voices.json); the other examples are in [`examples/`](examples/).
 

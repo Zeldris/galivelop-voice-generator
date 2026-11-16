@@ -34,6 +34,14 @@ las crea una vez; desde entonces son del proyecto.
   costó ~11k tokens, arrastrados ~170k. El encargo de un paso de F5 se escribe con la fila del plan, `docs/api.md` y
   las rutas; el subagente lee el resto (retro F5.2, aprobada).
 
+- Encadenar tareas sin `/clear` (F2.4 → F5.7, sesión `6ea0a867`): 454 llamadas a 117k de media, 2 compactaciones,
+  53M en la principal. Al cerrar una tarea, si el contexto pasa de ~120k, no se empieza la siguiente aunque la persona
+  diga «Siguiente»: se pide el `/clear` y se para (retro 2026-11-16, P1).
+- Las revisiones van al tipo `gw-reviewer`, no a `general-purpose` (arranque 66-70k frente a ~15k); medir su arranque
+  con `measure.py` en la primera (retro 2026-11-16, P2).
+- Los arreglos de una revisión de bloque van a `implementador` sonnet, no a la principal: en F5.7 arrastraron ~150k
+  (retro 2026-11-16, P3).
+
 ## Ajustes en vigor
 
 - Ventana de compactación automática: `CLAUDE_CODE_AUTO_COMPACT_WINDOW` en `.claude/settings.json`.
@@ -53,3 +61,6 @@ las crea una vez; desde entonces son del proyecto.
   0 compactaciones, sin subagentes; la revisión de fase 1 (4 archivos de configuración) en la sesión.
 - 2026-11-15, F5.2 (`86bcfcfb`): 22 llamadas, contexto medio 113k (suelo 86k, techo 138k), 0 compactaciones;
   subagentes 4,98M de entrada (implementador en sonnet 3,3M; revisión en opus 1,6M).
+- 2026-11-16, F2.4 → F5.7 en una sesión (`6ea0a867`): 454 llamadas, contexto medio 117k (suelo 90k, techo 162k), 2
+  compactaciones; subagentes 14M (revisiones en `general-purpose` opus 5,1M). Arranque tras `/clear`: 94k, ~85k del
+  entorno de la nube.

@@ -153,6 +153,8 @@ def submit(project: str, order: dict) -> dict:
         fields = {"voice": order["voice"], "text": order["text"]}
     else:
         fields = {"testText": order["testText"], "designSheet": copy.deepcopy(order["designSheet"])}
+        if order.get("locale") is not None:
+            fields["locale"] = order["locale"]
     fields["seed"] = order.get("seed")
     path = _order_file(project, key)
     with fsutil.lock(path):
@@ -166,6 +168,7 @@ def submit(project: str, order: dict) -> dict:
                       "chosenHistory": []}
         if record["type"] != kind:
             raise GvoiceError("order.type_changed", order=key, type=record["type"], new=kind)
+        record.pop("locale", None)  # a resubmit without locale clears it, like seed
         record.update(fields)
         record["updatedAt"] = now
         fsutil.write_json(path, record)
@@ -198,7 +201,10 @@ def attempt_specs(project: str, key: str, count: int = 1, *, seed=None) -> list:
     base = order.get("seed") if seed is None else seed
     check_count(count, base)
     if order["type"] == "voice":
-        extra = {"instruction": sheet.instruction(order["designSheet"]), "text": order["testText"]}
+        locale = order.get("locale")
+        extra = {"instruction": sheet.instruction(order["designSheet"], locale), "text": order["testText"]}
+        if locale is not None:
+            extra["locale"] = locale
     else:
         extra = {"voice": order["voice"], "reference": _fixed_voice(project, order["voice"])[1],
                  "text": order["text"]}

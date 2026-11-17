@@ -50,7 +50,7 @@ import threading
 import time
 
 from . import engine as engine_mod
-from . import i18n, limits, log, machine_lock, orders, paths, queue
+from . import i18n, limits, log, machine_lock, orders, paths, queue, speech_locale
 from .errors import GvoiceError
 
 MEMORY_POLL_S = 0.5  # how often a job waiting for memory looks again
@@ -179,7 +179,8 @@ def _take(entry: dict, eng, machine: dict, state: dict, should_cancel):
         model = _model_of(machine, "design")
         job = engine_mod.DesignJob(
             instruction=entry["instruction"], text=entry["text"], seed=entry["seed"], output=str(tmp), model=model,
-            machine=machine, timeout_s=limits.timeout_s(machine))
+            machine=machine, timeout_s=limits.timeout_s(machine),
+            language=speech_locale.language(entry.get("locale")))
         spec["instruction"] = entry["instruction"]
         state["spec"] = {"model": model, "text": entry["text"]}
         state["result"] = eng.design(job, should_cancel)
@@ -196,7 +197,8 @@ def _take(entry: dict, eng, machine: dict, state: dict, should_cancel):
             raise GvoiceError("worker.print_missing", model=model, voice=voice, take=reference["id"])
         job = engine_mod.LineJob(
             spk=str(spk), rvq=str(rvq), text=entry["text"], seed=entry["seed"], output=str(tmp), model=model,
-            machine=machine, timeout_s=limits.timeout_s(machine), reference_text=reference.get("text"))
+            machine=machine, timeout_s=limits.timeout_s(machine), reference_text=reference.get("text"),
+            language=speech_locale.language(voice_order.get("locale")))
         spec["voice"] = voice
         spec["reference"] = entry["reference"]
         state["spec"] = {"model": model, "text": entry["text"]}

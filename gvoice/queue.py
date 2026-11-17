@@ -235,7 +235,8 @@ def enqueue(project: str, key: str, specs: list) -> list:
 
     def change(data):
         return [_entry(data, kind, project, key, now, seed=spec["seed"], text=spec["text"],
-                       **({"instruction": spec["instruction"]} if kind == "voice"
+                       **({"instruction": spec["instruction"],
+                           **({"locale": spec["locale"]} if spec.get("locale") else {})} if kind == "voice"
                           else {"voice": spec.get("voice", order["voice"]), "reference": spec["reference"]}))
                 for spec in specs]
 

@@ -34,6 +34,16 @@
       "maximum": 4294967295,
       "description": "Random seed: an unsigned 32-bit integer."
     },
+    "locale": {
+      "type": "string",
+      "enum": [
+        "es-ES",
+        "es-419",
+        "en-US",
+        "en-GB"
+      ],
+      "description": "Language variant of a voice: es-ES (Castilian, Spain), es-419 (Latin American Spanish), en-US, en-GB. Sets the engine language and a fixed phrase in the instruct."
+    },
     "testText": {
       "type": "string",
       "minLength": 1,

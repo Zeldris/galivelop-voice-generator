@@ -37,6 +37,8 @@ las crea una vez; desde entonces son del proyecto.
 - Encadenar tareas sin `/clear` (F2.4 → F5.7, sesión `6ea0a867`): 454 llamadas a 117k de media, 2 compactaciones,
   53M en la principal. Al cerrar una tarea, si el contexto pasa de ~120k, no se empieza la siguiente aunque la persona
   diga «Siguiente»: se pide el `/clear` y se para (retro 2026-11-16, P1).
+- Versionado y releases ya viven aquí (`docs/plan.md` § Versiones, `releases.py`, CHANGELOG): no se lee `gimg`
+  para eso. Leerlo desde la principal arrastró ~380k en la sesión `d2b52ac4` (retro 2026-11-17, P1).
 - Las revisiones van al tipo `gw-reviewer`, no a `general-purpose` (arranque 66-70k frente a ~15k); medir su arranque
   con `measure.py` en la primera (retro 2026-11-16, P2).
 - Los arreglos de una revisión de bloque van a `implementador` sonnet, no a la principal: en F5.7 arrastraron ~150k
@@ -64,3 +66,5 @@ las crea una vez; desde entonces son del proyecto.
 - 2026-11-16, F2.4 → F5.7 en una sesión (`6ea0a867`): 454 llamadas, contexto medio 117k (suelo 90k, techo 162k), 2
   compactaciones; subagentes 14M (revisiones en `general-purpose` opus 5,1M). Arranque tras `/clear`: 94k, ~85k del
   entorno de la nube.
+- 2026-11-17, versiones y cierre de 0.2.0 (`d2b52ac4`): 48 llamadas, contexto medio 98k (suelo 50k, techo 130k), 0
+  compactaciones, 4,7M en la principal; 4 subagentes, 1,4M (arranque medio 18k).

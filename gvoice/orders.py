@@ -139,7 +139,8 @@ def submit(project: str, order: dict) -> dict:
     `order` follows the ``order`` schema. A ``line`` needs a ``voice`` order of the project with a chosen reference
     (``order.voice_unknown`` / ``order.voice_not_fixed``). Resubmitting the same key replaces seed (a missing ``seed``
     clears it), testText and designSheet (voice) or voice and text (line), and keeps attempts, chosen and history;
-    its type cannot change (``order.type_changed``). Does not enqueue.
+    its type cannot change (``order.type_changed``). Does not enqueue. A voice resubmitted without ``locale`` keeps
+    the one it has (the UI form has no such field, so a resubmit must not wipe it); a new ``locale`` replaces it.
 
     A ``voice`` also gets ``warnings``, a list of ``{"code", "params"}`` from `sheet.warnings` (D11): it is in the
     returned copy only, never stored, and does not block."""
@@ -153,6 +154,8 @@ def submit(project: str, order: dict) -> dict:
         fields = {"voice": order["voice"], "text": order["text"]}
     else:
         fields = {"testText": order["testText"], "designSheet": copy.deepcopy(order["designSheet"])}
+        if order.get("locale") is not None:
+            fields["locale"] = order["locale"]
     fields["seed"] = order.get("seed")
     path = _order_file(project, key)
     with fsutil.lock(path):
@@ -198,7 +201,10 @@ def attempt_specs(project: str, key: str, count: int = 1, *, seed=None) -> list:
     base = order.get("seed") if seed is None else seed
     check_count(count, base)
     if order["type"] == "voice":
-        extra = {"instruction": sheet.instruction(order["designSheet"]), "text": order["testText"]}
+        locale = order.get("locale")
+        extra = {"instruction": sheet.instruction(order["designSheet"], locale), "text": order["testText"]}
+        if locale is not None:
+            extra["locale"] = locale
     else:
         extra = {"voice": order["voice"], "reference": _fixed_voice(project, order["voice"])[1],
                  "text": order["text"]}
@@ -306,6 +312,8 @@ def add_attempt(project: str, key: str, spec: dict, entry_id=None) -> int:
         else:
             record["voice"] = line_voice
             record["reference"] = spec["reference"]
+        if spec.get("locale"):  # the language the take was spoken in (a line: its reference take's)
+            record["locale"] = spec["locale"]
         if entry_id is not None:
             record["queueEntry"] = entry_id
         paths.inside(_order_dir(project, key), record["audio"])
@@ -432,26 +440,41 @@ def reference(project: str, voice: str):
 
 def is_stale(project: str, key: str) -> bool:
     """Whether the chosen attempt of line `key` is stale (D10): it was made for another voice than the line's
-    current one, or the reference take it was made with is not that voice's current reference. Calculated each time, never stored. ``False`` when the line has no chosen attempt."""
+    current one, with a reference take that is not that voice's current reference, or in another locale than that
+    take's. Calculated each time, never stored. ``False`` when the line has no chosen attempt."""
     order = get(project, key)
     _is_type(order, "line")
     if order["chosen"] is None:
         return False
-    return _stale(order, reference(project, order["voice"]))
+    return _stale(order, *_reference_and_locale(project, order["voice"]))
 
 
-def _stale(order: dict, current) -> bool:
-    """`order` (a line with a chosen attempt) against the current reference `current` of its voice: stale if the
-    attempt was made for another voice (an old attempt without ``voice`` counts as the line's) or with another take."""
+def _reference_and_locale(project: str, voice: str) -> tuple:
+    """``(current reference id, locale of that take)`` of voice `voice` (locale ``None`` if the take is not among its
+    attempts: its lines then come out stale, no error). The locale is the take's, not the voice
+    order's now: a line is spoken with its reference's locale, so a voice resubmitted with another locale but the
+    same take leaves its lines current (they would come out the same if regenerated)."""
+    record = _voice_order(project, voice)
+    current = record["chosen"]
+    found = next((a for a in record["attempts"] if a["id"] == current), None) if current is not None else None
+    return current, (found.get("locale") if found else None)
+
+
+def _stale(order: dict, current, locale=None) -> bool:
+    """`order` (a line with a chosen attempt) against the current reference `current` of its voice and that take's
+    ``locale``:
+    stale if the attempt was made for another voice (an old attempt without ``voice`` counts as the line's), with
+    another take or in another locale (an attempt without ``locale`` was made with none)."""
     attempt = _attempt(order, order["chosen"])
-    return attempt.get("voice", order["voice"]) != order["voice"] or attempt.get("reference") != current
+    return (attempt.get("voice", order["voice"]) != order["voice"] or attempt.get("reference") != current
+            or attempt.get("locale") != locale)
 
 
 def stale_lines(project: str, voice: str) -> list:
     """Keys (sorted) of the lines whose current voice is `voice` and whose chosen attempt is stale."""
-    current = reference(project, voice)
+    current, locale = _reference_and_locale(project, voice)
     return [r["key"] for r in list_orders(project, type="line")
-            if r["voice"] == voice and r["chosen"] is not None and _stale(r, current)]
+            if r["voice"] == voice and r["chosen"] is not None and _stale(r, current, locale)]
 
 
 def list_orders(project: str, type: str | None = None, chosen: bool | None = None) -> list:

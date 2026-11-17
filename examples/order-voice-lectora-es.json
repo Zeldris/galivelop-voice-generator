@@ -1,0 +1,20 @@
+{
+  "$schema": "../gvoice/schemas/order.schema.json",
+  "key": "lectora-es",
+  "type": "voice",
+  "locale": "es-ES",
+  "testText": "Hace cinco años, en esta zona, nadie imaginaba lo que iba a pasar. ¿Quién se atrevería ahora a olvidarlo?",
+  "designSheet": {
+    "gender": "female",
+    "age": "adult between 30 and 40 years old",
+    "pitch": "medium",
+    "speed": "moderate, unhurried",
+    "volume": "moderate",
+    "clarity": "very clean: dry studio recording, no background noise, no echo or reverb, no sibilance",
+    "fluency": "smooth and even, natural pauses",
+    "texture": "clean and warm",
+    "emotion": "calm",
+    "tone": "audiobook and documentary narration, close and warm",
+    "personality": "calm and approachable"
+  }
+}

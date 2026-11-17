@@ -232,10 +232,12 @@ class DryRunTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("GVOICE_INSTALL_ENV=windows no vale", result.stderr)
 
+    @unittest.skipIf(Path("/.flatpak-info").exists(), "inside a Flatpak, instalar.sh detects it by /.flatpak-info")
     def test_no_compiler_and_no_flatpak_fails_clearly(self):
         bindir = Path(tempfile.mkdtemp())
         self.addCleanup(lambda: __import__("shutil").rmtree(bindir, ignore_errors=True))
-        for tool in ("bash", "dirname", "python3"):
+        # The tools instalar.sh needs before it looks for a compiler (sed and head read the engine catalog).
+        for tool in ("bash", "dirname", "python3", "sed", "head"):
             real = subprocess.run(["bash", "-c", f"command -v {tool}"], capture_output=True, text=True).stdout.strip()
             (bindir / tool).symlink_to(real)
         result = install(["--dry-run"], None, None, self.data, path=str(bindir))

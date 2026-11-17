@@ -461,5 +461,17 @@
   "ui.shortcuts.padPause": "Pause",
   "ui.shortcuts.oneKey": "Single-key shortcuts",
   "ui.shortcuts.oneKeyHint": "If you turn them off, only the arrows, Enter and space work (safer with dictation or adapted keyboards).",
-  "ui.shortcuts.deck": "On the Deck, Steam Input turns the gamepad into keys (D-pad = arrows, A = Enter, B = Escape); where the browser sees the gamepad, A, X, Y and B act directly."
+  "ui.shortcuts.deck": "On the Deck, Steam Input turns the gamepad into keys (D-pad = arrows, A = Enter, B = Escape); where the browser sees the gamepad, A, X, Y and B act directly.",
+  "error.effects.unsupported": "the effect \"{type}\" arrives in F3; for now only highpass, lowpass, equalizer, gain, denoise, dereverb, trimSilence and loudnorm are supported",
+  "error.effects.invalid": "the effect chain is not valid",
+  "error.effects.unreadable": "cannot read {path}: {reason}",
+  "error.effects.no_ffmpeg": "ffmpeg not found in PATH",
+  "error.effects.failed": "ffmpeg failed: {reason}",
+  "error.effects.many_loudnorm": "the chain can carry only one loudnorm step",
+  "cli.cmd.fx": "audio effects",
+  "cli.cmd.fx_apply": "apply an effect chain (preset or file) to a WAV with ffmpeg",
+  "cli.arg.fx_chain": "preset (e.g. lectura) or path to an effect chain JSON",
+  "cli.arg.fx_src": "input WAV",
+  "cli.arg.fx_dst": "output WAV",
+  "cli.out.fx_applied": "{dst} written with the chain \"{name}\""
 }

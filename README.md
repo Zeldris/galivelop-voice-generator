@@ -9,10 +9,10 @@ voz lo decide cada proyecto en su `galivelop-voices.json`.
 
 ## Estado
 
-En desarrollo, fase **F1 (núcleo) hecha**: contrato (esquemas JSON), pedidos, cola, trabajador y CLI `gvoice`, todo con un
-motor de pruebas. **Aún no genera voces de verdad**: el motor real llega en F2.
+Versión **0.2.0**, en desarrollo. En `main`: F0, F1 (núcleo: contrato, pedidos, cola, trabajador y CLI `gvoice`),
+F2.1-F2.5 (motor real con qwentts.cpp, catálogo de modelos, `gvoice bench`) y F5.1-F5.7 (interfaz web).
 
-Detalle, decisiones D1-D17 y criterios de cierre en [`docs/plan.md`](docs/plan.md); vocabulario en
+Detalle, decisiones D1-D19 y criterios de cierre en [`docs/plan.md`](docs/plan.md); vocabulario en
 [`GLOSSARY.md`](GLOSSARY.md).
 
 ## Instalar el motor real
@@ -40,6 +40,7 @@ python3 -m gvoice undo <proyecto> narrator           # vuelve a la referencia an
 python3 -m gvoice queue list                         # también `queue cancel <entrada>`
 python3 -m gvoice models verify                       # también `list` y `fetch` (baja lo que falte); `--engine qwentts`
 python3 -m gvoice bench --devices Vulkan0,cpu       # mide diseñar, fijar y producir con el motor y escribe `bench.md` (tabla del banco) en `<datos>/bench/<fecha>/`; también `--models`, `--steps`, `--seed`, `--out`
+python3 -m gvoice fx apply lectura voz.wav limpia.wav   # limpia una voz de lectura (denoise, dereverb, recorte de silencios, -16 LUFS) con ffmpeg; el primer argumento es un preset o la ruta a una cadena `.json`; `--json` da el filtro usado
 ```
 
 `order list` y `order show` marcan las frases elegidas con una referencia que ya no es la vigente (desfasadas, D10).
@@ -67,7 +68,7 @@ Esquemas en `gvoice/schemas/`:
 | Documento | Esquema |
 |---|---|
 | Configuración del proyecto `galivelop-voices.json` | `project-config.schema.json` |
-| Pedido (`voice` o `line`; `sound` queda reservado para F7) | `order.schema.json` |
+| Pedido (`voice` o `line`; `sound` queda reservado para F7). Un `voice` puede llevar `locale` (`es-ES`, `es-419`, `en-US`, `en-GB`): fija el idioma del motor y una frase fija en el instruct; un `line` toma el de su voz. Ejemplo: `examples/order-voice-lectora-es.json` | `order.schema.json` |
 | Perfil de máquina | `machine-profile.schema.json` |
 | Ficha de diseño (las 12 claves más `extra`) | `design-sheet.schema.json` |
 | Cadena de efectos (vocabulario cerrado) | `effect-chain.schema.json` |

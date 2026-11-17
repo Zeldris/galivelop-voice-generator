@@ -14,7 +14,7 @@ import sys
 import traceback
 from pathlib import Path
 
-from . import __version__, bench, engine, i18n, limits, models, orders, projects, queue, server, sheet, worker
+from . import __version__, bench, effects, engine, i18n, limits, models, orders, projects, queue, server, sheet, worker
 from .errors import GvoiceError
 
 LANGS = ("es", "en")
@@ -102,6 +102,9 @@ def _build(lang: str) -> argparse.ArgumentParser:
     leaf(top, "ui", "cli.cmd.ui", opt("--port", "cli.arg.port", type=int, default=server.DEFAULT_PORT),
          opt("--host", "cli.arg.host", default="127.0.0.1"))
     leaf(top, "work", "cli.cmd.work", opt("--once", "cli.arg.once", action="store_true"))
+    g = group(top, "fx", "cli.cmd.fx")
+    leaf(g, "apply", "cli.cmd.fx_apply", arg("chain", "cli.arg.fx_chain"), arg("src", "cli.arg.fx_src"),
+         arg("dst", "cli.arg.fx_dst"))
     leaf(top, "version", "cli.cmd.version")
     return parser
 
@@ -188,7 +191,7 @@ def _order(args, sub, out: _Out) -> None:
         out.line("cli.out.order_seed", seed=out.none(o["seed"]))
         if o["type"] == "voice":
             out.line("cli.out.order_test_text", text=o["testText"])
-            out.line("cli.out.order_instruction", text=sheet.instruction(o["designSheet"]))
+            out.line("cli.out.order_instruction", text=sheet.instruction(o["designSheet"], o.get("locale")))
         else:
             out.line("cli.out.order_voice", voice=o["voice"], reference=out.none(orders.reference(args.project,
                                                                                                   o["voice"])))
@@ -343,6 +346,13 @@ def _run(args, out: _Out) -> int:
         return _models(args, sub, out)
     elif cmd == "bench":
         return _bench(args, out)
+    elif cmd == "fx":
+        chain = effects.load_chain(args.chain)
+        filters = effects.apply(chain, args.src, args.dst)
+        if out.as_json:
+            out.data({"chain": chain["name"], "filter": filters, "output": args.dst})
+        else:
+            out.line("cli.out.fx_applied", dst=args.dst, name=chain["name"])
     elif cmd == "ui":
         return server.serve(args.port, args.host, out.lang)
     elif cmd == "work":

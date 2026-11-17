@@ -153,7 +153,7 @@ fuera del repo, en `~/.local/share/galivelop-voice/proyectos/portal/`). Audio de
 | Motor | Frase larga: pared / audio | RTF | Incidencias |
 |---|---|---|---|
 | Qwen3-TTS Base 0,6B (`qwentts.cpp`) | 7,5-10,8 s / 8,6-12,6 s | ~0,85 | con `vp-97024` la corta acaba en el fotograma 0-2 en 5 de 9 semillas |
-| Chatterbox MTL V3 `es-es` (`chatterbox.cpp`) | 38,5-41,6 s / 11,2-12,2 s | ~3,4 | ninguna; la corta, ~19 s de pared para 3,2 s (carga y preprocesado de la referencia) |
+| Chatterbox MTL V3 `es-es` (`chatterbox.cpp`) | 38,5-41,6 s / 11,2-12,2 s | ~3,4 | **todas las tomas son un pitido** (RMS ~0,006, sin cruces por cero, tono fijo ~6 kHz): no hay voz; se dieron por buenas mirando solo la duración. Diagnóstico en curso (S3Gen V3, filtro mel añadido a mano o T3 `es-es`) |
 
 Chatterbox en CPU (prueba de humo, frase corta): RTF 19,9 con carga, 10,9 sin ella; RSS 2,6 GB (KV de ~2,9 GB por el
 CFG). Vulkan sin carga: RTF 2,3; RSS 1,3 GB. CPU y Vulkan no dan la misma toma con la misma semilla.

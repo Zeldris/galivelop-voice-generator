@@ -67,3 +67,4 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
   - `tests/test_changelog.py`: la constante `GIMG` conserva el nombre de la copia (es de gvoice); renombrarla.
 - Dos tests fallan en la Deck ya en `main`: `test_install…no_compiler_and_no_flatpak_fails_clearly` (127 != 1 dentro del Flatpak) y `test_peaks…is_fast` (0,82-0,86 s frente a 0,7 s).
 - Preset `lectura` sin afinar con voz real (denoise 0,5, dereverb 0,4, trimSilence -50 dB/150 ms); el primer commit de efectos pasa de 400 líneas.
+- 2026-11-17 — Comprobación automática de cada toma generada (no solo su duración): nivel y cruces por cero de voz y, con whisper.cpp, que diga el texto pedido. Las tomas de Chatterbox se dieron por buenas y eran un pitido.

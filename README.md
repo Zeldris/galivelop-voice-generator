@@ -40,6 +40,7 @@ python3 -m gvoice undo <proyecto> narrator           # vuelve a la referencia an
 python3 -m gvoice queue list                         # también `queue cancel <entrada>`
 python3 -m gvoice models verify                       # también `list` y `fetch` (baja lo que falte); `--engine qwentts`
 python3 -m gvoice bench --devices Vulkan0,cpu       # mide diseñar, fijar y producir con el motor y escribe `bench.md` (tabla del banco) en `<datos>/bench/<fecha>/`; también `--models`, `--steps`, `--seed`, `--out`
+python3 -m gvoice fx apply lectura voz.wav limpia.wav   # limpia una voz de lectura (denoise, dereverb, recorte de silencios, -16 LUFS) con ffmpeg; el primer argumento es un preset o la ruta a una cadena `.json`; `--json` da el filtro usado
 ```
 
 `order list` y `order show` marcan las frases elegidas con una referencia que ya no es la vigente (desfasadas, D10).

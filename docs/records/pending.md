@@ -63,3 +63,7 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
   - `tests/test_changelog.py`: la constante `GIMG` conserva el nombre de la copia (es de gvoice); renombrarla.
 - Dos tests fallan en la Deck ya en `main`: `test_install…no_compiler_and_no_flatpak_fails_clearly` (127 != 1 dentro del Flatpak) y `test_peaks…is_fast` (0,82-0,86 s frente a 0,7 s).
 - Preset `lectura` sin afinar con voz real (denoise 0,5, dereverb 0,4, trimSilence -50 dB/150 ms); el primer commit de efectos pasa de 400 líneas.
+- Leves de la revisión fase 1 F5.9 (2026-11-17), sin arreglar:
+  - `gvoice/ui/js/queue-model.js:41` `errorOf` cae a la cadena fija en inglés `error: <code>` en vez de usar la clave `ui.error.code`.
+  - `loading()` vive en `gvoice/ui/js/components/shortcuts.js` y `projects-view.js`/`project-view.js` lo importan solo por eso: su sitio es `dom.js`.
+  - Dos líneas en blanco seguidas tras los imports en `project-view.js` y `projects-view.js`.

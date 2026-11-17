@@ -9,7 +9,7 @@ import { h, replace, closest } from '../dom.js';
 import { t } from '../i18n.js';
 import { isQueueOpen } from './queue-bar.js';
 
-/* [keys, label, action]: sin acción, la fila vale siempre; con ella, solo se enseña en las vistas que la hacen (`bindShortcuts`). */
+/* [keys, label, action]: sin acción, la fila vale siempre; con ella (una o varias: basta una), solo se enseña en las vistas que la hacen (`bindShortcuts`). */
 export const SHORTCUTS = [
   ['ui.shortcuts.group.global', [
     [['?'], 'ui.shortcuts.help'],
@@ -28,7 +28,7 @@ export const SHORTCUTS = [
     [['X'], 'ui.shortcuts.swap', 'swap'],
   ]],
   ['ui.shortcuts.group.pad', [
-    [['✚'], 'ui.shortcuts.padDpad', 'prev'],
+    [['✚'], 'ui.shortcuts.padDpad', ['prev', 'next']],
     [['A'], 'ui.shortcuts.toggle', 'toggle'],
     [['X'], 'ui.shortcuts.choose', 'choose'],
     [['Y'], 'ui.shortcuts.undo', 'undo'],
@@ -112,7 +112,7 @@ export function mergeSources(perform, { windowMs = 200, now = () => Date.now() }
 }
 
 let help = null;
-let viewActions = null; // actions of the view that bound the shortcuts (null: all), so the help lists only those
+let viewActions = new Set(); // actions of the view that bound the shortcuts (empty: no view bound, only the global rows), so the help lists only those
 
 export const loading = () => h('p.empty', {}, h('span.spin', { aria: { hidden: true } }), ' ', t('ui.loading'));
 
@@ -139,11 +139,12 @@ export function bindShortcuts(perform, { actions = null } = {}) {
     if (set && !set.has(action)) return;
     merged.pad(action);
   });
-  viewActions = set;
+  viewActions = set;   // a view without `actions` does everything: null = no filter
   return () => {
     document.removeEventListener('keydown', onKey);
     stopPad();
-    if (viewActions === set) viewActions = null;
+    if (viewActions === set) viewActions = new Set();
+    closeHelp();   // the route changed: a help open over the old view would list its actions
   };
 }
 
@@ -173,9 +174,9 @@ export function closeHelp() {
 }
 
 /** Diálogo de ayuda con todos los atajos y el interruptor de los de una tecla. Devuelve el `dialog`. */
-export function openHelp(opener = null, { actions = viewActions } = {}) {
+export function openHelp(opener = null, { actions = viewActions } = {}) {   // `actions: null` lists everything
   if (help) return help;
-  const shown = (items) => items.filter(([, , action]) => !action || !actions || actions.has(action));
+  const shown = (items) => items.filter(([, , action]) => !action || !actions || [].concat(action).some((a) => actions.has(a)));
   const close = h('button.btn', { type: 'button', onclick: () => dlg.close() }, t('ui.actions.close'));
   const body = h('div');
   replace(body, h('dl.shortcut-list', {}, SHORTCUTS.filter(([, items]) => shown(items).length).map(([group, items]) => [

@@ -1732,7 +1732,7 @@ r.acted = seenA.slice();
 sh.openHelp(); r.helpSome = texts(); doc.body.find((e) => e.tag === 'dialog')[0].close(); await sleep(20);
 stop();
 press('p'); r.afterStop = seenA.length;
-sh.openHelp(); r.helpAll = texts(); doc.body.find((e) => e.tag === 'dialog')[0].close();
+sh.openHelp(null, { actions: null }); r.helpAll = texts(); doc.body.find((e) => e.tag === 'dialog')[0].close();
 out(r);
 """)
         self.assertTrue(got["loading"])
@@ -1748,13 +1748,37 @@ out(r);
 const { openHelp } = await mod('js/components/shortcuts.js');
 const view = await mountCmp('narrator', { a: '2', b: '3' });
 openHelp();
-const keys = doc.body.find((e) => e.tag === 'dialog')[0].find((e) => e.tag === 'dt').map((e) => e.textContent);
+const dlg = doc.body.find((e) => e.tag === 'dialog')[0];
+const dts = dlg.find((e) => e.tag === 'dt'); const dds = dlg.find((e) => e.tag === 'dd');
+const rows = dts.map((dt, i) => [dt.find((e) => e.tag === 'kbd').map((k) => k.textContent).join(' '), dds[i].textContent]);
 view.cleanup();
-out(keys);
+out(rows);
 """)
-        for k in ("U", "C", "D", "G"):
-            self.assertNotIn(k, got)
-        self.assertIn("X", got)
+        keys = [k for k, _ in got]
+        for k in ("U", "C", "D", "G", "Y"):
+            self.assertNotIn(k, keys)
+        self.assertIn(["X", "Comparación A/B: cambiar de lado (←/→ pasan a A/B)"], got)   # the swap row, by its text
+        self.assertIn(["LB RB", "Comparación A/B: cambiar de lado (←/→ pasan a A/B)"], got)
+
+    def test_help_without_a_bound_view_lists_only_the_global_rows_and_closes_when_the_view_stops(self):
+        got = self.run_js(self.COMPARE_ENV + """
+const sh = await mod('js/components/shortcuts.js');
+const rows = () => doc.body.find((e) => e.tag === 'dialog' && e.open)[0].find((e) => e.tag === 'dd').map((e) => e.textContent);
+const r = {};
+sh.openHelp(); r.none = rows(); sh.closeHelp();
+const stop = sh.bindShortcuts(() => {}, { actions: ['next'] });
+sh.openHelp(); r.dpad = rows(); sh.closeHelp();
+sh.openHelp(); r.openBeforeStop = sh.helpOpen(); stop(); r.openAfterStop = sh.helpOpen();
+sh.openHelp(); r.afterStop = rows(); sh.closeHelp();
+const stopAll = sh.bindShortcuts(() => {});
+sh.openHelp(); r.noFilter = rows().length; sh.closeHelp(); stopAll();
+out(r);
+""")
+        self.assertEqual(len(got["none"]), 3)   # ?, Esc, Tab: no order, A/B or pad rows
+        self.assertEqual(got["afterStop"], got["none"])
+        self.assertIn("Cruceta: toma anterior o siguiente", got["dpad"])   # a view with only «next» still has the d-pad row
+        self.assertEqual((got["openBeforeStop"], got["openAfterStop"]), (True, False))
+        self.assertGreater(got["noFilter"], 10)
 
     def test_queue_open_blocks_the_keys_of_the_order_and_compare_views(self):
         got = self.run_js(self.COMPARE_ENV + """

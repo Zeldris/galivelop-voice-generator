@@ -28,13 +28,13 @@ class WithTmpdir(unittest.TestCase):
 
 
 def chrome_or_stop(find=browser.find_chrome, env=None):
-    """The Chrome command. Without it: in the CI (``CI`` or ``GITHUB_ACTIONS`` set) the test FAILS (a skipped browser
+    """The Chrome command. Without it: in the CI (``GITHUB_ACTIONS == "true"``; ``CI`` is ignored: ``ci-local.py`` sets it on a developer machine) the test FAILS (a skipped browser
     test there hides a broken interface, REVIEW.md); elsewhere it is skipped."""
     command = find()
     if command:
         return command
     env = os.environ if env is None else env
-    if env.get("CI") or env.get("GITHUB_ACTIONS"):
+    if env.get("GITHUB_ACTIONS") == "true":
         raise AssertionError("no Chrome/Chromium found in the CI: install one or set GVOICE_TEST_CHROME")
     raise unittest.SkipTest("no Chrome/Chromium found (set GVOICE_TEST_CHROME)")
 
@@ -49,10 +49,42 @@ class ChromeOrStop(unittest.TestCase):
         self.assertIn("no Chrome", str(cm.exception))
 
     def test_without_chrome_it_fails_in_the_ci_with_a_clear_message(self):
-        for var in ("CI", "GITHUB_ACTIONS"):
-            with self.assertRaises(AssertionError) as cm:
-                chrome_or_stop(lambda: None, {var: "true"})
-            self.assertIn("in the CI", str(cm.exception))
+        with self.assertRaises(AssertionError) as cm:
+            chrome_or_stop(lambda: None, {"GITHUB_ACTIONS": "true"})
+        self.assertIn("in the CI", str(cm.exception))
+
+    def test_ci_variable_or_false_values_do_not_count_as_the_ci(self):
+        for env in ({"CI": "true"}, {"CI": "false"}, {"GITHUB_ACTIONS": "false"}, {"GITHUB_ACTIONS": "0"}, {"CI": "1", "GITHUB_ACTIONS": ""}):
+            with self.assertRaises(unittest.SkipTest, msg=str(env)) as cm:
+                chrome_or_stop(lambda: None, env)
+            self.assertIn("no Chrome", str(cm.exception))
+
+
+class GotoWaitsForItsOwnLoader(unittest.TestCase):
+    def test_a_late_load_of_the_previous_document_does_not_count(self):
+        page = browser.Page(None, "s", [])
+        page.call = lambda method, params=None, timeout=30: {"loaderId": "NEW"}
+        page.evaluate = lambda expression, timeout=30: True
+        events = [{"method": "Page.lifecycleEvent", "params": {"name": "load", "loaderId": "OLD"}}]
+        page.pump = lambda seconds=0.2: page._event(events.pop(0)) if events else None
+        real_time = browser.time.time
+        ticks = iter(range(0, 10000, 5))
+        browser.time.time = lambda: next(ticks)   # the 15 s deadline passes without a load of NEW
+        try:
+            with self.assertRaises(browser.CdpError) as cm:
+                page.goto("http://x/")
+        finally:
+            browser.time.time = real_time
+        self.assertIn("load event of http://x/", str(cm.exception))
+
+    def test_the_load_of_the_navigated_loader_is_enough(self):
+        page = browser.Page(None, "s", [])
+        page.call = lambda method, params=None, timeout=30: {"loaderId": "NEW"}
+        page.evaluate = lambda expression, timeout=30: True
+        events = [{"method": "Page.lifecycleEvent", "params": {"name": "load", "loaderId": "OLD"}},
+                  {"method": "Page.lifecycleEvent", "params": {"name": "load", "loaderId": "NEW"}}]
+        page.pump = lambda seconds=0.2: page._event(events.pop(0)) if events else None
+        page.goto("http://x/")
 
 
 class UiBase(unittest.TestCase):

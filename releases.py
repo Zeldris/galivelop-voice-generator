@@ -9,7 +9,7 @@
                                          # versión en la línea «Versión **X**» de README.md y README.en.md
     python3 releases.py notes 0.4.0      # notas de la release: la sección de los dos CHANGELOG (es y en)
     python3 releases.py verify-tag v0.4.0 [--ref HEAD]
-                                         # ¿la etiqueta es igual a __version__ en ese commit? (lo llama release.yml)
+                                         # ¿la etiqueta es igual a __version__ en ese commit? (se corre a mano antes de etiquetar; aquí no hay release.yml)
     python3 releases.py check [--ref origin/main]
                                          # ¿la versión de gvoice en esa rama tiene etiqueta vX.Y.Z y release?
 
@@ -17,20 +17,26 @@
 menor; `fix` y `perf`, el parche; sin nada de eso, ninguna. `bump` sale con 1 y dice el motivo si la versión no es
 semver, no es mayor que la actual o si algún CHANGELOG no tiene nada sin publicar. `verify-tag` sale con 0 o 1.
 `check` sale con 0 si las dos existen, 1 si falta alguna (y dice la orden que la crea) y 2 si no lo puede saber
-(sin `git` o `gh`, sin red; la release se consulta por la API REST, `gh api repos/{owner}/{repo}/releases/tags/<tag>`,
-porque GraphQL puede estar bloqueado, y falta solo con un 404 «Not Found» con el repo visible: si no, 2). Aquí la release se crea por la API de GitHub con curl (no hay `gh` ni CI por facturación): `check` puede
-devolver 2 sin `gh`. Se corre al cerrar cada fase, con la rama ya en `main`. Antes de leer la versión trae
-`ref` del remoto si es una rama de `origin/` (un `origin/main` viejo daría por buena la versión anterior).
+(sin `git`, sin red). La etiqueta se consulta con `git ls-remote`; la release, aparte, por la API REST de GitHub con
+`urllib` (sin `gh` ni dependencias) y el token de `git credential fill` (protocol=https, host=github.com), que no se
+imprime nunca: sin token o sin red la release queda sin comprobar (2, o 1 si ya falta la etiqueta, diciéndolo) pero la
+etiqueta se comprueba igual. La release falta solo con un 404 «Not Found» con el repo visible: si no, 2. La orden que
+crea la release es un `curl` a la API (no hay `gh` ni CI por facturación) con las notas de `releases.py notes`. Se
+corre al cerrar cada fase, con la rama ya en `main`. Antes de leer la versión trae `ref` del remoto si es una rama de
+`origin/` (un `origin/main` viejo daría por buena la versión anterior).
 """
 import datetime
+import os
 import re
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 R = Path(__file__).resolve().parent
 _VERSION = re.compile(r'^__version__\s*=\s*"([^"]+)"', re.M)
-_SEMVER = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
+_SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 _UNRELEASED = re.compile(r"^## \[(Unreleased|Sin publicar)\]\s*$")
 _REPO = "https://github.com/Zeldris/galivelop-voice-generator"
 _HEADINGS = {"es": ("CHANGELOG.es.md", "Español"), "en": ("CHANGELOG.md", "English")}
@@ -76,7 +82,54 @@ def version_at(ref, run=subprocess.run):
     return found.group(1)
 
 
-def check(ref, run=subprocess.run):
+def github_token(run=subprocess.run):
+    """The GitHub token git has stored for https://github.com (``git credential fill``), or None. Never printed."""
+    try:
+        done = run(["git", "credential", "fill"], cwd=R, input="protocol=https\nhost=github.com\n\n",
+                   capture_output=True, text=True, env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+    except OSError:
+        return None
+    if done.returncode != 0:
+        return None
+    found = re.search(r"^password=(.+)$", done.stdout, re.M)
+    return found.group(1) if found else None
+
+
+def github_get(path, token):
+    """``(HTTP status, reason)`` of GET `path` of the GitHub REST API; status None if there is no network."""
+    request = urllib.request.Request(f"https://api.github.com/{path}", headers={
+        "Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "gvoice-releases"})
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            return response.status, response.reason
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.reason
+    except (urllib.error.URLError, OSError, TimeoutError) as exc:
+        return None, str(getattr(exc, "reason", exc))
+
+
+def _release_state(tag, run, api):
+    """``("ok" | "missing", "")`` or ``("unknown", reason)`` for the GitHub release `tag` (REST API, no `gh`)."""
+    token = github_token(run)
+    if not token:
+        return "unknown", "no hay token de GitHub en `git credential fill` (protocol=https, host=github.com)"
+    slug = _REPO.removeprefix("https://github.com/")
+    status, reason = api(f"repos/{slug}/releases/tags/{tag}", token)
+    if status == 200:
+        return "ok", ""
+    if status == 404 and str(reason).lower() == "not found":
+        # a 404 is also a repo that is not visible (token without access, renamed remote): not «the release is missing»
+        status, reason = api(f"repos/{slug}", token)
+        if status == 200:
+            return "missing", ""
+        return "unknown", f"la API no ve el repositorio (HTTP {status} {reason})"
+    if status is None:
+        return "unknown", f"sin red ({reason})"
+    return "unknown", f"la API responde HTTP {status} {reason}"
+
+
+def check(ref, run=subprocess.run, api=github_get):
     """(código de salida, mensaje) de si la versión de `ref` tiene etiqueta y release."""
     try:
         if ref.startswith("origin/"):
@@ -86,24 +139,25 @@ def check(ref, run=subprocess.run):
         tag = f"v{version}"
         tags = run(["git", "ls-remote", "--tags", "origin", f"refs/tags/{tag}"], cwd=R, capture_output=True,
                    text=True, check=True).stdout
-        release = run(["gh", "api", f"repos/{{owner}}/{{repo}}/releases/tags/{tag}", "--jq", ".tag_name"], cwd=R, capture_output=True, text=True)
     except (OSError, subprocess.CalledProcessError, ValueError) as exc:
         return 2, f"releases: no se puede comprobar ({exc})"
+    state, why = _release_state(tag, run, api)
     missing = []
     if not tags.strip():
         missing.append(f"la etiqueta: git tag -a {tag} <commit> -m 'gvoice {version}' && git push origin {tag}")
-    if release.returncode != 0:
-        err = (release.stderr or "").strip()
-        if "HTTP 404" not in err or not re.search(r"not found", err, re.I):
-            return 2, f"releases: gh no responde ({err})"
-        try:  # un 404 también es un repo que no se ve (token sin acceso, remoto renombrado): no es «falta la release»
-            repo = run(["gh", "api", "repos/{owner}/{repo}", "--jq", ".full_name"], cwd=R, capture_output=True, text=True)
-        except OSError as exc:
-            return 2, f"releases: no se puede comprobar ({exc})"
-        if repo.returncode != 0:
-            return 2, f"releases: gh no ve el repositorio ({(repo.stderr or '').strip()})"
-        missing.append(f"la release: python3 releases.py notes {version} | "
-                       f"gh release create {tag} --verify-tag --title '{version}' --notes-file -")
+    if state == "missing":
+        slug = _REPO.removeprefix("https://github.com/")
+        missing.append(
+            f"la release: python3 releases.py notes {version} | python3 -c 'import json,sys; print(json.dumps("
+            f"{{\"tag_name\": \"{tag}\", \"name\": \"{version}\", \"body\": sys.stdin.read()}}))' | "
+            f"curl -sS -X POST -H \"Authorization: Bearer $GITHUB_TOKEN\" "
+            f"-H 'Accept: application/vnd.github+json' -d @- https://api.github.com/repos/{slug}/releases"
+            f" (GITHUB_TOKEN: el de `git credential fill`)")
+    if state == "unknown":
+        if missing:
+            missing.append(f"(la release no se pudo comprobar: {why})")
+        else:
+            return 2, f"releases: gvoice {version} ({ref}) tiene etiqueta, pero no se puede comprobar la release ({why})"
     if missing:
         return 1, f"releases: a gvoice {version} ({ref}) le falta " + "; y ".join(missing)
     return 0, f"releases: gvoice {version} ({ref}) tiene etiqueta y release"

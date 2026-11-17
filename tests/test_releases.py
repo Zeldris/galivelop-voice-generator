@@ -28,7 +28,7 @@ CHANGELOG = """# Changelog
 """
 
 
-def fake_run(version='"0.4.0"', tag=True, release="ok", calls=None, repo="ok"):
+def fake_run(version='"0.4.0"', tag=True, calls=None, token="s3cret"):  # gw-allow-secret: fake token of a test
     calls = [] if calls is None else calls
 
     def run(argv, **_):
@@ -39,13 +39,24 @@ def fake_run(version='"0.4.0"', tag=True, release="ok", calls=None, repo="ok"):
             return subprocess.CompletedProcess(argv, 0, "", "")
         if argv[:2] == ["git", "ls-remote"]:
             return subprocess.CompletedProcess(argv, 0, "abc\trefs/tags/v0.4.0\n" if tag else "", "")
-        if argv[:3] == ["gh", "api", "repos/{owner}/{repo}"]:
-            return subprocess.CompletedProcess(argv, 0 if repo == "ok" else 1, "x/y\n" if repo == "ok" else "", repo)
-        assert argv[:2] == ["gh", "api"] and argv[2] == "repos/{owner}/{repo}/releases/tags/v0.4.0", argv
-        if release == "ok":
-            return subprocess.CompletedProcess(argv, 0, "v0.4.0\n", "")
-        return subprocess.CompletedProcess(argv, 1, "", release)
+        if argv[:3] == ["git", "credential", "fill"]:
+            if token is None:
+                return subprocess.CompletedProcess(argv, 1, "", "no")
+            return subprocess.CompletedProcess(argv, 0, f"protocol=https\nhost=github.com\npassword={token}\n", "")
+        raise AssertionError(argv)  # `gh` is never called
     return run
+
+
+def fake_api(release=200, reason="OK", repo=200, repo_reason="OK", seen=None):
+    """The GitHub REST call, simulated: `(status, reason)` for the release path and for the repo path."""
+    def api(path, token):
+        if seen is not None:
+            seen.append((path, token))
+        if path.endswith("/releases/tags/v0.4.0"):
+            return release, reason
+        assert path == "repos/Zeldris/galivelop-voice-generator", path
+        return repo, repo_reason
+    return api
 
 
 class NotesTests(unittest.TestCase):
@@ -200,6 +211,13 @@ class SuggestTests(unittest.TestCase):
         self.assertEqual((code, "no se puede leer el historial" in msg), (2, True))
 
 
+class SemverTests(unittest.TestCase):
+    def test_leading_zeros_are_not_semver(self):
+        for bad in ("0.02.0", "01.0.0", "1.0.00"):
+            self.assertIsNone(releases._parse(bad), bad)
+        self.assertEqual(releases._parse("0.20.10"), (0, 20, 10))
+
+
 class VerifyTagTests(unittest.TestCase):
     def test_matching_tag(self):
         self.assertEqual(releases.verify_tag("v0.4.0", "abc", fake_run())[0], 0)
@@ -216,48 +234,71 @@ class VerifyTagTests(unittest.TestCase):
 
 class CheckTests(unittest.TestCase):
     def test_all_there(self):
-        self.assertEqual(releases.check("origin/main", fake_run()),
+        seen = []
+        self.assertEqual(releases.check("origin/main", fake_run(), fake_api(seen=seen)),
                          (0, "releases: gvoice 0.4.0 (origin/main) tiene etiqueta y release"))
+        self.assertEqual(seen, [("repos/Zeldris/galivelop-voice-generator/releases/tags/v0.4.0", "s3cret")])
 
-    def test_missing_tag_and_release_say_how_to_make_them(self):
-        code, message = releases.check("origin/main", fake_run(tag=False, release="gh: Not Found (HTTP 404)"))
+    def test_missing_tag_and_release_say_how_to_make_them_with_curl(self):
+        code, message = releases.check("origin/main", fake_run(tag=False), fake_api(404, "Not Found"))
         self.assertEqual(code, 1)
         self.assertIn("git tag -a v0.4.0", message)
-        self.assertIn("gh release create v0.4.0", message)
-        self.assertNotIn("notas.md", message)
+        self.assertIn("python3 releases.py notes 0.4.0 | ", message)
+        self.assertIn("curl -sS -X POST", message)
+        self.assertIn("https://api.github.com/repos/Zeldris/galivelop-voice-generator/releases", message)
+        self.assertNotIn("gh release", message)
+        self.assertNotIn("s3cret", message)
 
     def test_fetches_the_remote_branch_before_reading_the_version(self):
         calls = []
-        releases.check("origin/main", fake_run(calls=calls))
+        releases.check("origin/main", fake_run(calls=calls), fake_api())
         self.assertEqual(calls, [["git", "fetch", "--quiet", "origin", "main"]])
         calls.clear()
-        releases.check("v0.3.0", fake_run(calls=calls))
+        releases.check("v0.3.0", fake_run(calls=calls), fake_api())
         self.assertEqual(calls, [])
 
     def test_404_means_the_release_is_missing(self):
-        code, message = releases.check("origin/main", fake_run(release="gh: Not Found (HTTP 404)"))
-        self.assertEqual((code, "le falta la release" in message), (1, True))
+        code, message = releases.check("origin/main", fake_run(), fake_api(404, "Not Found"))
+        self.assertEqual((code, "le falta la release" in message, "s3cret" in message), (1, True, False))
 
     def test_403_is_unknown_not_missing(self):
-        code, message = releases.check("origin/main", fake_run(release="gh: Forbidden (HTTP 403)"))
-        self.assertEqual((code, "gh no responde (gh: Forbidden (HTTP 403))" in message), (2, True))
+        code, message = releases.check("origin/main", fake_run(), fake_api(403, "Forbidden"))
+        self.assertEqual((code, "HTTP 403 Forbidden" in message), (2, True))
 
     def test_repo_not_found_is_unknown_not_missing(self):
-        code, message = releases.check("origin/main", fake_run(release="gh: Not Found (HTTP 404)",
-                                                               repo="gh: Not Found (HTTP 404)"))
-        self.assertEqual((code, "gh no ve el repositorio" in message), (2, True))
+        code, message = releases.check("origin/main", fake_run(), fake_api(404, "Not Found", 404, "Not Found"))
+        self.assertEqual((code, "no ve el repositorio" in message), (2, True))
 
     def test_404_without_not_found_text_is_unknown(self):
-        code, message = releases.check("origin/main", fake_run(release="HTTP 404"))
-        self.assertEqual((code, "gh no responde (HTTP 404)" in message), (2, True))
+        code, message = releases.check("origin/main", fake_run(), fake_api(404, "Gone"))
+        self.assertEqual((code, "HTTP 404 Gone" in message), (2, True))
+
+    def test_no_network_is_unknown_for_the_release(self):
+        code, message = releases.check("origin/main", fake_run(), fake_api(None, "timed out"))
+        self.assertEqual((code, "sin red (timed out)" in message, "tiene etiqueta" in message), (2, True, True))
+
+    def test_without_token_the_tag_is_still_checked(self):
+        seen = []
+        code, message = releases.check("origin/main", fake_run(token=None), fake_api(seen=seen))
+        self.assertEqual((code, "tiene etiqueta, pero no se puede comprobar la release" in message,
+                          "token" in message), (2, True, True))
+        self.assertEqual(seen, [])  # no token, no request
+        code, message = releases.check("origin/main", fake_run(tag=False, token=None), fake_api())
+        self.assertEqual(code, 1)
+        self.assertIn("la etiqueta: git tag -a v0.4.0", message)
+        self.assertIn("la release no se pudo comprobar", message)
+
+    def test_github_token_reads_the_password_and_none_without_it(self):
+        self.assertEqual(releases.github_token(fake_run()), "s3cret")
+        self.assertIsNone(releases.github_token(fake_run(token=None)))
 
     def test_check_rejects_an_option_as_ref(self):
         self.assertEqual(releases.main(["check", "--ref", "--ref"]), 2)
 
-    def test_gh_failing_for_another_reason_is_unknown_not_missing(self):
-        code, message = releases.check("origin/main", fake_run(release="HTTP 503"))
-        self.assertEqual((code, "gh no responde (HTTP 503)" in message), (2, True))
+    def test_other_api_error_is_unknown_not_missing(self):
+        code, message = releases.check("origin/main", fake_run(), fake_api(503, "Service Unavailable"))
+        self.assertEqual((code, "HTTP 503" in message), (2, True))
 
     def test_no_version_is_unknown(self):
-        code, message = releases.check("origin/main", fake_run(version="None"))
+        code, message = releases.check("origin/main", fake_run(version="None"), fake_api())
         self.assertEqual((code, "no tiene __version__" in message), (2, True))

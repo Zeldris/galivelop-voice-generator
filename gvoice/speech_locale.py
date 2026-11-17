@@ -2,7 +2,7 @@
 
 Each locale gives the engine's language name and a fixed English phrase for the instruct. The phrase is fixed, not
 free text: the same words must reach every take of every voice of that locale, so a variant never depends on how the
-author phrased the ``accent`` field. A line has no locale of its own: it uses the one of its voice.
+author phrased the ``accent`` field. A line has no locale of its own: it uses the one of its voice's reference take.
 """
 LOCALES = {
     "es-ES": ("Spanish", "Castilian Spanish from Spain, peninsular pronunciation with distinción "

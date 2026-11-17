@@ -456,6 +456,13 @@ class StaleTests(Base):
         orders.undo(self.p, "narrator")
         self.assertFalse(orders.is_stale(self.p, "narrator/intro-01"))
 
+    def test_voice_chosen_pointing_to_a_missing_attempt_makes_lines_stale_without_error(self):
+        n1 = self.made_line()
+        orders.choose(self.p, "narrator/intro-01", n1)
+        orders._modify(self.p, "narrator", lambda rec: rec.update(chosen=999))
+        self.assertTrue(orders.is_stale(self.p, "narrator/intro-01"))
+        self.assertEqual(orders.stale_lines(self.p, "narrator"), ["narrator/intro-01"])
+
     def test_voice_unfixed_makes_chosen_lines_stale(self):
         n1 = self.made_line()
         orders.choose(self.p, "narrator/intro-01", n1)

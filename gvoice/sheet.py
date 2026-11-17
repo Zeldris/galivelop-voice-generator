@@ -23,7 +23,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from . import i18n, schema
+from . import i18n, schema, speech_locale
 from .errors import GvoiceError
 
 BANNED_WORDS = ("bright", "cute", "small", "light", "childlike", "high-pitched")
@@ -65,13 +65,16 @@ def _checked(sheet) -> dict:
     return sheet
 
 
-def instruction(sheet: dict) -> str:
-    """The English instruction: ``Gender: male. Age: ...`` in the fixed order, absent keys omitted."""
+def instruction(sheet: dict, locale: str | None = None) -> str:
+    """The English instruction: ``Gender: male. Age: ...`` in the fixed order, absent keys omitted.
+    With a `locale` (see ``speech_locale``), the last part is ``Locale: <fixed phrase>.``"""
     parts = []
     for name, value in _fields(_checked(sheet)):
         text = value.strip().rstrip(".").strip()
         if text:
             parts.append("%s: %s." % (name[:1].upper() + name[1:], text))
+    if locale is not None:
+        parts.append("Locale: %s." % speech_locale.phrase(locale))
     return " ".join(parts)
 
 

@@ -67,7 +67,7 @@ Esquemas en `gvoice/schemas/`:
 | Documento | Esquema |
 |---|---|
 | Configuración del proyecto `galivelop-voices.json` | `project-config.schema.json` |
-| Pedido (`voice` o `line`; `sound` queda reservado para F7) | `order.schema.json` |
+| Pedido (`voice` o `line`; `sound` queda reservado para F7). Un `voice` puede llevar `locale` (`es-ES`, `es-419`, `en-US`, `en-GB`): fija el idioma del motor y una frase fija en el instruct; un `line` toma el de su voz. Ejemplo: `examples/order-voice-lectora-es.json` | `order.schema.json` |
 | Perfil de máquina | `machine-profile.schema.json` |
 | Ficha de diseño (las 12 claves más `extra`) | `design-sheet.schema.json` |
 | Cadena de efectos (vocabulario cerrado) | `effect-chain.schema.json` |

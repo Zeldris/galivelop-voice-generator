@@ -16,7 +16,7 @@ EXAMPLES = {
     "machine-profile": "gvoice/machine_profiles/steam-deck.json",
     "engine-catalog": "gvoice/engines/qwentts.json",
 }
-ORDERS = ("examples/order-voice.json", "examples/order-line.json")
+ORDERS = ("examples/order-voice.json", "examples/order-line.json", "examples/order-voice-lectora-es.json")
 
 
 def read(rel):
@@ -98,7 +98,7 @@ class BrokenExamples(unittest.TestCase):
                     [("/minVersion", "pattern")])
 
     def test_order(self):
-        v, ln = ORDERS
+        v, ln = ORDERS[:2]
         self.broken(v, "order", lambda d: d.update(type="sound"), [("/type", "enum")])
         self.broken(v, "order", lambda d: d.update(seed=-1), [("/seed", "minimum")])
         self.broken(v, "order", lambda d: d["designSheet"].update(volume=3),
@@ -164,7 +164,7 @@ class BrokenExamples(unittest.TestCase):
         self.broken(rel, "voice", lambda d: d.update(key="Narrator"), [("/key", "pattern")])
 
     def test_order_type_decides_the_fields(self):
-        v, ln = ORDERS
+        v, ln = ORDERS[:2]
         self.broken(ln, "order", lambda d: d.pop("text"), [("", "required")])
         self.broken(ln, "order", lambda d: d.pop("voice"), [("", "required")])
         self.broken(ln, "order", lambda d: d.update(testText="hi"), [("/testText", "false")])

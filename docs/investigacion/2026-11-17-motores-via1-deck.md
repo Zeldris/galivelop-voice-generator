@@ -140,3 +140,39 @@ Experimento aparte, barato y decisivo para todo lo que sea PyTorch: **una rueda 
 - Descartados: [F5-TTS](https://github.com/SWivid/F5-TTS), [F5-Spanish](https://huggingface.co/jpgallegoar/F5-Spanish), [XTTS-v2](https://huggingface.co/coqui/XTTS-v2), [OpenAudio S1-mini](https://huggingface.co/fishaudio/openaudio-s1-mini), [Fish Speech](https://github.com/fishaudio/fish-speech).
 - Conversión: [OpenVoice](https://github.com/myshell-ai/OpenVoice) (+ `docs/QA.md`, [V2](https://huggingface.co/myshell-ai/OpenVoiceV2)), [MeloTTS](https://github.com/myshell-ai/MeloTTS), [RVC](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI), [kNN-VC](https://github.com/bshall/knn-vc), [Seed-VC](https://github.com/Plachtaa/seed-vc).
 - GPU: [ONNX Runtime, proveedores](https://onnxruntime.ai/docs/execution-providers/), [llama.cpp #10879](https://github.com/ggml-org/llama.cpp/discussions/10879), [Element84](https://element84.com/machine-learning/running-rocm-5-4-2-onnx-and-pytorch-on-a-steamdeck/), [Debian #1087951](https://bugs.debian.org/1087951), [unsloth#17150](https://github.com/unslothai/unsloth/pull/17150), [ROCm #2527](https://github.com/ROCm/ROCm/issues/2527), [PyTorch `build.sh`](https://github.com/pytorch/pytorch/blob/main/.ci/docker/manywheel/build.sh).
+
+## 7. Medido en la Deck (2026-11-17, vía 1 pasos 1-3)
+
+**Referencias:** Common Voice ya no se descarga de Hugging Face sin cuenta; se usó **VoxPopuli** (`facebook/voxpopuli`,
+config `es`, split test, CC0-1.0: plenos del Parlamento Europeo, eurodiputadas españolas). Una frase de 12-13 s con
+transcripción revisada por hablante: `97024`, `124708`, `103035`, `125041` (ids en `escucha/via1/ref/FUENTE.txt`,
+fuera del repo, en `~/.local/share/galivelop-voice/proyectos/portal/`). Audio de pleno: algo de sala.
+
+**Tomas** (semilla 7, frases corta y larga de `gvoice/bench.py`, Q8_0, Vulkan; pared con carga del modelo):
+
+| Motor | Frase larga: pared / audio | RTF | Incidencias |
+|---|---|---|---|
+| Qwen3-TTS Base 0,6B (`qwentts.cpp`) | 7,5-10,8 s / 8,6-12,6 s | ~0,85 | con `vp-97024` la corta acaba en el fotograma 0-2 en 5 de 9 semillas |
+| Chatterbox MTL V3 `es-es` (`chatterbox.cpp`) | 38,5-41,6 s / 11,2-12,2 s | ~3,4 | ninguna; la corta, ~19 s de pared para 3,2 s (carga y preprocesado de la referencia) |
+
+Chatterbox en CPU (prueba de humo, frase corta): RTF 19,9 con carga, 10,9 sin ella; RSS 2,6 GB (KV de ~2,9 GB por el
+CFG). Vulkan sin carga: RTF 2,3; RSS 1,3 GB. CPU y Vulkan no dan la misma toma con la misma semilla.
+
+**Montaje de `chatterbox.cpp`** (`ddca05fb`, ggml `58c38058` de `scripts/setup-ggml.sh`), en
+`~/.local/share/galivelop-voice/engine/chatterbox.cpp/`:
+
+- Compilación en el Flatpak con el prefijo de `qwentts.cpp` (`P=engine/deps/prefix`): `cmake -S . -B build-vk
+  -DCMAKE_BUILD_TYPE=Release -DGGML_VULKAN=ON -DCMAKE_PREFIX_PATH=$P -DCMAKE_CXX_FLAGS=-I$P/include` y
+  `CCACHE_DISABLE=1 TMPDIR=$HOME/.cache cmake --build build-vk -j4` (con ccache en `/tmp`, un tmpfs de 1,5 GB, falla en
+  silencio en `mul_mm.comp`). Los binarios llevan rpath y corren en el anfitrión con `flatpak-spawn --host`.
+- **El paquete `es-es` no basta solo:** trae `t3_es_es.safetensors`, `s3gen_v3.pt` y el tokenizador; `ve.pt`,
+  `conds.pt` y `Cangjie5_TC.json` salen de `ResembleAI/chatterbox`. A `s3gen_v3.pt` le falta
+  `tokenizer._mel_filters` (sin él: `missing tensor s3tokv2/mel_fb`); se añadió con
+  `librosa.filters.mel(sr=16000, n_fft=400, n_mels=128)` — **no comparado con el del `s3gen.pt` general**.
+- Conversión con `scripts/convert-t3-mtl-to-gguf.py` y `convert-s3gen-to-gguf.py --variant mtl` (venv con torch CPU).
+  GGUF q8_0: T3 604 MB, S3Gen 827 MB; f16: 1,10 GB y 1,06 GB.
+- Síntesis: `tts-cli --model <t3> --s3gen-gguf <s3gen> --text "…" --language es --reference-audio ref.wav --seed 7
+  --n-gpu-layers 99 --out out.wav`.
+
+**Pendiente de la persona:** oír `escucha/via1/` (`LEEME.txt`): acento peninsular, parecido con la referencia, voz
+preferida y motor ganador.

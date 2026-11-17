@@ -9,10 +9,10 @@ voz lo decide cada proyecto en su `galivelop-voices.json`.
 
 ## Estado
 
-En desarrollo, fase **F1 (núcleo) hecha**: contrato (esquemas JSON), pedidos, cola, trabajador y CLI `gvoice`, todo con un
-motor de pruebas. **Aún no genera voces de verdad**: el motor real llega en F2.
+Versión **0.2.0**, en desarrollo. En `main`: F0, F1 (núcleo: contrato, pedidos, cola, trabajador y CLI `gvoice`),
+F2.1-F2.5 (motor real con qwentts.cpp, catálogo de modelos, `gvoice bench`) y F5.1-F5.7 (interfaz web).
 
-Detalle, decisiones D1-D17 y criterios de cierre en [`docs/plan.md`](docs/plan.md); vocabulario en
+Detalle, decisiones D1-D19 y criterios de cierre en [`docs/plan.md`](docs/plan.md); vocabulario en
 [`GLOSSARY.md`](GLOSSARY.md).
 
 ## Instalar el motor real

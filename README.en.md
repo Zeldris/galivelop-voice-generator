@@ -9,10 +9,10 @@ voice are decided by each project in its `galivelop-voices.json`.
 
 ## Status
 
-In development, phase **F1 (core) done**: contract (JSON schemas), orders, queue, worker and the `gvoice` CLI, all with a
-test engine. **It does not generate real voices yet**: the real engine arrives in F2.
+Version **0.2.0**, in development. On `main`: F0, F1 (core: contract, orders, queue, worker and the `gvoice` CLI),
+F2.1-F2.5 (real engine on qwentts.cpp, model catalog, `gvoice bench`) and F5.1-F5.7 (web interface).
 
-Details, decisions D1-D17 and exit criteria in [`docs/plan.md`](docs/plan.md) (Spanish); vocabulary in
+Details, decisions D1-D19 and exit criteria in [`docs/plan.md`](docs/plan.md) (Spanish); vocabulary in
 [`GLOSSARY.md`](GLOSSARY.md) (Spanish).
 
 ## Installing the real engine

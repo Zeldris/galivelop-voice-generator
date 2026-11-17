@@ -124,3 +124,8 @@ No hallé ESPnet ni un modelo multilingüe reciente que liste gallego con licenc
 - HiTZ: [TTS-gl_celtia](https://huggingface.co/HiTZ/TTS-gl_celtia), [aHoTTS](https://github.com/hitz-zentroa/aHoTTS).
 - Cotovía: [SourceForge](https://sourceforge.net/projects/cotovia/), [UVigo GTM](https://gtm.uvigo.es/en/transfer/software/cotovia/).
 - Descartes: [lista MMS-TTS](https://dl.fbaipublicfiles.com/mms/tts/all-tts-languages.html), [colección mms-tts](https://huggingface.co/facebook/mms-tts), [piper-voices](https://huggingface.co/rhasspy/piper-voices/tree/main), [VoxCPM](https://github.com/OpenBMB/VoxCPM), [tts.ai Piper](https://tts.ai/voices/piper/?lang=gl).
+
+
+## Decisión (2026-11-17)
+
+La persona aprueba Celtia como base tras escuchar la demo de Nós. No se consulta a la USC: el uso es sin ánimo de lucro y nace de la investigación del propio generador; basta con la atribución «Voz gallega: Celtia, Proxecto Nós (USC), Apache-2.0» en el README del generador y en el Portal. La conveniencia de escribir a la USC (apartado C) queda descartada por decisión de la persona.

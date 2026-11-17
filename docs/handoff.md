@@ -11,7 +11,7 @@
 | **Rama** | `claude/via1-clonado` (desde `main` en `17b4255`, 2026-11-17; `claude/lectora-es` fusionada por el PR #7) |
 | **Fase / tarea** | **0.3.0** (`docs/plan.md` § Versiones): D19 vía 1, capa 1 (clonado desde referencia peninsular) + B1 (barrido de leves de `gvoice/effects.py`). Investigación de partida: `docs/investigacion/2026-11-17-motores-via1-deck.md` |
 | **Último punto estable** | 0.2.0 publicada: PR #7 fusionado con CI de GitHub en verde (vuelve a funcionar), `v0.1.0` y `v0.2.0` con su release. Retro: `docs/records/retro-2026-11-17-v0-2-0.md`. Conectores MCP Claude Docs y easel desactivados por la persona |
-| **Siguiente paso** | **Voz `lectora-es` aprobada** (2026-11-17): huella de Qwen Base 0,6B = slerp 55 % entre V1-s101 (timbre de VoiceDesign) y DreamVoz (zeta peninsular), en `proyectos/portal/voz/lectora-es/` con `RECETA.md` y la muestra aprobada (semilla 7). Rondas y lecciones: § «Resultado en la Deck» de `docs/investigacion/2026-11-17-timbre-objetivo.md`. Ahora: llevar al código el modo clonado por huella (`--ref-spk`) para `lectora-es` (hoy se genera con VoiceDesign e instrucción) y la comprobación automática de tomas (señal, F0, whisper; pendiente); luego un párrafo real del Portal a `final/es/`. Chatterbox: diagnóstico cortado, sin relanzar. Una sola carga de GPU a la vez, `nice`. Compactaciones: presupuesto 2, llevamos 1 |
+| **Siguiente paso** | Portal en español: **13 trozos aprobados** (2026-11-17) en `proyectos/portal/final/es/{inicio,tarkor}/`, con la voz `lectora-es` (`proyectos/portal/voz/lectora-es/RECETA.md`); el `LEEME.md` de esa carpeta explica qué recoge el Portal. La persona pide al Portal los guiones que faltan (`src/data/guiones/*.json`); **otro día** se generan los nuevos, con los scripts de `escucha/via1/run/` (`pron.py`, `portal.sh`, `portal-redo.sh`, `frases.sh`, `check.py`, `wer.py`). Después: llevar ese flujo a `gvoice` (pendiente del 2026-11-17). Chatterbox: diagnóstico cortado, sin relanzar. Una sola carga de GPU a la vez, `nice`. Compactaciones: presupuesto 2, llevamos 1 |
 | **Check** | verde salvo dos tests que ya fallan en `main` en la Deck (`test_install…no_compiler_and_no_flatpak` 127 y `test_peaks…is_fast` por tiempo) |
 
 ## Para la próxima publicación
@@ -27,7 +27,7 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 5. 2026-11-14 — Arreglos de la revisión de bloque F2.1-F2.3 (6 hallazgos): el resultado lleva el dispositivo como el perfil (`cpu`; `device_arg` solo en el argv); un proceso muerto por señal no lanza el respaldo y, con vigilante, este exige `minFreeMemoryMb` otra vez (si no, error del primer intento y nota); el motor hereda el descriptor del candado (`machine_lock.held_fds`, `pass_fds`) para que un motor huérfano siga ocupando la máquina, y `worker.run` no limpia `.qwentts-*` si el candado está ocupado; `EngineError`/`EngineTimeout`/`Cancelled` llevan `stats` (`min_free_mb`, `peak_rss_mb`) y el trabajador las pasa al registro (`log.record_for(stats=)`); pico de RSS exacto con `os.wait4` (`ru_maxrss`; `proc.returncode` fijado a mano con `waitstatus_to_exitcode`; `VmHWM` solo si `wait4` no da nada); tests del vigilante sin reloj (`WATCH_S` parcheable, lecturas de memoria inyectadas). Check verde.
 ## Pendiente
 
-Lo pendiente está en [`docs/records/pending.md`](records/pending.md) (22 entradas); se añade y se quita allí.
+Lo pendiente está en [`docs/records/pending.md`](records/pending.md) (24 entradas); se añade y se quita allí.
 
 ## Comprobar el estado
 

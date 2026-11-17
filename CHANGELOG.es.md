@@ -9,6 +9,12 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
+### Corregido
+
+- `gvoice fx apply` rechaza el mismo archivo como entrada y salida, escribe a un temporal y solo sustituye la
+  salida si ffmpeg acaba bien; un archivo de cadena local gana a un preset del mismo nombre, y los nombres de preset
+  se limitan a `[a-z0-9_-]`.
+
 ## [0.2.0] - 2026-11-17
 
 ### Añadido

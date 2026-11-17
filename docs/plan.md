@@ -63,7 +63,7 @@ release al día; solo la última menor recibe parches. El historial anterior se 
 |---|---|---|
 | 0.1.0 | F0, F1, F2.1-F2.5 y F5.1-F5.7 (todo lo de `main` en `2236444`) | Etiqueta `v0.1.0` y release (2026-11-17) |
 | 0.2.0 | Rama `claude/lectora-es`: `locale` en los pedidos, pasos `denoise`/`dereverb`/`trimSilence`/`loudnorm`, preset `lectura`, `gvoice fx apply`; herramientas de versión | `__version__` 0.2.0 y CHANGELOG en `971a8dd`; falta revisión, PR y etiqueta |
-| 0.3.0 | D19 vía 1, capa 1: clonado desde referencia peninsular (clips CC0), Qwen3 Base frente a Chatterbox (motor enchufable si gana, D18); voz `lectora-es` del Portal entregada | — |
+| 0.3.0 | D19 vía 1, capa 1: clonado desde referencia peninsular (clips CC0), Qwen3 Base frente a Chatterbox (motor enchufable si gana, D18); voz `lectora-es` del Portal entregada; **B1**: barrido de los 5 leves de `gvoice/effects.py` de `docs/records/pending.md` (`samefile`, temporal + `os.replace`, nombre del preset, `_SUPPORTED` doble, `_n`; retro 2026-11-17, P5) | — |
 | 0.4.0 | D19 vía 2 determinista: semilla y muestreo por toma, pruebas sin oído, ficha de escucha; cierre de F2.6 | — |
 | 0.5.0 | Cierre de F3: paquete de voces (D13), guía de integración, efectos de la capa 3 (formantes, tono, coro) | — |
 | 0.6.0 | D19 vía 1, capa 2: conversión de voz (OpenVoice V2) y voces como receta (muestra, destino, cadena) | — |

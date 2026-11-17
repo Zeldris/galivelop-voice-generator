@@ -74,7 +74,8 @@ class ValidExamples(unittest.TestCase):
     def test_effect_vocabulary_is_closed(self):
         enum = S.load_schema("effect-chain")["$defs"]["step"]["properties"]["type"]["enum"]
         self.assertEqual(sorted(enum), sorted(
-            ["highpass", "lowpass", "equalizer", "gain", "saturation", "reverb", "chorus", "pitch"]))
+            ["highpass", "lowpass", "equalizer", "gain", "saturation", "reverb", "chorus", "pitch",
+             "denoise", "dereverb", "trimSilence", "loudnorm"]))
 
 
 class BrokenExamples(unittest.TestCase):

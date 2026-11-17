@@ -23,7 +23,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - Review fixes: the locale of takes, `loudnorm` on silence and the WAV sample rate.
-- Lines are compared against the locale of their reference take.
+- Lines are compared against the locale of their reference take; if the voice's chosen take does not exist, the
+  line shows as stale instead of breaking the listings.
+- `releases.py check` checks the tag even without `gh`, and the release through GitHub's REST API.
 
 ## [0.1.0] - 2026-11-16
 

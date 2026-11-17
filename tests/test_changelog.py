@@ -58,9 +58,11 @@ def git(*args, cwd=ROOT):
 
 
 def changed_after_bump(cwd=ROOT):
-    """Si algún archivo de `gvoice/` cambió después del último commit que tocó `gvoice/__init__.py` (el bump)."""
-    bump = git("log", "-1", "--format=%H", "--", "gvoice/__init__.py", cwd=cwd).stdout.strip()
-    return bool(bump) and git("diff", "--quiet", f"{bump}..HEAD", "--", "gvoice/", cwd=cwd).returncode != 0
+    """Si algún archivo de `gvoice/` cambió después del último commit que tocó `gvoice/__init__.py` (el bump) o un
+    CHANGELOG. Lo arreglado tras el bump y antes de fusionar es de la misma versión: basta con apuntarlo en su sección
+    (o en «[Sin publicar]») en el mismo commit o en uno posterior."""
+    last = git("log", "-1", "--format=%H", "--", "gvoice/__init__.py", *FILES.values(), cwd=cwd).stdout.strip()
+    return bool(last) and git("diff", "--quiet", f"{last}..HEAD", "--", "gvoice/", cwd=cwd).returncode != 0
 
 
 class PureLogic(unittest.TestCase):
@@ -117,6 +119,10 @@ class ChangedAfterBump(unittest.TestCase):
             commit("docs/x.md", "x", "docs")
             self.assertFalse(changed_after_bump(root))
             commit("gvoice/other.py", "x = 1\n", "code after the bump")
+            self.assertTrue(changed_after_bump(root))
+            commit("CHANGELOG.md", "- Fixed after the bump.\n", "changelog of the fix")
+            self.assertFalse(changed_after_bump(root))
+            commit("gvoice/other.py", "x = 2\n", "more code")
             self.assertTrue(changed_after_bump(root))
             commit("gvoice/__init__.py", '__version__ = "0.2.0"\n', "next bump")
             self.assertFalse(changed_after_bump(root))

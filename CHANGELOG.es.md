@@ -23,7 +23,9 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 ### Corregido
 
 - Arreglos de la revisión: el locale de las tomas, `loudnorm` en silencio y la frecuencia de los WAV.
-- Las líneas se comparan con el locale de su toma de referencia.
+- Las líneas se comparan con el locale de su toma de referencia; si la toma elegida de la voz no existe, la línea sale
+  desfasada en vez de romper los listados.
+- `releases.py check` comprueba la etiqueta aunque no haya `gh` y la release por la API REST de GitHub.
 
 ## [0.1.0] - 2026-11-16
 

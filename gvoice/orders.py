@@ -445,12 +445,21 @@ def is_stale(project: str, key: str) -> bool:
     _is_type(order, "line")
     if order["chosen"] is None:
         return False
-    record = _voice_order(project, order["voice"])
-    return _stale(order, record["chosen"], record.get("locale"))
+    return _stale(order, *_reference_and_locale(project, order["voice"]))
+
+
+def _reference_and_locale(project: str, voice: str) -> tuple:
+    """``(current reference id, locale of that take)`` of voice `voice`. The locale is the take's, not the voice
+    order's now: a line is spoken with its reference's locale, so a voice resubmitted with another locale but the
+    same take leaves its lines current (they would come out the same if regenerated)."""
+    record = _voice_order(project, voice)
+    current = record["chosen"]
+    return current, (_attempt(record, current).get("locale") if current is not None else None)
 
 
 def _stale(order: dict, current, locale=None) -> bool:
-    """`order` (a line with a chosen attempt) against the current reference `current` and ``locale`` of its voice:
+    """`order` (a line with a chosen attempt) against the current reference `current` of its voice and that take's
+    ``locale``:
     stale if the attempt was made for another voice (an old attempt without ``voice`` counts as the line's), with
     another take or in another locale (an attempt without ``locale`` was made with none)."""
     attempt = _attempt(order, order["chosen"])
@@ -460,8 +469,7 @@ def _stale(order: dict, current, locale=None) -> bool:
 
 def stale_lines(project: str, voice: str) -> list:
     """Keys (sorted) of the lines whose current voice is `voice` and whose chosen attempt is stale."""
-    record = _voice_order(project, voice)
-    current, locale = record["chosen"], record.get("locale")
+    current, locale = _reference_and_locale(project, voice)
     return [r["key"] for r in list_orders(project, type="line")
             if r["voice"] == voice and r["chosen"] is not None and _stale(r, current, locale)]
 

@@ -480,11 +480,20 @@ class StaleTests(Base):
         self.assertEqual((err.code, err.params["expected"]), ("order.wrong_type", "line"))
         self.assertEqual(self.code(orders.reference, self.p, "narrator/intro-01").code, "order.voice_unknown")
 
-    def test_line_take_is_stale_when_the_locale_of_the_voice_changes(self):
+    def test_voice_locale_change_with_the_same_take_leaves_lines_current(self):
+        # lines are spoken with the locale of their reference take: regenerating them would give the same, so
+        # marking them stale would leave them stale forever (they stay current until another take is chosen)
         n = self.made_line()
         orders.choose(self.p, "narrator/intro-01", n)
-        self.assertFalse(orders.is_stale(self.p, "narrator/intro-01"))
         orders.submit(self.p, self.voice(locale="es-ES"))  # same reference take, another language
+        self.assertFalse(orders.is_stale(self.p, "narrator/intro-01"))
+        self.assertEqual(orders.stale_lines(self.p, "narrator"), [])
+
+    def test_line_take_in_another_locale_than_its_reference_is_stale(self):
+        n = self.made_line()
+        orders.choose(self.p, "narrator/intro-01", n)
+        orders._modify(self.p, "narrator/intro-01",  # e.g. a take edited by hand or from another version
+                       lambda o: o["attempts"][0].__setitem__("locale", "es-419"))
         self.assertTrue(orders.is_stale(self.p, "narrator/intro-01"))
         self.assertEqual(orders.stale_lines(self.p, "narrator"), ["narrator/intro-01"])
 

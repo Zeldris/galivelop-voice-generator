@@ -26,9 +26,3 @@ export function subscribe(key, fn) {
 export function queueOf(project, key) {
   return state.queue.filter((e) => e.project === project && e.key === key);
 }
-
-export function queueCounts() {
-  const c = { running: 0, queued: 0, failed: 0, done: 0, cancelled: 0 };
-  for (const e of state.queue) if (e.state in c) c[e.state] += 1;
-  return c;
-}

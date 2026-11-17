@@ -5,9 +5,11 @@
    `keyAction`/`padActions` (puras); aquí van los globales y el diálogo de ayuda, que se arma en JS (sin tocar el HTML).
    Ninguno actúa mientras el foco está en un campo de texto. */
 
-import { h, replace } from '../dom.js';
+import { h, replace, closest } from '../dom.js';
 import { t } from '../i18n.js';
+import { isQueueOpen } from './queue-bar.js';
 
+/* [keys, label, action]: sin acción, la fila vale siempre; con ella, solo se enseña en las vistas que la hacen (`bindShortcuts`). */
 export const SHORTCUTS = [
   ['ui.shortcuts.group.global', [
     [['?'], 'ui.shortcuts.help'],
@@ -15,23 +17,23 @@ export const SHORTCUTS = [
     [['Tab'], 'ui.shortcuts.tab'],
   ]],
   ['ui.shortcuts.group.gallery', [
-    [['←', '↑'], 'ui.shortcuts.prev'],
-    [['→', '↓'], 'ui.shortcuts.next'],
-    [['Intro', 'P'], 'ui.shortcuts.toggle'],
-    [['E'], 'ui.shortcuts.choose'],
-    [['U'], 'ui.shortcuts.undo'],
-    [['C'], 'ui.shortcuts.candidate'],
-    [['D'], 'ui.shortcuts.discard'],
-    [['G'], 'ui.shortcuts.another'],
-    [['X'], 'ui.shortcuts.swap'],
+    [['←', '↑'], 'ui.shortcuts.prev', 'prev'],
+    [['→', '↓'], 'ui.shortcuts.next', 'next'],
+    [['Intro', 'P'], 'ui.shortcuts.toggle', 'toggle'],
+    [['E'], 'ui.shortcuts.choose', 'choose'],
+    [['U'], 'ui.shortcuts.undo', 'undo'],
+    [['C'], 'ui.shortcuts.candidate', 'candidate'],
+    [['D'], 'ui.shortcuts.discard', 'discard'],
+    [['G'], 'ui.shortcuts.another', 'another'],
+    [['X'], 'ui.shortcuts.swap', 'swap'],
   ]],
   ['ui.shortcuts.group.pad', [
-    [['✚'], 'ui.shortcuts.padDpad'],
-    [['A'], 'ui.shortcuts.toggle'],
-    [['X'], 'ui.shortcuts.choose'],
-    [['Y'], 'ui.shortcuts.undo'],
-    [['B'], 'ui.shortcuts.padPause'],
-    [['LB', 'RB'], 'ui.shortcuts.swap'],
+    [['✚'], 'ui.shortcuts.padDpad', 'prev'],
+    [['A'], 'ui.shortcuts.toggle', 'toggle'],
+    [['X'], 'ui.shortcuts.choose', 'choose'],
+    [['Y'], 'ui.shortcuts.undo', 'undo'],
+    [['B'], 'ui.shortcuts.padPause', 'pause'],
+    [['LB', 'RB'], 'ui.shortcuts.swap', 'swap'],
   ]],
 ];
 
@@ -110,6 +112,40 @@ export function mergeSources(perform, { windowMs = 200, now = () => Date.now() }
 }
 
 let help = null;
+let viewActions = null; // actions of the view that bound the shortcuts (null: all), so the help lists only those
+
+export const loading = () => h('p.empty', {}, h('span.spin', { aria: { hidden: true } }), ' ', t('ui.loading'));
+
+/** Wires keyboard and pad to `perform(action)` for one view. `actions` (an iterable) are the actions the view does;
+    others are neither blocked nor listed in the help. Returns `stop()`. Keeps the filters in one place: not with the
+    queue drawer open, not while typing, not over a dialog; Steam Input and the pad are merged (`mergeSources`). */
+export function bindShortcuts(perform, { actions = null } = {}) {
+  const set = actions ? new Set(actions) : null;
+  const merged = mergeSources(perform);
+  const onKey = (e) => {
+    if (isQueueOpen() || e.defaultPrevented) return;   // the queue drawer is on top: the view below does not act
+    if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+    const action = keyAction(e, oneKeyEnabled());
+    if (!action || (set && !set.has(action))) return;   // a key that does nothing here is not blocked
+    // Enter and space on a button, link or waveform do their own thing; on the card or the page they play
+    if ((e.key === 'Enter' || e.key === ' ') && closest(e.target, 'button, a, [role="slider"], summary, dialog')) return;
+    e.preventDefault();
+    merged.key(action);
+  };
+  document.addEventListener('keydown', onKey);
+  const stopPad = startGamepad((action) => {
+    const a = document.activeElement;
+    if (isQueueOpen() || isTyping(a) || helpOpen() || closest(a, 'dialog')) return;
+    if (set && !set.has(action)) return;
+    merged.pad(action);
+  });
+  viewActions = set;
+  return () => {
+    document.removeEventListener('keydown', onKey);
+    stopPad();
+    if (viewActions === set) viewActions = null;
+  };
+}
 
 /** ¿Está abierto el diálogo de ayuda? (un mando no debe actuar sobre la galería por debajo). */
 export function helpOpen() { return help !== null; }
@@ -137,13 +173,14 @@ export function closeHelp() {
 }
 
 /** Diálogo de ayuda con todos los atajos y el interruptor de los de una tecla. Devuelve el `dialog`. */
-export function openHelp(opener = null) {
+export function openHelp(opener = null, { actions = viewActions } = {}) {
   if (help) return help;
+  const shown = (items) => items.filter(([, , action]) => !action || !actions || actions.has(action));
   const close = h('button.btn', { type: 'button', onclick: () => dlg.close() }, t('ui.actions.close'));
   const body = h('div');
-  replace(body, h('dl.shortcut-list', {}, SHORTCUTS.map(([group, items]) => [
+  replace(body, h('dl.shortcut-list', {}, SHORTCUTS.filter(([, items]) => shown(items).length).map(([group, items]) => [
     h('h3', {}, t(group)),
-    items.map(([keys, label]) => [h('dt', {}, keys.map((k) => h('kbd.kbd', {}, k))), h('dd', {}, t(label))]),
+    shown(items).map(([keys, label]) => [h('dt', {}, keys.map((k) => h('kbd.kbd', {}, k))), h('dd', {}, t(label))]),
   ])),
   h('label.check', {}, h('input', { type: 'checkbox', checked: oneKeyEnabled(), onchange: (ev) => setOneKey(ev.target.checked) }), h('span', {}, t('ui.shortcuts.oneKey'))),
   h('p.hint', {}, t('ui.shortcuts.oneKeyHint')), h('p.hint', {}, t('ui.shortcuts.deck')));

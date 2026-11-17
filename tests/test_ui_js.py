@@ -1615,7 +1615,7 @@ out({
   all: m.visible(es, 'all').map((e) => e.id), pending: m.visible(es, 'pending').map((e) => e.id),
   failed: m.visible(es, 'failed').map((e) => e.id), done: m.visible(es, 'done').map((e) => e.id),
   errText: m.errorOf(E(7, 'failed', { errorText: 'ya traducido', error: { code: 'x' } })),
-  errKey: m.errorOf(es[0], (k, p) => k + ':' + p.message), errNone: m.errorOf(E(8, 'failed')), errNotFailed: m.errorOf(E(8, 'done', { errorText: 'x' })),
+  errKey: m.errorOf(es[0], (k, p) => k + ':' + p.message), errNone: m.errorOf(E(8, 'failed')), errNoKey: m.errorOf(E(8, 'failed', { error: { code: 'weird.code' } }), () => null), errNotFailed: m.errorOf(E(8, 'done', { errorText: 'x' })),
 });
 """)
         self.assertEqual(got["counts"], {"running": 1, "queued": 2, "done": 1, "failed": 1, "cancelled": 1})
@@ -1629,6 +1629,7 @@ out({
         self.assertEqual((got["failed"], got["done"]), ([0], [4]))
         self.assertEqual(got["all"][:3], [1, 2, 3])  # primero lo que corre, luego lo que espera por id
         self.assertEqual(got["all"][3:], [6, 5, 4, 0])  # y el resto, lo más nuevo antes
+        self.assertIn("weird.code", got["errNoKey"])   # a code without text is still a reason
         self.assertEqual((got["errText"], got["errKey"], got["errNone"], got["errNotFailed"]), ("ya traducido", "error.engine.failed:x", None, None))
 
     QUEUE_ENV = ORDER_ENV + """
@@ -1703,6 +1704,57 @@ out(r);
         self.assertIn("1 entrada cancelada.", got["toast"])
         self.assertNotIn("1 entradas", got["toast"])
         self.assertIn("Se cancelará 1 entrada que espera. Lo que ya está en marcha sigue hasta terminar.", got["message"])
+
+    def test_queue_bar_unknown_state_and_kind_show_raw_and_the_entry_is_a_group(self):
+        got = self.run_js(self.QUEUE_ENV + """
+stores.set('queue', [{ id: 50, state: 'zzstate', kind: 'zzkind', project: 'a', key: 'k', seed: null },
+  { id: 51, state: 'failed', kind: 'line', project: 'a', key: 'k', error: { code: 'no.such.code' } }]);
+toggleQueue(true);
+const ents = drawer.find((e) => e.className.includes('queue-entry'));
+out({ roles: ents.map((e) => e.attrs.role), text: ents.map((e) => e.textContent) });
+""")
+        unknown = next(x for x in got["text"] if "zzstate" in x)
+        failed = next(x for x in got["text"] if "Fallida" in x)
+        self.assertIn("zzkind", unknown)
+        self.assertNotIn("ui.queue.", unknown)
+        self.assertIn("no.such.code", failed)   # the failed entry has a reason
+        self.assertEqual(got["roles"], ["group", "group"])
+
+    def test_loading_and_bind_shortcuts_are_shared_and_the_help_lists_only_the_view_actions(self):
+        got = self.run_js(self.ORDER_ENV + """
+const sh = await mod('js/components/shortcuts.js');
+const texts = () => doc.body.find((e) => e.tag === 'dialog')[0].find((e) => e.tag === 'dd').map((e) => e.textContent);
+const r = { loading: sh.loading().textContent.trim().length > 0 };
+const seenA = [];
+const stop = sh.bindShortcuts((a) => seenA.push(a), { actions: ['toggle', 'swap'] });
+press('p'); press('x'); press('u'); press('ArrowRight');   // u and the arrow are not this view's
+r.acted = seenA.slice();
+sh.openHelp(); r.helpSome = texts(); doc.body.find((e) => e.tag === 'dialog')[0].close(); await sleep(20);
+stop();
+press('p'); r.afterStop = seenA.length;
+sh.openHelp(); r.helpAll = texts(); doc.body.find((e) => e.tag === 'dialog')[0].close();
+out(r);
+""")
+        self.assertTrue(got["loading"])
+        self.assertEqual(got["acted"], ["toggle", "swap"])
+        self.assertEqual(got["afterStop"], 2)
+        for gone in ("Deshacer elección", "Descartar"):
+            self.assertFalse(any(gone in x for x in got["helpSome"]), gone)
+        self.assertLess(len(got["helpSome"]), len(got["helpAll"]))
+        self.assertGreater(len(got["helpSome"]), 3)   # the global rows stay
+
+    def test_compare_view_help_does_not_list_actions_it_does_not_do(self):
+        got = self.run_js(self.COMPARE_ENV + """
+const { openHelp } = await mod('js/components/shortcuts.js');
+const view = await mountCmp('narrator', { a: '2', b: '3' });
+openHelp();
+const keys = doc.body.find((e) => e.tag === 'dialog')[0].find((e) => e.tag === 'dt').map((e) => e.textContent);
+view.cleanup();
+out(keys);
+""")
+        for k in ("U", "C", "D", "G"):
+            self.assertNotIn(k, got)
+        self.assertIn("X", got)
 
     def test_queue_open_blocks_the_keys_of_the_order_and_compare_views(self):
         got = self.run_js(self.COMPARE_ENV + """

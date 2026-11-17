@@ -480,6 +480,20 @@ class StaleTests(Base):
         self.assertEqual((err.code, err.params["expected"]), ("order.wrong_type", "line"))
         self.assertEqual(self.code(orders.reference, self.p, "narrator/intro-01").code, "order.voice_unknown")
 
+    def test_line_take_is_stale_when_the_locale_of_the_voice_changes(self):
+        n = self.made_line()
+        orders.choose(self.p, "narrator/intro-01", n)
+        self.assertFalse(orders.is_stale(self.p, "narrator/intro-01"))
+        orders.submit(self.p, self.voice(locale="es-ES"))  # same reference take, another language
+        self.assertTrue(orders.is_stale(self.p, "narrator/intro-01"))
+        self.assertEqual(orders.stale_lines(self.p, "narrator"), ["narrator/intro-01"])
+
+    def test_old_take_without_locale_matches_a_voice_without_it(self):
+        n = self.made_line()
+        orders.choose(self.p, "narrator/intro-01", n)
+        self.assertNotIn("locale", orders.get(self.p, "narrator/intro-01")["attempts"][0])
+        self.assertFalse(orders.is_stale(self.p, "narrator/intro-01"))
+
     def test_resubmitted_with_another_voice_is_stale_even_with_the_same_take_id(self):
         n1 = self.made_line()
         orders.choose(self.p, "narrator/intro-01", n1)

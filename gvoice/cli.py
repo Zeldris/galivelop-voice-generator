@@ -191,7 +191,7 @@ def _order(args, sub, out: _Out) -> None:
         out.line("cli.out.order_seed", seed=out.none(o["seed"]))
         if o["type"] == "voice":
             out.line("cli.out.order_test_text", text=o["testText"])
-            out.line("cli.out.order_instruction", text=sheet.instruction(o["designSheet"]))
+            out.line("cli.out.order_instruction", text=sheet.instruction(o["designSheet"], o.get("locale")))
         else:
             out.line("cli.out.order_voice", voice=o["voice"], reference=out.none(orders.reference(args.project,
                                                                                                   o["voice"])))

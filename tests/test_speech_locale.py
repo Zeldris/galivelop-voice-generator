@@ -74,13 +74,15 @@ class FlowTests(WorkerBase):
         order.pop("$schema")
         return order
 
-    def test_locale_is_stored_and_resubmit_without_it_clears_it(self):
+    def test_locale_is_stored_and_resubmit_without_it_keeps_it(self):
         self.assertEqual(orders.submit(self.p, self.lectora())["locale"], "es-ES")
         self.assertEqual(orders.get(self.p, "lectora-es")["locale"], "es-ES")
         order = self.lectora()
         del order["locale"]
-        orders.submit(self.p, order)
-        self.assertNotIn("locale", orders.get(self.p, "lectora-es"))
+        orders.submit(self.p, order)  # the UI form has no locale field: it must not wipe the stored one
+        self.assertEqual(orders.get(self.p, "lectora-es")["locale"], "es-ES")
+        orders.submit(self.p, dict(order, locale="es-419"))
+        self.assertEqual(orders.get(self.p, "lectora-es")["locale"], "es-419")
 
     def test_voice_take_has_the_phrase_and_the_language(self):
         orders.submit(self.p, self.lectora())
@@ -114,6 +116,22 @@ class FlowTests(WorkerBase):
         self.run_worker(engine=eng)
         job, = seen["line"]
         self.assertEqual(job.language, "English")
+
+    def test_line_takes_the_language_of_its_reference_take_not_the_voice_now(self):
+        orders.submit(self.p, self.voice(key="narrator", locale="en-GB"))
+        queue.enqueue(self.p, "narrator", orders.attempt_specs(self.p, "narrator", seed=7))
+        self.run_worker()
+        self.assertEqual(orders.get(self.p, "narrator")["attempts"][0]["locale"], "en-GB")
+        queue.choose(self.p, "narrator", 1)
+        self.run_worker()
+        orders.submit(self.p, self.line())
+        queue.new_takes(self.p, "narrator/intro-01", seed=3)
+        orders.submit(self.p, self.voice(key="narrator", locale="es-ES"))  # changed before the worker runs
+        eng, seen = self.spy()
+        self.run_worker(engine=eng)
+        job, = seen["line"]
+        self.assertEqual(job.language, "English")
+        self.assertEqual(orders.get(self.p, "narrator/intro-01")["attempts"][0]["locale"], "en-GB")
 
     def test_line_of_a_voice_without_locale_has_no_language(self):
         self.voice_done()

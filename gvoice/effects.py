@@ -8,10 +8,11 @@ the gaps between words; it does not remove the reverb that sits on top of speech
 from __future__ import annotations
 
 import json
+import math
 import re
 import shutil
 import subprocess
-import wave
+import struct
 from pathlib import Path
 
 from . import schema
@@ -26,6 +27,15 @@ _SUPPORTED = ("highpass", "lowpass", "equalizer", "gain", "denoise", "dereverb",
 def _n(value) -> str:
     """A number as ffmpeg wants it: no trailing zeros, no exponent."""
     return ("%.4f" % value).rstrip("0").rstrip(".") or "0"
+
+
+def _finite(measured: dict) -> bool:
+    """Whether every loudnorm measure used by the second pass is a finite number."""
+    try:
+        return all(math.isfinite(float(measured[k]))
+                   for k in ("input_i", "input_tp", "input_lra", "input_thresh", "target_offset"))
+    except (KeyError, TypeError, ValueError):
+        return False
 
 
 def _step(step: dict, measured: dict | None) -> str:
@@ -53,7 +63,9 @@ def _step(step: dict, measured: dict | None) -> str:
         return "%s,areverse,%s,areverse" % (one, one)
     text = "loudnorm=I=%s:TP=%s:LRA=%s" % (_n(step["targetLufs"]), _n(step.get("truePeakDb", DEFAULT_TRUE_PEAK)),
                                           _n(step.get("lra", DEFAULT_LRA)))
-    if measured is None:
+    if measured is None or not _finite(measured):
+        # No second pass: silent input measures "-inf"/"inf", which loudnorm rejects. The first-pass form
+        # (dynamic, no measures) is the only one that works there, and on silence it changes nothing.
         return text
     return text + ":measured_I=%s:measured_TP=%s:measured_LRA=%s:measured_thresh=%s:offset=%s:linear=true" % (
         measured["input_i"], measured["input_tp"], measured["input_lra"], measured["input_thresh"],
@@ -117,10 +129,22 @@ def _measure(src: Path, filters: str) -> dict:
 
 
 def _rate(src: Path) -> int | None:
+    """Sample rate from the ``fmt `` chunk of a RIFF/WAVE file (any format: PCM, float, extensible), or ``None``."""
     try:
-        with wave.open(str(src), "rb") as fh:
-            return fh.getframerate()
-    except (OSError, wave.Error, EOFError):
+        with open(src, "rb") as fh:
+            head = fh.read(12)
+            if len(head) < 12 or head[:4] != b"RIFF" or head[8:12] != b"WAVE":
+                return None
+            while True:
+                chunk = fh.read(8)
+                if len(chunk) < 8:
+                    return None
+                name, size = struct.unpack("<4sI", chunk)
+                if name == b"fmt " and size >= 8:
+                    body = fh.read(8)
+                    return struct.unpack("<HHI", body[:8])[2] or None if len(body) == 8 else None
+                fh.seek(size + (size & 1), 1)
+    except (OSError, struct.error):
         return None
 
 
@@ -143,7 +167,7 @@ def apply(chain: dict, src, dst) -> str:
         measured = _measure(src, compile_chain(chain, upto=upto) + ":print_format=json")
     filters = compile_chain(chain, measured)
     rate = _rate(src)
-    if "loudnorm" in kinds and rate:  # loudnorm resamples to 192 kHz
+    if rate:  # always the source rate: loudnorm resamples to 192 kHz and the output must not depend on it
         filters += ",aresample=%d" % rate
     _run(["-i", str(src), "-af", filters, "-c:a", "pcm_s16le", str(dst)])
     return filters

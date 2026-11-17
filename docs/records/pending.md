@@ -4,6 +4,18 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
 
 ## Pendiente
 
+- Hallazgos leves de la revisión de bloque de la lectora es (F2-F3, locale y efectos), sin arreglar en este PR (no vuelven a revisarse en él):
+  - `gvoice/effects.py` `apply` no comprueba que `dst` y `src` sean el mismo archivo (`samefile`) y ffmpeg corre con `-y`: lo sobrescribiría mientras lo lee.
+  - `gvoice/effects.py` `apply` no pasa `-f wav` y escribe directo en `dst`: debería escribir a un temporal y `os.replace`.
+  - Un locale desconocido lanza `ValueError` en vez de un `GvoiceError` traducido (`worker.py:183`, `speech_locale.py:17`).
+  - `gvoice/effects.py:76-85` `load_chain` no sanea el nombre del preset, y un preset tapa a un archivo local del mismo nombre.
+  - `gvoice/effects.py` comprueba `_SUPPORTED` dos veces (`_step` y `apply`).
+  - `gvoice/queue.py:239` usa un criterio truthy para `locale` y `orders.py` usa `is not None`: unificarlos.
+  - `gvoice/effects.py` `_n`: el `or "0"` es código muerto.
+  - `tests/test_install.py:235` se salta en Flatpak en vez de hacer configurable la ruta de `/.flatpak-info`.
+  - `tests/test_peaks.py`: el umbral de 1,0 s de `is_fast` es frágil (falla en la Deck).
+  - `tests/test_examples.py` no tiene un ejemplo roto de locale (p. ej. `es-MX`).
+
 - Hallazgo leve de la revisión de bloque F5.5, sin arreglar en este PR: el cableado de teclado y mando (`mergeSources`, filtros de `onKey` y de `startGamepad`) y `loading()` están copiados entre `order-view.js` y `compare-view.js`; sacar un `bindShortcuts(perform)` a `shortcuts.js`. La ayuda de atajos de la vista A/B lista también U/C/D/G, que allí no hacen nada (filtrarla por vista).
 
 - Mando por Gamepad API sin probar en la Deck (de la persona, F5.8); F5.4 solo lo cubre con tests.

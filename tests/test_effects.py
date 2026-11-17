@@ -4,11 +4,13 @@ import math
 import random
 import re
 import shutil
+import struct
 import subprocess
 import tempfile
 import unittest
 import wave
 from pathlib import Path
+from unittest import mock
 
 from gvoice import cli, effects, i18n, schema as S
 from gvoice.errors import GvoiceError
@@ -89,6 +91,26 @@ class Compile(unittest.TestCase):
         self.assertEqual(text, "loudnorm=I=-16:TP=-2:LRA=11:measured_I=-24.1:measured_TP=-3.0:measured_LRA=4.2:"
                                "measured_thresh=-35.0:offset=0.3:linear=true")
 
+    def test_loudnorm_second_pass_is_skipped_when_a_measure_is_not_finite(self):
+        # Silent input: ffmpeg measures "-inf" and loudnorm rejects it as a measured_* value.
+        step = chain({"type": "loudnorm", "targetLufs": -16})
+        for bad in ("-inf", "inf", "nan"):
+            measured = {"input_i": bad, "input_tp": "-inf", "input_lra": "0.00", "input_thresh": "-70.00",
+                        "target_offset": "inf"}
+            self.assertEqual(effects.compile_chain(step, measured), "loudnorm=I=-16:TP=-1.5:LRA=11")
+
+    def test_apply_with_silent_measures_runs_the_plain_loudnorm(self):
+        silent = {"input_i": "-inf", "input_tp": "-inf", "input_lra": "0.00", "input_thresh": "-inf",
+                  "target_offset": "inf"}
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "a.wav"
+            write_wav_header(src, rate=RATE, fmt=1, bits=16)
+            with mock.patch.object(effects, "_measure", return_value=silent), \
+                    mock.patch.object(effects, "_run") as run:
+                filters = effects.apply(chain({"type": "loudnorm", "targetLufs": -16}), src, Path(tmp) / "b.wav")
+        self.assertNotIn("measured_", filters)
+        self.assertNotIn("measured_", " ".join(run.call_args[0][0]))
+
     def test_steps_join_in_order(self):
         text = effects.compile_chain(chain({"type": "highpass", "freqHz": 80}, {"type": "gain", "gainDb": 1}))
         self.assertEqual(text, "highpass=f=80,volume=1dB")
@@ -115,6 +137,38 @@ class Compile(unittest.TestCase):
             with self.assertRaises(GvoiceError) as caught:
                 effects.apply(chain(step, step), src, Path(tmp) / "b.wav")
             self.assertEqual(caught.exception.code, "effects.many_loudnorm")
+
+
+def write_wav_header(path, rate, fmt, bits, extensible=False):
+    """A WAV with an empty data chunk and the given fmt: 1 PCM, 3 IEEE float, or extensible (a `wave`-unreadable one)."""
+    tag = 0xFFFE if extensible else fmt
+    body = struct.pack("<HHIIHH", tag, 1, rate, rate * bits // 8, bits // 8, bits)
+    if extensible:
+        body += struct.pack("<HHI", 22, bits, 4) + struct.pack("<H", fmt) + b"\x00\x00\x00\x00\x10\x00\x80\x00\x00\xaa\x00\x38\x9b\x71"
+    data = b"WAVE" + b"fmt " + struct.pack("<I", len(body)) + body + b"LIST" + struct.pack("<I", 3) + b"abc\x00" \
+        + b"data" + struct.pack("<I", 0)
+    Path(path).write_bytes(b"RIFF" + struct.pack("<I", len(data)) + data)
+
+
+class Rate(unittest.TestCase):
+    def test_rate_is_read_from_any_wav_format(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, kw in (("pcm", dict(fmt=1, bits=16)), ("float", dict(fmt=3, bits=32)),
+                             ("ext", dict(fmt=3, bits=32, extensible=True))):
+                path = Path(tmp) / (name + ".wav")
+                write_wav_header(path, rate=24000, **kw)
+                self.assertEqual(effects._rate(path), 24000, name)
+            (Path(tmp) / "x.wav").write_bytes(b"not a wav at all")
+            self.assertIsNone(effects._rate(Path(tmp) / "x.wav"))
+
+    def test_apply_always_pins_the_output_to_the_source_rate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "a.wav"
+            write_wav_header(src, rate=24000, fmt=3, bits=32)  # float: `wave` cannot read it
+            with mock.patch.object(effects, "_run") as run:
+                filters = effects.apply(chain({"type": "gain", "gainDb": 1}), src, Path(tmp) / "b.wav")
+        self.assertEqual(filters, "volume=1dB,aresample=24000")
+        self.assertIn("volume=1dB,aresample=24000", run.call_args[0][0])
 
 
 class Schema(unittest.TestCase):

@@ -7,7 +7,7 @@
    GET …/orders/{key}, audio y picos como la tarjeta de toma; elegir recarga el pedido.
    Devuelve {node, cleanup}: cleanup revoca las URL de audio, quita las escuchas y para la animación. */
 
-import { h, mmss, replace, closest } from '../dom.js';
+import { h, mmss, replace } from '../dom.js';
 import { t } from '../i18n.js';
 import { api, describeError } from '../api.js';
 import { to, replaceHash } from '../router.js';
@@ -16,11 +16,9 @@ import { bucketsFor, canChoose, hasAudio, takeState } from '../take-model.js';
 import { otherSide, pickPair, switchPoint } from '../compare-model.js';
 import { icon } from './icons.js';
 import { createWaveform } from './waveform.js';
-import { isQueueOpen } from './queue-bar.js';
-import { helpOpen, isTyping, keyAction, mergeSources, oneKeyEnabled, openHelp, startGamepad } from './shortcuts.js';
+import { bindShortcuts, loading, openHelp } from './shortcuts.js';
 import { toast, toastError, toastOk } from './toast.js';
 
-const loading = () => h('p.empty', {}, h('span.spin', { aria: { hidden: true } }), ' ', t('ui.loading'));
 const LETTER = { a: 'A', b: 'B' };
 const VIEW_ACTIONS = new Set(['toggle', 'prev', 'next', 'swap', 'choose', 'pause']);   // the rest (U, C, D, G, pad Y) do nothing here
 
@@ -299,22 +297,7 @@ export function compareView(route) {
     else if (action === 'choose') chooseSide(active);
     else if (action === 'pause') pause();
   }
-  const merged = mergeSources(perform);   // Steam Input sends the pad as keys too: one press, one action
-  const onKey = (e) => {
-    if (isQueueOpen() || e.defaultPrevented) return;   // el cajón de la cola está encima: la vista de debajo no actúa
-    if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
-    const action = keyAction(e, oneKeyEnabled());
-    if (!action || !VIEW_ACTIONS.has(action)) return;   // a key that does nothing here is not blocked
-    if ((e.key === 'Enter' || e.key === ' ') && closest(e.target, 'button, a, [role="slider"], summary, dialog')) return;
-    e.preventDefault();
-    merged.key(action);
-  };
-  document.addEventListener('keydown', onKey);
-  const stopPad = startGamepad((action) => {
-    const a = document.activeElement;
-    if (isQueueOpen() || isTyping(a) || helpOpen() || closest(a, 'dialog')) return;
-    merged.pad(action);
-  });
+  const stopKeys = bindShortcuts(perform, { actions: VIEW_ACTIONS });
 
   refresh();
   return {
@@ -324,8 +307,7 @@ export function compareView(route) {
       loads.invalidate();
       if (raf !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(raf);
       raf = null;
-      document.removeEventListener('keydown', onKey);
-      stopPad();
+      stopKeys();
       if (sides) for (const s of Object.values(sides)) { s.destroyed = true; releaseAudio(s); s.wave.destroy(); }
     },
   };

@@ -11,8 +11,8 @@ import { filtersFromQuery, filtersToQuery, orderSummary, ordersOf } from '../ord
 import { openNewOrder } from './new-order.js';
 import { openSheetDialog } from './sheet-dialog.js';
 import { busy, latest, lifetime, STALE } from '../async-guard.js';
+import { loading } from './shortcuts.js';
 
-const loading = () => h('p.empty', {}, h('span.spin', { aria: { hidden: true } }), ' ', t('ui.loading'));
 
 export function projectView(route) {
   const { project } = route;

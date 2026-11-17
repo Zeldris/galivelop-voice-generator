@@ -43,6 +43,10 @@ las crea una vez; desde entonces son del proyecto.
   con `measure.py` en la primera (retro 2026-11-16, P2).
 - Los arreglos de una revisión de bloque van a `implementador` sonnet, no a la principal: en F5.7 arrastraron ~150k
   (retro 2026-11-16, P3).
+- `gw-reviewer` lanza `/code-review`, que abre otro subagente `general-purpose` opus: en la fase 1 de F5.9 (diff de
+  ~220 líneas) 0,93M de los 1,03M de la revisión. Propuesto revisar sin anidar en diffs pequeños y rechazado por la
+  persona (retro 2026-11-17 F5.9, P1): medir cada revisión pequeña; si se repite y pesa, se vuelve a proponer con
+  las cifras.
 
 ## Ajustes en vigor
 

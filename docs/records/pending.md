@@ -16,12 +16,11 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
   - `tests/test_peaks.py`: el umbral de 1,0 s de `is_fast` es frágil (falla en la Deck).
   - `tests/test_examples.py` no tiene un ejemplo roto de locale (p. ej. `es-MX`).
 
-- Hallazgo leve de la revisión de bloque F5.5, sin arreglar en este PR: el cableado de teclado y mando (`mergeSources`, filtros de `onKey` y de `startGamepad`) y `loading()` están copiados entre `order-view.js` y `compare-view.js`; sacar un `bindShortcuts(perform)` a `shortcuts.js`. La ayuda de atajos de la vista A/B lista también U/C/D/G, que allí no hacen nada (filtrarla por vista).
 
 - Mando por Gamepad API sin probar en la Deck (de la persona, F5.8); F5.4 solo lo cubre con tests.
   La revisión de bloque F5.4 añadió deduplicar teclado y mando (Steam Input convierte el mando en teclas): comprobar en la Deck que cada pulsación actúa una sola vez.
 
-- Hallazgos leves de la revisión de bloque F5.4, sin arreglar en este PR: `peaks.py` toma la duración y las cubetas de la cabecera de un WAV truncado, no de los frames leídos; `loading()` está copiado en `projects-view.js`, `project-view.js` y `order-view.js`.
+- Hallazgos leves de la revisión de bloque F5.4, sin arreglar en este PR: `peaks.py` toma la duración y las cubetas de la cabecera de un WAV truncado, no de los frames leídos.
 
 - Hallazgos leves de la revisión de bloque F5.3, sin arreglar en este PR: `sheetWarnings` de `sheet-warnings.js` solo lo usan los tests y el respaldo del icono está en dos sitios (`warningItems` y `warningIcon`); el botón que abre el diálogo de la ficha se pierde si la lista se rehace con el diálogo abierto, y el foco cae a `body`.
 - Hallazgo leve de la revisión de bloque F5.2, sin arreglar en este PR: los tests del JS pasaron de `test_ui.py` (estáticos) a `test_ui_js.py`, que se salta entero sin `node` ≥ 18; en la Deck (Flatpak) el check local no los corre: comprobar si hay `node` allí o dejar los estáticos como respaldo.
@@ -57,14 +56,6 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
 - Para proponer al flujo: R1-R5 de `docs/records/retro-2026-11-14-gw-update.md`, R3 de `docs/records/retro-2026-11-11-f1.md`, R2-R3 de `docs/records/retro-2026-10-25-f0.md`, R2-R4 de `docs/records/retro-2026-10-25-diseno-voces.md`, y las aplazadas de la retro anterior: rama por defecto del flujo en 0.1.0; camino para CI
   agotado (`ci-local.sh`); 2 tests de `scout-updates` fallan fuera del flujo; `gw-init` debe decir que no se llame a
   `register_repo_root`.
-- Leves de la revisión de bloque de F5.7 (2026-11-16), sin arreglar:
-  - `queue-model.js` `errorOf`: un `error.code` sin clave `error.<code>` ni `errorText` deja la fallida sin motivo; recurrir a un texto con el código.
-  - `queue-bar.js`: un `state` o `kind` desconocido enseña la clave en crudo (`ui.queue.state.x`); usar el valor crudo si `i18n` no la tiene.
-  - `queue-bar.js`: `aria-label` en un `div` sin rol (la entrada); darle `role: 'group'`.
-  - `store.queueCounts()` repite `queue-model.counts()` y nadie lo usa.
-  - `tests/test_ui_browser.py`: `setUpClass` crea `cls.tmp` y nadie lo usa.
-  - `tests/test_ui_browser.py`: sin Chrome se salta también en el CI (REVIEW.md pide fallar allí); y `find_chrome()` corre al importar (en el Flatpak, un `flatpak-spawn --host flatpak info` en cada `discover`): moverlo a `setUpClass`.
-  - `tests/browser.py` `goto()`: espera `readyState === 'complete'`, que ya es cierto en el documento anterior; esperar `Page.loadEventFired` o el cambio de `location.href`.
 - **Motor en la Deck (2026-11-17):** (1) los binarios de `engine/bin-*` son de la compilación del banco, con RPATH a `engine/build-vk` y `engine/build-cpu2`; puestos dos enlaces simbólicos con esos nombres para que arranquen; el arreglo es volver a pasar `instalar.sh` (F2.6). (2) Dentro del Flatpak de VS Code `qwen-tts` solo ve `CPU` (Vulkan0 «not found»): `gvoice work` lanzado desde VS Code cae siempre a CPU; con `flatpak-spawn --host` sí ve Vulkan (~12 s por toma frente a ~60 s). Decidir si el motor se lanza por `flatpak-spawn --host` cuando corre en Flatpak. (3) Sin `GVOICE_ENGINE=qwentts` el generador usa el motor falso sin avisar.
 - Leves de la revisión de 0.2.0 (2026-11-17), sin arreglar:
   - `tests/test_changelog.py` `has_entries` repite el recorrido de `releases.section`; reutilizarla.
@@ -72,3 +63,7 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
   - `tests/test_changelog.py`: la constante `GIMG` conserva el nombre de la copia (es de gvoice); renombrarla.
 - Dos tests fallan en la Deck ya en `main`: `test_install…no_compiler_and_no_flatpak_fails_clearly` (127 != 1 dentro del Flatpak) y `test_peaks…is_fast` (0,82-0,86 s frente a 0,7 s).
 - Preset `lectura` sin afinar con voz real (denoise 0,5, dereverb 0,4, trimSilence -50 dB/150 ms); el primer commit de efectos pasa de 400 líneas.
+- Leves de la revisión fase 1 F5.9 (2026-11-17), sin arreglar:
+  - `gvoice/ui/js/queue-model.js:41` `errorOf` cae a la cadena fija en inglés `error: <code>` en vez de usar la clave `ui.error.code`.
+  - `loading()` vive en `gvoice/ui/js/components/shortcuts.js` y `projects-view.js`/`project-view.js` lo importan solo por eso: su sitio es `dom.js`.
+  - Dos líneas en blanco seguidas tras los imports en `project-view.js` y `projects-view.js`.

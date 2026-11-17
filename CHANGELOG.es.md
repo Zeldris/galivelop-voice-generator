@@ -9,6 +9,12 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
+### Corregido
+
+- Interfaz: la ayuda de atajos solo enseña los de la vista abierta (la A/B ya no lista U/C/D/G).
+- Barra de cola: un estado o tipo desconocido se muestra tal cual, una fallida sin texto enseña su código y cada
+  entrada es un grupo accesible.
+
 ## [0.2.0] - 2026-11-17
 
 ### Añadido

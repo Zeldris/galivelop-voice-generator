@@ -16,12 +16,10 @@ import { pickPair } from '../compare-model.js';
 import { takeCard } from './take-card.js';
 import { icon } from './icons.js';
 import { warningIcon } from './sheet-warnings.js';
-import { isQueueOpen } from './queue-bar.js';
-import { helpOpen, isTyping, keyAction, mergeSources, oneKeyEnabled, openHelp, startGamepad } from './shortcuts.js';
+import { bindShortcuts, loading, openHelp } from './shortcuts.js';
 import { toast, toastError, toastOk } from './toast.js';
 
 export const POLL_MS = 3000;
-const loading = () => h('p.empty', {}, h('span.spin', { aria: { hidden: true } }), ' ', t('ui.loading'));
 
 export function orderView(route) {
   const { project, key } = route;
@@ -222,6 +220,7 @@ export function orderView(route) {
     const i = ids.indexOf(current);
     setCurrent(ids[Math.max(0, Math.min(ids.length - 1, i < 0 ? 0 : i + delta))], true);
   }
+  const VIEW_ACTIONS = ['toggle', 'prev', 'next', 'choose', 'pause', 'undo', 'another', 'candidate', 'discard'];
   function perform(action) {
     const card = cards.get(current);
     const take = card && order && order.attempts.find((a) => a.id === current);
@@ -236,24 +235,7 @@ export function orderView(route) {
     else if (action === 'candidate') card.toggleState('candidate');
     else if (action === 'discard') { if (order.chosen !== take.id) card.toggleState('discarded'); }
   }
-  const merged = mergeSources(perform);   // Steam Input sends the pad as keys too: one press, one action
-  const onKey = (e) => {
-    if (isQueueOpen() || e.defaultPrevented) return;   // el cajón de la cola está encima: la vista de debajo no actúa
-    if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
-    const action = keyAction(e, oneKeyEnabled());
-    if (!action) return;
-    // Intro y espacio sobre un botón, un enlace o la forma de onda hacen lo suyo; en la tarjeta o en la página, reproducen
-    if ((e.key === 'Enter' || e.key === ' ') && closest(e.target, 'button, a, [role="slider"], summary, dialog')) return;
-    e.preventDefault();
-    merged.key(action);
-  };
-  document.addEventListener('keydown', onKey);
-    const stopPad = startGamepad((action) => {
-    // the same filters as the keyboard: not while typing in a field or with a dialog (the help) open
-    const a = document.activeElement;
-    if (isQueueOpen() || isTyping(a) || helpOpen() || closest(a, 'dialog')) return;
-    merged.pad(action);
-  });
+  const stopKeys = bindShortcuts(perform, { actions: VIEW_ACTIONS });
   gallery.addEventListener('focusin', (e) => {
     const c = closest(e.target, '.take-card');
     if (c && c.dataset.take && Number(c.dataset.take) !== current) setCurrent(Number(c.dataset.take));
@@ -266,8 +248,7 @@ export function orderView(route) {
       life.end();
       loads.invalidate();
       clearTimeout(timer);
-      document.removeEventListener('keydown', onKey);
-      stopPad();
+      stopKeys();
       for (const c of cards.values()) c.destroy();
       cards.clear();
     },

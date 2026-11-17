@@ -4,9 +4,8 @@ opens with ``?mock=1`` (the in-browser simulator, ``gvoice/ui/mock/api-mock.js``
 page reported no exception, no console error, no CSP violation and no failed load. Skipped when no Chrome is found
 (see ``GVOICE_TEST_CHROME``)."""
 import json
-import shutil
+import os
 import unittest
-from pathlib import Path
 
 from gvoice import server
 from tests import browser
@@ -15,7 +14,6 @@ PROJECT = "example-world"
 ORDER = "narrator"
 
 
-@unittest.skipUnless(browser.find_chrome(), "no Chrome/Chromium found (set GVOICE_TEST_CHROME)")
 class WithTmpdir(unittest.TestCase):
     def test_a_host_flatpak_chrome_gets_tmpdir_after_host_and_after_run(self):
         cmd = ["flatpak-spawn", "--host", "flatpak", "run", "com.google.Chrome"]
@@ -29,17 +27,77 @@ class WithTmpdir(unittest.TestCase):
         self.assertEqual(browser.with_tmpdir(["chromium-browser"], "/t"), ["chromium-browser"])
 
 
+def chrome_or_stop(find=browser.find_chrome, env=None):
+    """The Chrome command. Without it: in the CI (``GITHUB_ACTIONS == "true"``; ``CI`` is ignored: ``ci-local.py`` sets it on a developer machine) the test FAILS (a skipped browser
+    test there hides a broken interface, REVIEW.md); elsewhere it is skipped."""
+    command = find()
+    if command:
+        return command
+    env = os.environ if env is None else env
+    if env.get("GITHUB_ACTIONS") == "true":
+        raise AssertionError("no Chrome/Chromium found in the CI: install one or set GVOICE_TEST_CHROME")
+    raise unittest.SkipTest("no Chrome/Chromium found (set GVOICE_TEST_CHROME)")
+
+
+class ChromeOrStop(unittest.TestCase):
+    def test_a_found_chrome_is_returned_whatever_the_environment(self):
+        self.assertEqual(chrome_or_stop(lambda: ["/x/chrome"], {"CI": "true"}), ["/x/chrome"])
+
+    def test_without_chrome_it_is_skipped_locally(self):
+        with self.assertRaises(unittest.SkipTest) as cm:
+            chrome_or_stop(lambda: None, {})
+        self.assertIn("no Chrome", str(cm.exception))
+
+    def test_without_chrome_it_fails_in_the_ci_with_a_clear_message(self):
+        with self.assertRaises(AssertionError) as cm:
+            chrome_or_stop(lambda: None, {"GITHUB_ACTIONS": "true"})
+        self.assertIn("in the CI", str(cm.exception))
+
+    def test_ci_variable_or_false_values_do_not_count_as_the_ci(self):
+        for env in ({"CI": "true"}, {"CI": "false"}, {"GITHUB_ACTIONS": "false"}, {"GITHUB_ACTIONS": "0"}, {"CI": "1", "GITHUB_ACTIONS": ""}):
+            with self.assertRaises(unittest.SkipTest, msg=str(env)) as cm:
+                chrome_or_stop(lambda: None, env)
+            self.assertIn("no Chrome", str(cm.exception))
+
+
+class GotoWaitsForItsOwnLoader(unittest.TestCase):
+    def test_a_late_load_of_the_previous_document_does_not_count(self):
+        page = browser.Page(None, "s", [])
+        page.call = lambda method, params=None, timeout=30: {"loaderId": "NEW"}
+        page.evaluate = lambda expression, timeout=30: True
+        events = [{"method": "Page.lifecycleEvent", "params": {"name": "load", "loaderId": "OLD"}}]
+        page.pump = lambda seconds=0.2: page._event(events.pop(0)) if events else None
+        real_time = browser.time.time
+        ticks = iter(range(0, 10000, 5))
+        browser.time.time = lambda: next(ticks)   # the 15 s deadline passes without a load of NEW
+        try:
+            with self.assertRaises(browser.CdpError) as cm:
+                page.goto("http://x/")
+        finally:
+            browser.time.time = real_time
+        self.assertIn("load event of http://x/", str(cm.exception))
+
+    def test_the_load_of_the_navigated_loader_is_enough(self):
+        page = browser.Page(None, "s", [])
+        page.call = lambda method, params=None, timeout=30: {"loaderId": "NEW"}
+        page.evaluate = lambda expression, timeout=30: True
+        events = [{"method": "Page.lifecycleEvent", "params": {"name": "load", "loaderId": "OLD"}},
+                  {"method": "Page.lifecycleEvent", "params": {"name": "load", "loaderId": "NEW"}}]
+        page.pump = lambda seconds=0.2: page._event(events.pop(0)) if events else None
+        page.goto("http://x/")
+
+
 class UiBase(unittest.TestCase):
     """One server and one browser for the whole class; each test opens a fresh tab."""
 
     @classmethod
     def setUpClass(cls):
-        cls.tmp = Path(browser.scratch_dir("gvoice-ui-")).resolve()  # never in /tmp (a small tmpfs)
+        chrome = chrome_or_stop()
         try:
             cls.srv = server.make_server(0)
             cls.port = cls.srv.port
             server.start_thread(cls.srv)
-            cls.browser = browser.Browser()
+            cls.browser = browser.Browser(chrome)
         except BaseException:
             cls.tearDownClass()
             raise
@@ -51,7 +109,6 @@ class UiBase(unittest.TestCase):
         if getattr(cls, "srv", None):
             cls.srv.shutdown()
             cls.srv.server_close()
-        shutil.rmtree(cls.tmp, ignore_errors=True)
 
     def setUp(self):
         self.page = self.browser.new_page()

@@ -136,7 +136,8 @@ function paint(entries) {
 
 function entry(e) {
   const who = `${e.project} · ${e.key}`;
-  const what = [`${e.state === 'failed' ? '✗ ' : ''}${t(`ui.queue.state.${e.state}`)}`, t(`ui.queue.kind.${e.kind}`)];
+  const word = (group, value) => (i18n.has(`ui.queue.${group}.${value}`) ? t(`ui.queue.${group}.${value}`) : String(value));   // unknown value: show it raw
+  const what = [`${e.state === 'failed' ? '✗ ' : ''}${word('state', e.state)}`, word('kind', e.kind)];
   if (e.seed !== null && e.seed !== undefined) what.push(`${t('ui.queue.seed')} ${e.seed}`);
   if (e.state === 'running' && e.cancelRequested) what.push(t('ui.queue.cancelling'));
   if (e.startedAt && e.finishedAt) what.push(mmss(Date.parse(e.finishedAt) - Date.parse(e.startedAt)));
@@ -147,7 +148,7 @@ function entry(e) {
   } else if (e.project && e.key && e.kind !== 'prints') {
     actions.push(reg(`go-${e.id}`, h('a.btn', { href: to.order(e.project, e.key), data: { fid: `go-${e.id}` }, onclick: () => toggleQueue(false) }, t('ui.queue.goToOrder'))));
   }
-  return h('div.queue-entry', { class: `is-${e.state}`, data: { entry: e.id }, aria: { label: `${who}: ${what.join(', ')}` } },
+  return h('div.queue-entry', { role: 'group', class: `is-${e.state}`, data: { entry: e.id }, aria: { label: `${who}: ${what.join(', ')}` } },
     h('div', {}, h('div.who', {}, who), h('div.what', {}, what.join(' · ')),
       problem ? h('div.what.mono.queue-error', { role: 'note' }, `✗ ${problem}`) : null),
     h('div.stack', {}, actions));

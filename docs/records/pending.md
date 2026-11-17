@@ -73,4 +73,4 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
   - Trozos largos frase a frase con 0,45 s de pausa (`frases.sh`) cuando una toma omite texto; probar semillas antes.
   - Pronunciación desde las `notas` del guion (`pron.py`): tildes en nombres inventados; los nombres en inglés se dejan tal cual (la persona); `toVeriAI` → «to Veri AI».
   - Leer los guiones del Portal (`Portal-Galivelop/src/data/guiones/<pagina>.json`) y dejar lo aprobado en `final/es/<pagina>/<nn>-<seccion>.wav`.
-- 2026-11-17 — Gallego (`gl`) para `final/gl/`: ni Qwen3-TTS ni Chatterbox lo declaran y `locale` no lo admite; buscar motor o probar si se defienden.
+- 2026-11-17 — Gallego (`gl`) para `final/gl/`: ni Qwen3-TTS ni Chatterbox lo declaran y `locale` no lo admite; buscar motor o probar si se defienden. La persona elige (2026-11-17) **voz gallega nativa, de mujer adulta** (no la huella de `lectora-es`); investigación en `docs/investigacion/2026-11-17-voz-gallega.md`; los guiones `gl` los escribe el Portal.

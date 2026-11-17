@@ -4,6 +4,18 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
 
 ## Pendiente
 
+- Hallazgos leves de la revisión de bloque de la lectora es (F2-F3, locale y efectos), sin arreglar en este PR (no vuelven a revisarse en él):
+  - `gvoice/effects.py` `apply` no comprueba que `dst` y `src` sean el mismo archivo (`samefile`) y ffmpeg corre con `-y`: lo sobrescribiría mientras lo lee.
+  - `gvoice/effects.py` `apply` no pasa `-f wav` y escribe directo en `dst`: debería escribir a un temporal y `os.replace`.
+  - Un locale desconocido lanza `ValueError` en vez de un `GvoiceError` traducido (`worker.py:183`, `speech_locale.py:17`).
+  - `gvoice/effects.py:76-85` `load_chain` no sanea el nombre del preset, y un preset tapa a un archivo local del mismo nombre.
+  - `gvoice/effects.py` comprueba `_SUPPORTED` dos veces (`_step` y `apply`).
+  - `gvoice/queue.py:239` usa un criterio truthy para `locale` y `orders.py` usa `is not None`: unificarlos.
+  - `gvoice/effects.py` `_n`: el `or "0"` es código muerto.
+  - `tests/test_install.py:235` se salta en Flatpak en vez de hacer configurable la ruta de `/.flatpak-info`.
+  - `tests/test_peaks.py`: el umbral de 1,0 s de `is_fast` es frágil (falla en la Deck).
+  - `tests/test_examples.py` no tiene un ejemplo roto de locale (p. ej. `es-MX`).
+
 - Hallazgo leve de la revisión de bloque F5.5, sin arreglar en este PR: el cableado de teclado y mando (`mergeSources`, filtros de `onKey` y de `startGamepad`) y `loading()` están copiados entre `order-view.js` y `compare-view.js`; sacar un `bindShortcuts(perform)` a `shortcuts.js`. La ayuda de atajos de la vista A/B lista también U/C/D/G, que allí no hacen nada (filtrarla por vista).
 
 - Mando por Gamepad API sin probar en la Deck (de la persona, F5.8); F5.4 solo lo cubre con tests.
@@ -53,3 +65,10 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
   - `tests/test_ui_browser.py`: `setUpClass` crea `cls.tmp` y nadie lo usa.
   - `tests/test_ui_browser.py`: sin Chrome se salta también en el CI (REVIEW.md pide fallar allí); y `find_chrome()` corre al importar (en el Flatpak, un `flatpak-spawn --host flatpak info` en cada `discover`): moverlo a `setUpClass`.
   - `tests/browser.py` `goto()`: espera `readyState === 'complete'`, que ya es cierto en el documento anterior; esperar `Page.loadEventFired` o el cambio de `location.href`.
+- **Motor en la Deck (2026-11-17):** (1) los binarios de `engine/bin-*` son de la compilación del banco, con RPATH a `engine/build-vk` y `engine/build-cpu2`; puestos dos enlaces simbólicos con esos nombres para que arranquen; el arreglo es volver a pasar `instalar.sh` (F2.6). (2) Dentro del Flatpak de VS Code `qwen-tts` solo ve `CPU` (Vulkan0 «not found»): `gvoice work` lanzado desde VS Code cae siempre a CPU; con `flatpak-spawn --host` sí ve Vulkan (~12 s por toma frente a ~60 s). Decidir si el motor se lanza por `flatpak-spawn --host` cuando corre en Flatpak. (3) Sin `GVOICE_ENGINE=qwentts` el generador usa el motor falso sin avisar.
+- Leves de la revisión de 0.2.0 (2026-11-17), sin arreglar:
+  - `tests/test_changelog.py` `has_entries` repite el recorrido de `releases.section`; reutilizarla.
+  - `releases.py` `suggest` corre la regex antes de `if not subject: continue`; ponerla después.
+  - `tests/test_changelog.py`: la constante `GIMG` conserva el nombre de la copia (es de gvoice); renombrarla.
+- Dos tests fallan en la Deck ya en `main`: `test_install…no_compiler_and_no_flatpak_fails_clearly` (127 != 1 dentro del Flatpak) y `test_peaks…is_fast` (0,82-0,86 s frente a 0,7 s).
+- Preset `lectura` sin afinar con voz real (denoise 0,5, dereverb 0,4, trimSilence -50 dB/150 ms); el primer commit de efectos pasa de 400 líneas.

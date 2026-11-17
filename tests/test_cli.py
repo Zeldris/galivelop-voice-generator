@@ -133,6 +133,11 @@ class OrderTests(CliBase):
         self.assertEqual(self.js("order", "show", PROJECT, "narrator")["attempts"][0]["id"], 1)
         self.fails("order", "show", PROJECT, "ghost", message='order "ghost" does not exist')
 
+    def test_show_instruction_carries_the_locale_phrase(self):
+        self.add_project()
+        self.ok("order", "submit", PROJECT, self.write_order("v.json", VOICE, locale="es-ES"))
+        self.assertIn("Locale: Castilian Spanish", self.ok("order", "show", PROJECT, "narrator"))
+
     def test_a_line_needs_a_fixed_voice(self):
         self.add_project()
         self.fails("order", "submit", PROJECT, self.write_order("l.json", LINE), message='"narrator" is not a voice')

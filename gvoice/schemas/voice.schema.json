@@ -22,6 +22,10 @@
     "designSheet": {
       "$ref": "design-sheet.schema.json"
     },
+    "locale": {
+      "$ref": "common.schema.json#/$defs/locale",
+      "description": "Language variant of the voice (optional)."
+    },
     "seed": {
       "$ref": "common.schema.json#/$defs/seed"
     },

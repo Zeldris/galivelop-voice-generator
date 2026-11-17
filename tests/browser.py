@@ -38,8 +38,10 @@ def find_chrome():
             if os.path.isfile(path) and os.access(path, os.X_OK):
                 return [path]
     if shutil.which("flatpak-spawn"):
+        # from the home folder: `flatpak-spawn --host` runs in the caller's cwd, and a cwd under the sandbox's private
+        # /tmp (the pre-push worktree) does not exist on the host, so the call fails
         probe = subprocess.run(["flatpak-spawn", "--host", "flatpak", "info", "com.google.Chrome"],
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=os.path.expanduser("~"))
         if probe.returncode == 0:
             return ["flatpak-spawn", "--host", "flatpak", "run", "com.google.Chrome"]
     return None
@@ -282,7 +284,7 @@ class Browser:
             env = dict(os.environ, TMPDIR=tmp)
             args = with_tmpdir(args, tmp)
             self.proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
-                                         start_new_session=True, env=env)
+                                         start_new_session=True, env=env, cwd=os.path.expanduser("~"))
             self.ws_url = self._find_ws_url()
             self.ws = WebSocket(self.ws_url)
         except BaseException:

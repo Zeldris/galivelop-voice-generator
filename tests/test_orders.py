@@ -456,6 +456,13 @@ class StaleTests(Base):
         orders.undo(self.p, "narrator")
         self.assertFalse(orders.is_stale(self.p, "narrator/intro-01"))
 
+    def test_voice_chosen_pointing_to_a_missing_attempt_makes_lines_stale_without_error(self):
+        n1 = self.made_line()
+        orders.choose(self.p, "narrator/intro-01", n1)
+        orders._modify(self.p, "narrator", lambda rec: rec.update(chosen=999))
+        self.assertTrue(orders.is_stale(self.p, "narrator/intro-01"))
+        self.assertEqual(orders.stale_lines(self.p, "narrator"), ["narrator/intro-01"])
+
     def test_voice_unfixed_makes_chosen_lines_stale(self):
         n1 = self.made_line()
         orders.choose(self.p, "narrator/intro-01", n1)
@@ -479,6 +486,29 @@ class StaleTests(Base):
         err = self.code(orders.is_stale, self.p, "narrator")
         self.assertEqual((err.code, err.params["expected"]), ("order.wrong_type", "line"))
         self.assertEqual(self.code(orders.reference, self.p, "narrator/intro-01").code, "order.voice_unknown")
+
+    def test_voice_locale_change_with_the_same_take_leaves_lines_current(self):
+        # lines are spoken with the locale of their reference take: regenerating them would give the same, so
+        # marking them stale would leave them stale forever (they stay current until another take is chosen)
+        n = self.made_line()
+        orders.choose(self.p, "narrator/intro-01", n)
+        orders.submit(self.p, self.voice(locale="es-ES"))  # same reference take, another language
+        self.assertFalse(orders.is_stale(self.p, "narrator/intro-01"))
+        self.assertEqual(orders.stale_lines(self.p, "narrator"), [])
+
+    def test_line_take_in_another_locale_than_its_reference_is_stale(self):
+        n = self.made_line()
+        orders.choose(self.p, "narrator/intro-01", n)
+        orders._modify(self.p, "narrator/intro-01",  # e.g. a take edited by hand or from another version
+                       lambda o: o["attempts"][0].__setitem__("locale", "es-419"))
+        self.assertTrue(orders.is_stale(self.p, "narrator/intro-01"))
+        self.assertEqual(orders.stale_lines(self.p, "narrator"), ["narrator/intro-01"])
+
+    def test_old_take_without_locale_matches_a_voice_without_it(self):
+        n = self.made_line()
+        orders.choose(self.p, "narrator/intro-01", n)
+        self.assertNotIn("locale", orders.get(self.p, "narrator/intro-01")["attempts"][0])
+        self.assertFalse(orders.is_stale(self.p, "narrator/intro-01"))
 
     def test_resubmitted_with_another_voice_is_stale_even_with_the_same_take_id(self):
         n1 = self.made_line()

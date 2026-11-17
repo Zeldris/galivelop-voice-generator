@@ -44,9 +44,13 @@
             "saturation",
             "reverb",
             "chorus",
-            "pitch"
+            "pitch",
+            "denoise",
+            "dereverb",
+            "trimSilence",
+            "loudnorm"
           ],
-          "description": "Effect type (closed vocabulary)."
+          "description": "Effect type (closed vocabulary). dereverb has no exact ffmpeg counterpart: it is approximated with a soft downward expander (agate) that cuts the reverb tail between words; it does not remove reverb on top of speech."
         },
         "freqHz": {
           "type": "number",
@@ -111,6 +115,42 @@
           "minimum": -24,
           "maximum": 24,
           "description": "pitch: shift in semitones (moves formants too)."
+        },
+        "strength": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "denoise: noise reduction strength, 0 (none) to 1 (maximum; afftdn nr = 30 dB * strength, noise tracking and residual tracking on). dereverb: how hard the tail between words is cut, 0 to 1."
+        },
+        "thresholdDb": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 0,
+          "description": "trimSilence: level in dB (peak) below which the audio counts as silence."
+        },
+        "marginMs": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2000,
+          "description": "trimSilence: silence kept at the start and at the end, in ms."
+        },
+        "targetLufs": {
+          "type": "number",
+          "minimum": -70,
+          "maximum": -5,
+          "description": "loudnorm: integrated loudness target in LUFS (typical for speech: -16)."
+        },
+        "truePeakDb": {
+          "type": "number",
+          "minimum": -9,
+          "maximum": 0,
+          "description": "loudnorm: true peak ceiling in dBTP (default -1.5)."
+        },
+        "lra": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 50,
+          "description": "loudnorm: loudness range target in LU (default 11)."
         }
       },
       "allOf": [
@@ -297,6 +337,97 @@
             "properties": {
               "type": true,
               "semitones": true
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "denoise"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "strength"
+            ],
+            "properties": {
+              "type": true,
+              "strength": true
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "dereverb"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "strength"
+            ],
+            "properties": {
+              "type": true,
+              "strength": true
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "trimSilence"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "thresholdDb"
+            ],
+            "properties": {
+              "type": true,
+              "thresholdDb": true,
+              "marginMs": true
+            },
+            "additionalProperties": false
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "loudnorm"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "targetLufs"
+            ],
+            "properties": {
+              "type": true,
+              "targetLufs": true,
+              "truePeakDb": true,
+              "lra": true
             },
             "additionalProperties": false
           }

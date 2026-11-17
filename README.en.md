@@ -9,10 +9,10 @@ voice are decided by each project in its `galivelop-voices.json`.
 
 ## Status
 
-In development, phase **F1 (core) done**: contract (JSON schemas), orders, queue, worker and the `gvoice` CLI, all with a
-test engine. **It does not generate real voices yet**: the real engine arrives in F2.
+Version **0.2.0**, in development. On `main`: F0, F1 (core: contract, orders, queue, worker and the `gvoice` CLI),
+F2.1-F2.5 (real engine on qwentts.cpp, model catalog, `gvoice bench`) and F5.1-F5.7 (web interface).
 
-Details, decisions D1-D17 and exit criteria in [`docs/plan.md`](docs/plan.md) (Spanish); vocabulary in
+Details, decisions D1-D19 and exit criteria in [`docs/plan.md`](docs/plan.md) (Spanish); vocabulary in
 [`GLOSSARY.md`](GLOSSARY.md) (Spanish).
 
 ## Installing the real engine
@@ -40,6 +40,7 @@ python3 -m gvoice undo <project> narrator            # back to the previous refe
 python3 -m gvoice queue list                         # also `queue cancel <entry>`
 python3 -m gvoice models verify                       # also `list` and `fetch` (downloads what is missing); `--engine qwentts`
 python3 -m gvoice bench --devices Vulkan0,cpu       # times design, print and produce with the engine and writes `bench.md` (the bench table) in `<data>/bench/<date>/`; also `--models`, `--steps`, `--seed`, `--out`
+python3 -m gvoice fx apply lectura voice.wav clean.wav   # cleans a reading voice (denoise, dereverb, silence trim, -16 LUFS) with ffmpeg; the first argument is a preset or a path to a `.json` chain; `--json` prints the filter used
 ```
 
 `order list` and `order show` mark the chosen lines made with a reference that is no longer the current one (stale,
@@ -67,7 +68,7 @@ Schemas in `gvoice/schemas/`:
 | Document | Schema |
 |---|---|
 | Project configuration `galivelop-voices.json` | `project-config.schema.json` |
-| Order (`voice` or `line`; `sound` is reserved for F7) | `order.schema.json` |
+| Order (`voice` or `line`; `sound` is reserved for F7). A `voice` may carry `locale` (`es-ES`, `es-419`, `en-US`, `en-GB`): it sets the engine language and a fixed phrase in the instruct; a `line` takes the one of its voice. Example: `examples/order-voice-lectora-es.json` | `order.schema.json` |
 | Machine profile | `machine-profile.schema.json` |
 | Design sheet (the 12 keys plus `extra`) | `design-sheet.schema.json` |
 | Effect chain (closed vocabulary) | `effect-chain.schema.json` |

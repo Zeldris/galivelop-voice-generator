@@ -1,0 +1,25 @@
+{
+  "$schema": "../schemas/effect-chain.schema.json",
+  "name": "lectura",
+  "steps": [
+    {
+      "type": "denoise",
+      "strength": 0.5
+    },
+    {
+      "type": "dereverb",
+      "strength": 0.4
+    },
+    {
+      "type": "trimSilence",
+      "thresholdDb": -50,
+      "marginMs": 150
+    },
+    {
+      "type": "loudnorm",
+      "targetLufs": -16,
+      "truePeakDb": -1.5,
+      "lra": 11
+    }
+  ]
+}

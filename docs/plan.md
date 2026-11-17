@@ -30,8 +30,8 @@ Tomadas con `grilling` el 2026-10-25, en tres rondas. Investigación: [estado de
 | D15 | **Perfil de máquina `steam-deck`**: `Vulkan0` con respaldo en CPU, más de 4 GB libres para empezar, aborta por debajo de 1,5 GB, tope de tiempo por intento; 1.7B VoiceDesign para diseñar, 0.6B/1.7B Base para producir. El motor se lanza **una vez por intento** (`qwen-tts`); usar `tts-server` en lotes de frases se mide después con `opt-ai` | Nada cargado en memoria entre generaciones; la carga cuesta ~3 s por frase |
 | D16 | **Reproducible solo en el mismo dispositivo**: registro y manifiesto guardan dispositivo, semilla, commit del motor y modelos; la fuente de verdad es el `.wav` elegido | La misma semilla da tomas distintas en CPU y en Vulkan |
 | D17 | **`instalar.sh` compila en el SDK de Flatpak** (`org.freedesktop.Sdk//25.08`, `flatpak --user`, sin root): motor en el commit `5916bf7`, SPIRV-Headers en local, sin BLAS, `rpath $ORIGIN`, checksum de los modelos y prueba de que el binario arranca en el anfitrión; en otras distribuciones con compilador, directo. Sin `distrobox`. Llevar el motor a la máquina del jugador es cosa del instalador del juego (lo explica la guía) | SteamOS no trae compilador; los binarios del SDK arrancan en el anfitrión (glibc 2.43); `buildcpu.sh`/`buildvulkan.sh` no compilan tal cual |
-| D18 | **Dos vías de voz** (2026-11-17). **Vía 1, calidad (Tarkor):** tres capas: (1) interpretación humana limpia en castellano de España con un TTS que clona desde una muestra peninsular (el acento sale de la muestra, no de la instrucción); (2) timbre de la raza con conversión de voz hacia un destino fijo por raza; (3) rasgos inexistentes con la cadena de efectos (F3: formantes, tono, saturación, capas, reverb, coro). Cada voz es una receta guardada (muestra, destino, cadena). **Vía 2, rápida (Portal, prototipos, PNJ secundarios, inventar destinos de timbre):** VoiceDesign con proceso determinista (semillas fijas, parámetros de muestreo guardados por toma, ficha de escucha, fijar con Base). Motor de la vía 1 por elegir con investigación: licencia comercial, corre en la Deck (o en otra máquina, por decidir), castellano de España al clonar, determinismo, calidad en el banco | VoiceDesign no da acento peninsular ni control fino (`docs/investigacion/2026-11-17-qwen3tts-voicedesign-prompts.md`); ningún TTS cumple descripciones de criaturas de forma fiable |
 | D18 | **Motores y modelos como candidatos enchufables**: `qwentts.cpp` + Qwen3-TTS (D4) es el primero; cada motor es una clase con las tres operaciones de `Engine` (diseñar, fijar, producir) y su **catálogo de modelos como datos** (archivo, URL, bytes, sha256, uso). `gvoice bench` mide cualquier candidato instalado con la misma tabla, para comparar y ofrecer más de uno | La persona acepta `qwentts.cpp` como candidato a probar y, al cerrar con él, se bajan más modelos para comparar (2026-11-14) |
+| D19 | **Dos vías de voz** (2026-11-17). **Vía 1, calidad (Tarkor):** tres capas: (1) interpretación humana limpia en castellano de España con un TTS que clona desde una muestra peninsular (el acento sale de la muestra, no de la instrucción); (2) timbre de la raza con conversión de voz hacia un destino fijo por raza; (3) rasgos inexistentes con la cadena de efectos (F3: formantes, tono, saturación, capas, reverb, coro). Cada voz es una receta guardada (muestra, destino, cadena). **Vía 2, rápida (Portal, prototipos, PNJ secundarios, inventar destinos de timbre):** VoiceDesign con proceso determinista (semillas fijas, parámetros de muestreo guardados por toma, ficha de escucha, fijar con Base). Motor de la vía 1 por elegir con investigación: licencia comercial, corre en la Deck (o en otra máquina, por decidir), castellano de España al clonar, determinismo, calidad en el banco | VoiceDesign no da acento peninsular ni control fino (`docs/investigacion/2026-11-17-qwen3tts-voicedesign-prompts.md`); ningún TTS cumple descripciones de criaturas de forma fiable |
 
 ## Fases (aprobadas el 2026-10-25)
 
@@ -47,6 +47,31 @@ Cada fase es una rama y un pull request a `main`, con las tres fases de revisió
 | F5 Interfaz | Proyectos; pedidos; galería de tomas con reproductor y comparación; ficha con avisos; efectos con escucha; es/en. Hoja de ruta en § «F5 en detalle» | Recorrido completo en el navegador |
 | F6 Piloto WMF | Configuración de ejemplo con narrador y orco; propuesta para el repo de WMF (integración y corrección de su documento 02 con lo aprendido aquí) | WMF reproduce una voz del paquete sin el generador |
 | F7 Fauna | Pedidos `sound`, registro de licencias CC0 por archivo, cadenas por especie | Una especie con sus variantes por acción |
+
+## Versiones (aprobadas el 2026-11-17)
+
+Pedido de la persona: versionar y publicar releases como `gimg`. SemVer en 0.x: la menor es una fase o una capacidad
+nueva (puede romper en 0.x), el parche son arreglos y la mayor rompe la configuración del proyecto, el pedido o la API.
+Cada versión que llega a `main` lleva su etiqueta `vX.Y.Z` y una release en GitHub con las notas de su sección del
+CHANGELOG (es y en). Herramientas copiadas de `gimg` (D7): `releases.py` (`suggest`, `bump`, `notes`, `verify-tag`,
+`check`) y `CHANGELOG.md`/`CHANGELOG.es.md`. Como el CI de GitHub no arranca (facturación), la release se crea por la
+API con `curl` y las notas de `releases.py notes`, tras el check en local confirmado por la persona. A lo sumo una
+release al día; solo la última menor recibe parches. El historial anterior se publica como una sola **0.1.0** en
+`2236444` (`__version__` nunca se subió).
+
+| Versión | Qué trae | Estado |
+|---|---|---|
+| 0.1.0 | F0, F1, F2.1-F2.5 y F5.1-F5.7 (todo lo de `main` en `2236444`) | Hecha; falta etiqueta y release |
+| 0.2.0 | Rama `claude/lectora-es`: `locale` en los pedidos, pasos `denoise`/`dereverb`/`trimSilence`/`loudnorm`, preset `lectura`, `gvoice fx apply`; herramientas de versión | Código hecho; faltan herramientas y cierre |
+| 0.3.0 | D19 vía 1, capa 1: clonado desde referencia peninsular (clips CC0), Qwen3 Base frente a Chatterbox (motor enchufable si gana, D18); voz `lectora-es` del Portal entregada | — |
+| 0.4.0 | D19 vía 2 determinista: semilla y muestreo por toma, pruebas sin oído, ficha de escucha; cierre de F2.6 | — |
+| 0.5.0 | Cierre de F3: paquete de voces (D13), guía de integración, efectos de la capa 3 (formantes, tono, coro) | — |
+| 0.6.0 | D19 vía 1, capa 2: conversión de voz (OpenVoice V2) y voces como receta (muestra, destino, cadena) | — |
+| 0.7.0 | F4: API HTTP y arranque bajo demanda | — |
+| 0.8.0 | F5.6, F5.9 y F5.8 | — |
+| 0.9.0 | F6 piloto WMF | — |
+| 0.10.0 | F7 fauna | — |
+| 1.0.0 | Contrato (configuración, pedido, API) estable tras el piloto WMF | Por decidir |
 
 ## F1 en detalle
 

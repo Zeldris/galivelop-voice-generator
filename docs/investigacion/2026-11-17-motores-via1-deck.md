@@ -1,7 +1,7 @@
-# Motores locales para la vía 1 de D18 en la Steam Deck (TTS con clonado en es-ES y conversión de voz)
+# Motores locales para la vía 1 de D19 en la Steam Deck (TTS con clonado en es-ES y conversión de voz)
 
-**Fecha:** 2026-11-17 · **Pregunta:** qué TTS con clonado y qué conversores de voz sirven para las capas 1 y 2 de D18 con una sola Steam Deck
-(APU Van Gogh, gfx1033, 8 CU, 16 GB compartidos; sin CUDA; ROCm no oficial) · **Contexto:** `docs/plan.md` D18,
+**Fecha:** 2026-11-17 · **Pregunta:** qué TTS con clonado y qué conversores de voz sirven para las capas 1 y 2 de D19 con una sola Steam Deck
+(APU Van Gogh, gfx1033, 8 CU, 16 GB compartidos; sin CUDA; ROCm no oficial) · **Contexto:** `docs/plan.md` D19,
 `2026-11-17-lectora-es.md`, `2026-11-17-qwen3tts-voicedesign-prompts.md`, `2026-10-25-banco-deck.md`.
 
 Convención: **Oficial** = README, model card, `LICENSE` o metadatos de la API de Hugging Face/GitHub del propio proyecto, leídos el 2026-11-17.
@@ -24,7 +24,7 @@ Convención: **Oficial** = README, model card, `LICENSE` o metadatos de la API d
 - **Licencia (oficial):** código MIT (README, `LICENSE`); pesos `ResembleAI/chatterbox` y `ResembleAI/Chatterbox-Multilingual-es-es`: `license: mit` en los metadatos de la API de HF. Uso comercial: sí. El audio lleva marca de agua Perth (README).
 - **Estado:** README: «As of August 2026, Chatterbox is retired research and is no longer maintained». Sin soporte futuro; los pesos siguen descargables.
 - **Español:** el modelo general V3 cubre 23 idiomas incluido `es`; el paquete «Single Language Pack» añade `Chatterbox-Multilingual-es-es` («optimized for Spanish as spoken in Spain», 2,14 GB en float32, finetune de `ResembleAI/chatterbox`, subido 2026-04) y `es-mx-latam`. **La ficha no da datos de entrenamiento por variedad ni MOS** (no encontrado). El modelo base: «0,5M horas de datos limpiados» sin desglose por idioma.
-- **Acento al clonar (oficial):** el README avisa de que si el clip de referencia no coincide con la etiqueta de idioma, la salida «may inherit the accent of the reference clip's language»; sugiere `cfg_weight=0`. Con una muestra peninsular y `es` el riesgo es el contrario del que preocupa en Qwen3-TTS (#134), pero **hay que oírlo**. Encaja con D18: el acento sale de la muestra.
+- **Acento al clonar (oficial):** el README avisa de que si el clip de referencia no coincide con la etiqueta de idioma, la salida «may inherit the accent of the reference clip's language»; sugiere `cfg_weight=0`. Con una muestra peninsular y `es` el riesgo es el contrario del que preocupa en Qwen3-TTS (#134), pero **hay que oírlo**. Encaja con D19: el acento sale de la muestra.
 - **Cómo correrlo en la Deck:**
   - *PyTorch oficial:* el README admite `cuda`, `cpu` y `mps`; CPU sin cifras para el multilingüe. Pide Python 3.11 (probado en Debian 11); en el anfitrión SteamOS hay Python 3.14 (comprobado), así que iría en un venv o contenedor aparte.
   - *`chatterbox.cpp`* ([gianni-cor/chatterbox.cpp](https://github.com/gianni-cor/chatterbox.cpp), MIT por su `LICENSE`, último push 2026-05-04): C++/ggml, CPU/Metal/CUDA/**Vulkan** (`-DGGML_VULKAN=ON`, `--n-gpu-layers 99`), `tts-cli ... --language es --reference-audio ref.wav`; cuantizaciones f16/q8_0/q5_0/q4_0 para el T3 multilingüe; `--save-voice`/`--ref-dir` para no repetir el preprocesado de la referencia (el README dice ~2 min). Se llama como proceso con `subprocess`, como `qwen-tts`. **No consta que su convertidor acepte el paquete `es-es` ni el S3Gen V3** (el README habla de «23 languages» y no menciona los paquetes): hay que probarlo.
@@ -60,7 +60,7 @@ Convención: **Oficial** = README, model card, `LICENSE` o metadatos de la API d
 
 ---
 
-## 2. Conversión de voz (capa 2 de D18)
+## 2. Conversión de voz (capa 2 de D19)
 
 | Motor | Licencia (fuente) | Qué hace | Deck | Notas |
 |---|---|---|---|---|

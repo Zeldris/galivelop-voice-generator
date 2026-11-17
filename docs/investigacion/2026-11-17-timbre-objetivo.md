@@ -289,3 +289,20 @@ que es donde Baseten sí vio ganancia.
 - Conversión: [Seed-VC EVAL](https://huggingface.co/spaces/soiz1/seed-vc3/blob/main/EVAL.md).
 - Voces y licencias: [Sharvard (Zenodo)](https://zenodo.org/records/3547446), [Piper sharvard](https://huggingface.co/rhasspy/piper-voices/raw/23fc3f9dd3c46fa7f2235964caa7be4e9b2e2e6f/es/es_ES/sharvard/medium/MODEL_CARD), [DataOcean](https://dataoceanai.com/?p=1101), [Nos_Celtia-GL](https://investigacion.usc.es/documentos/668fc40fb9e7c03b01bd3891?lang=es), [Respeecher](https://www.respeecher.com/voice-actors/sacha-criado), [Voices.com](https://www.voices.com/solutions/voice-ai), [Camb.ai](https://www.camb.ai/es/blog-post/how-voice-actors-license-their-voice-to-ai), [NAVA AI Rider](https://navavoices.org/wp-content/uploads/2025/07/NAVA-AI-Rider-en-espanol-con-instrucciones.pdf), [Ecija](https://www.ecija.com/en/news-and-insights/voces-en-defensa-propia-la-batalla-legal-frente-a-la-clonacion-por-ia/), anuncios [Upwork](https://www.upwork.com/freelance-jobs/apply/Native-Spain-Spanish-Voice-Actor-Needed-Consented-Speech-Dataset-Recording-750-Fixed-Fee_~022070550061868476393/) y [Mediabistro](https://www.mediabistro.com/jobs/3542401742-remote-peninsular-spanish-voice-actor-for-ai-voice-cloning-40-130-hour).
 - Postproceso: [Audacity](https://forum.audacityteam.org/t/effects-order-for-audiobook-narration/85217), [Steinberg](https://forums.steinberg.net/t/what-settings-are-you-using-for-narration-vo-channel-strip/78453), [Violet Recording](https://violetrecording.com/how-to-mix-spoken-word-vocals/).
+
+## Resultado en la Deck (2026-11-17)
+
+Medido con `qwentts.cpp` (Base 0,6B, Vulkan), escuchado por la persona; tomas fuera del repo en
+`~/.local/share/galivelop-voice/proyectos/portal/escucha/via1/`.
+
+| ronda | qué | resultado |
+|---|---|---|
+| 1 `mezcla-r1/` | mezclas de huellas de 11 lectoras de LibriVox (dirección «grave», centroide, slerp, acentuar) en modo solo huella | descartada: suena igual que DreamVoz aunque el F0 baje ~25 Hz. Las huellas de LibriVox se parecen mucho entre sí (coseno 0,95-0,97) |
+| 2 `diseno-r2/` | timbre diseñado con VoiceDesign 1.7B desde descripción → huella con el talker 0,6B → Base 0,6B en español | la persona elige el timbre de **V1-s101**, pero sesea y suena latinoamericana: el acento viaja en la huella |
+| 3 `acento-r3/` | V1 + DreamVoz (slerp 25/40/55 %), V1 + ICL de DreamVoz, V1 en Base 1.7B | gustan slerp 40 % y 55 % |
+| 4 `afinado-r4/` | slerp 40/47/55 % × 4 semillas con un párrafo cargado de zetas | **aprobada: slerp 55 %, semilla 7** |
+
+Receta y huella: `proyectos/portal/voz/lectora-es/` (`RECETA.md`). Lo que funcionó: **timbre de una voz
+diseñada + acento de una voz real peninsular, mezclados en el espacio de huellas**. Ni el postproceso (EQ,
+tono) ni mezclar voces parecidas movieron el timbre. Whisper comprueba el texto, pero no oye el seseo: eso
+sigue siendo de oído. Precaución: la Deck se colgó con dos cargas de GPU a la vez (una sola cada vez).

@@ -156,7 +156,7 @@ sorpresas).
 
 ## F5 en detalle (hoja de ruta, 2026-11-15)
 
-Borrador para la persona; solo F5.1-F5.4 están implementados. **Avance: F5.1-F5.4 hechos (4 de 9 pasos, ~44 %).** Hay base de interfaz, contrato y simulador; no hay API (F4) ni efectos
+Borrador para la persona; F5.1-F5.5, F5.7 y F5.9 están implementados. **Avance: 7 de 10 pasos hechos (~70 %); quedan F5.0 y F5.8 (la persona) y F5.6 (espera a F3).** Hay base de interfaz, contrato y simulador; no hay API (F4) ni efectos
 (F3). La base que usará ya existe: proyectos, pedidos, tomas, elegir y deshacer, cola, avisos de la ficha y textos
 es/en (F1), además del motor real (F2).
 

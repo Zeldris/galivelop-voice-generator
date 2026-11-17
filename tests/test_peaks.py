@@ -147,7 +147,7 @@ class PeaksTest(unittest.TestCase):
         p = self.wav(data, "long.wav", chans=2, rate=48000)
         t0 = time.perf_counter()
         r = pk.peaks(p, 400)
-        self.assertLess(time.perf_counter() - t0, 0.7)  # ~0.2 s now; the per-frame loop took ~1.3 s
+        self.assertLess(time.perf_counter() - t0, 1.0)  # ~0.2 s (~0.85 s on the Deck); the per-frame loop took ~1.3 s
         self.assertEqual((r["audioMs"], r["peaks"][0], len(r["peaks"])), (60000, 0.061, 400))  # 2000/32768 = 0.0610
 
     def test_n_limits_have_a_clear_message(self):

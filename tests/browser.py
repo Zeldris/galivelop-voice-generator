@@ -170,6 +170,7 @@ class Page:
         self.ws, self.session, self.problems = ws, session, problems
         self.next_id = 0
         self.events = []
+        self.loads = 0   # Page.loadEventFired seen so far
 
     def call(self, method, params=None, timeout=30):
         self.next_id += 1
@@ -191,7 +192,9 @@ class Page:
 
     def _event(self, msg):
         method, p = msg.get("method"), msg.get("params", {})
-        if method == "Runtime.exceptionThrown":
+        if method == "Page.loadEventFired":
+            self.loads += 1
+        elif method == "Runtime.exceptionThrown":
             d = p["exceptionDetails"]
             self.problems.append("exception: %s" % ((d.get("exception") or {}).get("description") or d.get("text")))
         elif method == "Runtime.consoleAPICalled" and p.get("type") == "error":
@@ -229,7 +232,16 @@ class Page:
         self.ws.close()
 
     def goto(self, url):
-        self.call("Page.navigate", {"url": url})
+        before = self.loads
+        res = self.call("Page.navigate", {"url": url})
+        if res.get("errorText"):
+            raise CdpError("navigation to %s failed: %s" % (url, res["errorText"]))
+        if res.get("loaderId"):   # a new document: its load event, not the readyState of the one being left
+            end = time.time() + 15
+            while self.loads == before and time.time() < end:
+                self.pump(0.05)
+            if self.loads == before:
+                raise CdpError("timeout waiting for the load event of %s" % url)
         self.wait("document.readyState === 'complete'")
 
     def wait(self, expression, timeout=15, step=0.1):

@@ -4,9 +4,8 @@ opens with ``?mock=1`` (the in-browser simulator, ``gvoice/ui/mock/api-mock.js``
 page reported no exception, no console error, no CSP violation and no failed load. Skipped when no Chrome is found
 (see ``GVOICE_TEST_CHROME``)."""
 import json
-import shutil
+import os
 import unittest
-from pathlib import Path
 
 from gvoice import server
 from tests import browser
@@ -15,7 +14,6 @@ PROJECT = "example-world"
 ORDER = "narrator"
 
 
-@unittest.skipUnless(browser.find_chrome(), "no Chrome/Chromium found (set GVOICE_TEST_CHROME)")
 class WithTmpdir(unittest.TestCase):
     def test_a_host_flatpak_chrome_gets_tmpdir_after_host_and_after_run(self):
         cmd = ["flatpak-spawn", "--host", "flatpak", "run", "com.google.Chrome"]
@@ -29,17 +27,45 @@ class WithTmpdir(unittest.TestCase):
         self.assertEqual(browser.with_tmpdir(["chromium-browser"], "/t"), ["chromium-browser"])
 
 
+def chrome_or_stop(find=browser.find_chrome, env=None):
+    """The Chrome command. Without it: in the CI (``CI`` or ``GITHUB_ACTIONS`` set) the test FAILS (a skipped browser
+    test there hides a broken interface, REVIEW.md); elsewhere it is skipped."""
+    command = find()
+    if command:
+        return command
+    env = os.environ if env is None else env
+    if env.get("CI") or env.get("GITHUB_ACTIONS"):
+        raise AssertionError("no Chrome/Chromium found in the CI: install one or set GVOICE_TEST_CHROME")
+    raise unittest.SkipTest("no Chrome/Chromium found (set GVOICE_TEST_CHROME)")
+
+
+class ChromeOrStop(unittest.TestCase):
+    def test_a_found_chrome_is_returned_whatever_the_environment(self):
+        self.assertEqual(chrome_or_stop(lambda: ["/x/chrome"], {"CI": "true"}), ["/x/chrome"])
+
+    def test_without_chrome_it_is_skipped_locally(self):
+        with self.assertRaises(unittest.SkipTest) as cm:
+            chrome_or_stop(lambda: None, {})
+        self.assertIn("no Chrome", str(cm.exception))
+
+    def test_without_chrome_it_fails_in_the_ci_with_a_clear_message(self):
+        for var in ("CI", "GITHUB_ACTIONS"):
+            with self.assertRaises(AssertionError) as cm:
+                chrome_or_stop(lambda: None, {var: "true"})
+            self.assertIn("in the CI", str(cm.exception))
+
+
 class UiBase(unittest.TestCase):
     """One server and one browser for the whole class; each test opens a fresh tab."""
 
     @classmethod
     def setUpClass(cls):
-        cls.tmp = Path(browser.scratch_dir("gvoice-ui-")).resolve()  # never in /tmp (a small tmpfs)
+        chrome = chrome_or_stop()
         try:
             cls.srv = server.make_server(0)
             cls.port = cls.srv.port
             server.start_thread(cls.srv)
-            cls.browser = browser.Browser()
+            cls.browser = browser.Browser(chrome)
         except BaseException:
             cls.tearDownClass()
             raise
@@ -51,7 +77,6 @@ class UiBase(unittest.TestCase):
         if getattr(cls, "srv", None):
             cls.srv.shutdown()
             cls.srv.server_close()
-        shutil.rmtree(cls.tmp, ignore_errors=True)
 
     def setUp(self):
         self.page = self.browser.new_page()

@@ -79,3 +79,14 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
 - **Interpretación en castellano sin medir (2026-11-18):** los 10 audios de `final/es` rehechos con otra semilla
   no difieren en sonido (NISQA) de los aprobados: se rechazaron por la interpretación. El filtro no mide entonación;
   hace falta una comprobación de prosodia (y apuntar el motivo de cada rechazo en `engine/verif/corpus/juicios.csv`).
+- **`gw-opt-ai` no cubre voz (2026-11-18, para el repo del flujo, Galivelop-workflow):** la skill está hecha para
+  modelos de texto (tok/s, primer token, caché KV, `num_ctx`, RAG). La persona decide **ampliarla, no crear otra
+  skill**: una referencia por tipo de modelo (`references/speech.md`; luego `image.md` para `gimg`) con sus medidas,
+  ajustes y calidad; el paso 2 pasa de «RAG» a «calidad del tipo de modelo» (en voz, el filtro de audio y los juicios
+  de oído); `measure.py` saca el factor de tiempo real (`app.duration_ms` / `app.voice.audio_ms`) cuando la línea trae
+  audio, y tok/s solo con tokens. Se hace desde una sesión en el repo del flujo, no editando la copia de aquí.
+- **Los motores de 0.3.0 no escriben el registro por llamada (2026-11-18):** `engine/*/gen.py` (Matcha-Celtia,
+  StyleTTS2) corren fuera del trabajador y no dejan líneas en `log.jsonl`, así que su rendimiento no se puede medir.
+  Hacer que escriban el mismo formato (`gvoice/log.py`: perfil, dispositivo, `duration_ms`, `load_ms`, `audio_ms`,
+  memoria). Además, rellenar `.claude/gw/gw-opt-ai.md` (banco de pruebas, tiempos aceptables, script de parada):
+  el único registro (`portal`, 17-nov) es una prueba de humo y no vale como ronda.

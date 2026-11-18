@@ -11,7 +11,7 @@
 | **Rama** | `claude/via1-clonado` (desde `main` en `17b4255`, 2026-11-17; `claude/lectora-es` fusionada por el PR #7) |
 | **Fase / tarea** | **0.3.0** (`docs/plan.md` § Versiones): D19 vía 1, capa 1 (clonado desde referencia peninsular) + B1 (barrido de leves de `gvoice/effects.py`). Investigación de partida: `docs/investigacion/2026-11-17-motores-via1-deck.md` |
 | **Último punto estable** | 0.2.0 publicada: PR #7 fusionado con CI de GitHub en verde (vuelve a funcionar), `v0.1.0` y `v0.2.0` con su release. Retro: `docs/records/retro-2026-11-17-v0-2-0.md`. Conectores MCP Claude Docs y easel desactivados por la persona |
-| **Siguiente paso** | **Gallego (`lectora-gl`):** tres rondas rechazadas; la última (`escucha/gl-union/pasan/`, unión nueva) pasaba el filtro y la persona oyó ruido y cortes pequeños. Espectrograma: chasquidos de banda ancha (ya en `engine/verif/filtro.py`: rechaza 4/5) y voz cortada a ~8 kHz y granulosa; DNSMOS 2,8 frente a 3,51 de las grabaciones de Celtia. El ruido aún no lo mide el filtro. Siguiente: la persona compara con la demo oficial https://tts.nos.gal/ para saber si es del modelo o nuestro; según eso, arreglar la cadena o probar otro motor/voz de Nós (Matcha, VITS, Brais). Detalle en `voz/lectora-gl/RECETA.md`. Inglés y voz de `final/es`: pendientes. Una carga pesada a la vez, `nice` |
+| **Siguiente paso** | **Gallego (`lectora-gl`):** el filtro no oía lo que oye la persona; ya sí. Corpus de juicios de oído `engine/verif/corpus/juicios.csv` (132 audios) y NISQA por tramos (`engine/verif/nisqa_eval.py`); `filtro.py` exige NISQA ≥ percentil 5 del castellano aprobado y rechaza los 73 gallegos rechazados. Ningún audio de StyleTTS2-Celtia se acerca (coloración 2,8-3,2 frente a 4,46). Siguiente: probar con el filtro otros motores/voces gallegas de Nós (Matcha Celtia sin restricción de descarga; VITS; Brais), sin pasar nada a la persona que no lo supere. Detalle: `engine/verif/LEEME.md`, `voz/lectora-gl/RECETA.md`. Inglés y voz de `final/es`: pendientes. Una carga pesada a la vez, `nice` |
 | **Check** | verde salvo dos tests que ya fallan en `main` en la Deck (`test_install…no_compiler_and_no_flatpak` 127 y `test_peaks…is_fast` por tiempo) |
 
 ## Para la próxima publicación
@@ -27,7 +27,7 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 5. 2026-11-14 — Arreglos de la revisión de bloque F2.1-F2.3 (6 hallazgos): el resultado lleva el dispositivo como el perfil (`cpu`; `device_arg` solo en el argv); un proceso muerto por señal no lanza el respaldo y, con vigilante, este exige `minFreeMemoryMb` otra vez (si no, error del primer intento y nota); el motor hereda el descriptor del candado (`machine_lock.held_fds`, `pass_fds`) para que un motor huérfano siga ocupando la máquina, y `worker.run` no limpia `.qwentts-*` si el candado está ocupado; `EngineError`/`EngineTimeout`/`Cancelled` llevan `stats` (`min_free_mb`, `peak_rss_mb`) y el trabajador las pasa al registro (`log.record_for(stats=)`); pico de RSS exacto con `os.wait4` (`ru_maxrss`; `proc.returncode` fijado a mano con `waitstatus_to_exitcode`; `VmHWM` solo si `wait4` no da nada); tests del vigilante sin reloj (`WATCH_S` parcheable, lecturas de memoria inyectadas). Check verde.
 ## Pendiente
 
-Lo pendiente está en [`docs/records/pending.md`](records/pending.md) (26 entradas); se añade y se quita allí.
+Lo pendiente está en [`docs/records/pending.md`](records/pending.md) (27 entradas); se añade y se quita allí.
 
 ## Comprobar el estado
 

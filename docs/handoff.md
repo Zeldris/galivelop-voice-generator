@@ -1,4 +1,4 @@
-<!-- galivelop-workflow v0.7.0 -->
+<!-- galivelop-workflow v0.8.0 -->
 # Bitácora (traspaso)
 
 > Léela entera al empezar cualquier sesión. Lo que no está subido no existe: commit + push en cada punto estable,
@@ -8,10 +8,10 @@
 
 | Campo | Valor |
 |---|---|
-| **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; sigue tras el PR #6; `main` fusionado en `17b4255`, con el PR #7 `lectora-es`/0.2.0, el 2026-11-17) |
-| **Fase / tarea** | F5 Interfaz, en la nube (decisión de la persona del 2026-11-15) mientras F2.6 espera a la Deck. **F5.7 hecho** (2026-11-16): barra de cola (`queue-bar.js` de `gimg@46248251`, adaptada al contrato: listar, cancelar, vaciar) y arnés de Chrome (`tests/browser.py` + `tests/test_ui_browser.py` contra `gvoice ui` con `?mock=1`; es/en, tema y 360/768/1280 px). **Tarea actual (2026-11-17, decisión de la persona): llevar F5.9 a `main`** con las tres fases de AGENTS.md. Presupuesto de compactaciones: 1 (0 desde que empezó la tarea). Hoja de ruta: `docs/plan.md` § «F5 en detalle». F2 sigue abierta solo por F2.6 (la persona) |
-| **Último punto estable** | F5.7 hecho y revisado (2026-11-16): barra de cola (`queue-bar.js` de `gimg@46248251` adaptado: sin mover ni pausar; `queue-model.js`) y arnés de Chrome (`tests/browser.py`, `tests/test_ui_browser.py` con `?mock=1`: es/en, tema, cuatro pantallas y el cajón a 360/768/1280 px). Revisión de bloque: 19 hallazgos, 11 arreglados (el cajón abierto bloquea teclado y mando de pedido y A/B; Esc por el gancho de `shortcuts.js`, primero la ayuda; foco al cancelar; botón deshabilitado en vuelo; «cancelación pedida» para la que corre; singular en vaciar; idioma y ruta repintan la píldora; `TMPDIR` al Chrome del anfitrión por `flatpak-spawn`), 7 leves a `docs/records/pending.md`. 654 tests en verde, 1 saltado |
-| **Siguiente paso** | Fases 1 y 2 hechas (2026-11-17): revisión en `gw-reviewer` (9 hallazgos: 3 medios y 2 leves arreglados en `41f32ac`, 3 leves a `docs/records/pending.md`); retro `docs/records/retro-2026-11-17-pr-f5-9.md` decidida (P2-P4 aprobadas, B2 en 0.3.0; P1 rechazada y anotada en `.claude/gw/gw-opt-tokens.md`). 751 tests en verde, 1 saltado. Fase 3 hecha: marca `4096d24`, **PR #8** a `main` abierto (2026-11-17). Siguiente: CI en verde y confirmación de la persona para fusionar |
+| **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; `main` fusionado en la rama tras el PR #8, `d7037bf`, el 2026-11-18) |
+| **Fase / tarea** | **Actualización del flujo a Galivelop-workflow v0.8.0** (`gw-update`, pedida por la persona el 2026-11-18). Decisiones: `agentsSkillsDir: ""` (sin copia a `.agents/skills`), modo `careful` activo, `REVIEW.md` gana anclas/Observaciones, Invariantes, Navegadores y Ficha de tarea; `AGENTS.md` y `CLAUDE.md` fusionados (reglas del proyecto conservadas). F2.6 sigue esperando a la Deck; 0.3.0 con B1/B2 en `docs/plan.md` |
+| **Último punto estable** | Actualización a v0.8.0 aplicada y revisada (2026-11-18): fase 1 con 1 hallazgo medio (gancho `whole-read.py` duplicado por la fusión de `apply.py`) arreglado en `f95fd11`, fallo del flujo a pendientes; retro `docs/records/retro-2026-11-18-gw-update-0-8-0.md` decidida (P1-P4 aprobadas; P2: regla Flatpak a puntero, `AGENTS.md` en 153 líneas; P4 la aplica la persona) |
+| **Siguiente paso** | Fases 1-3 hechas (2026-11-18); marca `7a82abe`. **PR #9 abierto** a `main` (https://github.com/Zeldris/galivelop-voice-generator/pull/9). Fusionar solo con el CI en verde y la confirmación de la persona; luego, lo que decida (F2.6 en la Deck; 0.3.0 con B1/B2). P4 de la retro (desconectar Claude Docs) la hace la persona |
 | **Check** | verde (`bash -n` de cada gancho, `unittest` y `ci-local.py --validate`) |
 
 ## Para la próxima publicación
@@ -27,7 +27,7 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 5. 2026-11-14 — Arreglos de la revisión de bloque F2.1-F2.3 (6 hallazgos): el resultado lleva el dispositivo como el perfil (`cpu`; `device_arg` solo en el argv); un proceso muerto por señal no lanza el respaldo y, con vigilante, este exige `minFreeMemoryMb` otra vez (si no, error del primer intento y nota); el motor hereda el descriptor del candado (`machine_lock.held_fds`, `pass_fds`) para que un motor huérfano siga ocupando la máquina, y `worker.run` no limpia `.qwentts-*` si el candado está ocupado; `EngineError`/`EngineTimeout`/`Cancelled` llevan `stats` (`min_free_mb`, `peak_rss_mb`) y el trabajador las pasa al registro (`log.record_for(stats=)`); pico de RSS exacto con `os.wait4` (`ru_maxrss`; `proc.returncode` fijado a mano con `waitstatus_to_exitcode`; `VmHWM` solo si `wait4` no da nada); tests del vigilante sin reloj (`WATCH_S` parcheable, lecturas de memoria inyectadas). Check verde.
 ## Pendiente
 
-Lo pendiente está en [`docs/records/pending.md`](records/pending.md) (21 entradas); se añade y se quita allí.
+Lo pendiente está en [`docs/records/pending.md`](records/pending.md); se añade y se quita allí.
 
 ## Comprobar el estado
 

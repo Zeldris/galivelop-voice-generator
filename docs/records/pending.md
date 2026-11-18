@@ -67,3 +67,4 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
   - `gvoice/ui/js/queue-model.js:41` `errorOf` cae a la cadena fija en inglés `error: <code>` en vez de usar la clave `ui.error.code`.
   - `loading()` vive en `gvoice/ui/js/components/shortcuts.js` y `projects-view.js`/`project-view.js` lo importan solo por eso: su sitio es `dom.js`.
   - Dos líneas en blanco seguidas tras los imports en `project-view.js` y `projects-view.js`.
+- Flujo (upstream, 2026-11-18): la fusión de settings.json de apply.py v0.8.0 añade PreToolUse ^(Read|Bash)$ → whole-read.py sin quitar el Read antiguo, y el gancho corre dos veces en cada Read; aquí se quitó a mano. Llevarlo a Galivelop-workflow.

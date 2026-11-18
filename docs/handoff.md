@@ -1,4 +1,4 @@
-<!-- galivelop-workflow v0.7.0 -->
+<!-- galivelop-workflow v0.8.0 -->
 # Bitácora (traspaso)
 
 > Léela entera al empezar cualquier sesión. Lo que no está subido no existe: commit + push en cada punto estable,
@@ -8,10 +8,10 @@
 
 | Campo | Valor |
 |---|---|
-| **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; sigue tras el PR #6; `main` fusionado en `17b4255`, con el PR #7 `lectora-es`/0.2.0, el 2026-11-17) |
-| **Fase / tarea** | F5 Interfaz, en la nube (decisión de la persona del 2026-11-15) mientras F2.6 espera a la Deck. **F5.7 hecho** (2026-11-16): barra de cola (`queue-bar.js` de `gimg@46248251`, adaptada al contrato: listar, cancelar, vaciar) y arnés de Chrome (`tests/browser.py` + `tests/test_ui_browser.py` contra `gvoice ui` con `?mock=1`; es/en, tema y 360/768/1280 px). **Tarea actual (2026-11-17, decisión de la persona): llevar F5.9 a `main`** con las tres fases de AGENTS.md. Presupuesto de compactaciones: 1 (0 desde que empezó la tarea). Hoja de ruta: `docs/plan.md` § «F5 en detalle». F2 sigue abierta solo por F2.6 (la persona) |
-| **Último punto estable** | F5.7 hecho y revisado (2026-11-16): barra de cola (`queue-bar.js` de `gimg@46248251` adaptado: sin mover ni pausar; `queue-model.js`) y arnés de Chrome (`tests/browser.py`, `tests/test_ui_browser.py` con `?mock=1`: es/en, tema, cuatro pantallas y el cajón a 360/768/1280 px). Revisión de bloque: 19 hallazgos, 11 arreglados (el cajón abierto bloquea teclado y mando de pedido y A/B; Esc por el gancho de `shortcuts.js`, primero la ayuda; foco al cancelar; botón deshabilitado en vuelo; «cancelación pedida» para la que corre; singular en vaciar; idioma y ruta repintan la píldora; `TMPDIR` al Chrome del anfitrión por `flatpak-spawn`), 7 leves a `docs/records/pending.md`. 654 tests en verde, 1 saltado |
-| **Siguiente paso** | Fases 1 y 2 hechas (2026-11-17): revisión en `gw-reviewer` (9 hallazgos: 3 medios y 2 leves arreglados en `41f32ac`, 3 leves a `docs/records/pending.md`); retro `docs/records/retro-2026-11-17-pr-f5-9.md` decidida (P2-P4 aprobadas, B2 en 0.3.0; P1 rechazada y anotada en `.claude/gw/gw-opt-tokens.md`). 751 tests en verde, 1 saltado. Fase 3 hecha: marca `4096d24`. **PR #8 fusionado en `main`** (`d7037bf`, 2026-11-17) con el CI en verde y la confirmación de la persona. Siguiente: lo que decida la persona (F2.6 sigue en la Deck; 0.3.0 con B1/B2 en `docs/plan.md`) |
+| **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; `main` fusionado en la rama tras el PR #8, `d7037bf`, el 2026-11-18) |
+| **Fase / tarea** | **Actualización del flujo a Galivelop-workflow v0.8.0** (`gw-update`, pedida por la persona el 2026-11-18). Decisiones: `agentsSkillsDir: ""` (sin copia a `.agents/skills`), modo `careful` activo, `REVIEW.md` gana anclas/Observaciones, Invariantes, Navegadores y Ficha de tarea; `AGENTS.md` y `CLAUDE.md` fusionados (reglas del proyecto conservadas). F2.6 sigue esperando a la Deck; 0.3.0 con B1/B2 en `docs/plan.md` |
+| **Último punto estable** | `apply.py --update` a v0.8.0 aplicado (2026-11-18): doctor sin `FAIL` (aviso: `AGENTS.md` con 156 líneas, tope de aviso 150) y `apply.py --check` en 0 |
+| **Siguiente paso** | Llevar la actualización a `main` con las tres fases de AGENTS.md (revisión solo de lo fusionado a mano: `AGENTS.md`, `CLAUDE.md`, `REVIEW.md`, `.claude/gw.json`, `.claude/settings.json`; retro; marca) y abrir el PR, con la confirmación de la persona |
 | **Check** | verde (`bash -n` de cada gancho, `unittest` y `ci-local.py --validate`) |
 
 ## Para la próxima publicación

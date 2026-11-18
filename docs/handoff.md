@@ -11,7 +11,7 @@
 | **Rama** | `claude/via1-clonado` (desde `main` en `17b4255`, 2026-11-17; `claude/lectora-es` fusionada por el PR #7) |
 | **Fase / tarea** | **0.3.0** (`docs/plan.md` § Versiones): D19 vía 1, capa 1 (clonado desde referencia peninsular) + B1 (barrido de leves de `gvoice/effects.py`). Investigación de partida: `docs/investigacion/2026-11-17-motores-via1-deck.md` |
 | **Último punto estable** | 0.2.0 publicada: PR #7 fusionado con CI de GitHub en verde (vuelve a funcionar), `v0.1.0` y `v0.2.0` con su release. Retro: `docs/records/retro-2026-11-17-v0-2-0.md`. Conectores MCP Claude Docs y easel desactivados por la persona |
-| **Siguiente paso** | Portal: 48 trozos en `final/es/`, aprobados. **Gallego (`lectora-gl`):** receta en `proyectos/portal/voz/lectora-gl/RECETA.md` (Celtia con StyleTTS2 de Nós, variante c; la c no tiene el ruido del arranque, eran las otras: corregido 2026-11-18). Lote de 48 trozos `gl` en `escucha/gl-portal/` **rechazado** por la persona (2026-11-18): ruidos y sonidos raros en palabras que whisper+WER no detecta. Investigación en marcha de una comprobación de verdad (ASR gallego, fonemas, calidad por tramos): `docs/investigacion/2026-11-18-verificacion-voz.md` (hecha: gl, es y en, cada una con su camino); siguiente: que la persona confirme qué montar y averiguar si el ruido es de Celtia o de nuestro ajuste (ref. en castellano, alpha 0.5). **Inglés aparcado** hasta crear su voz (los guiones ya traen `en`). Atribución de Celtia pendiente. Una carga pesada a la vez, `nice` |
+| **Siguiente paso** | Portal `final/es/`: 48 trozos aprobados (voz a revisar, ver pendientes). **Gallego (`lectora-gl`):** receta en `proyectos/portal/voz/lectora-gl/RECETA.md`; lote de 48 trozos en `escucha/gl-portal/` **rechazado** (ruidos y palabras raras que whisper no ve). Montando la comprobación de `docs/investigacion/2026-11-18-verificacion-voz.md` (DNSMOS por ventanas y ASR gallego de Nós) en `engine/verif/`; luego calibrarla con fallos que marque la persona y probar la receta de la ficha de Celtia (alpha 0.8, beta 0.8, t 0.2). **Inglés aparcado** hasta crear su voz. Una carga pesada a la vez, `nice` |
 | **Check** | verde salvo dos tests que ya fallan en `main` en la Deck (`test_install…no_compiler_and_no_flatpak` 127 y `test_peaks…is_fast` por tiempo) |
 
 ## Para la próxima publicación
@@ -27,7 +27,7 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 5. 2026-11-14 — Arreglos de la revisión de bloque F2.1-F2.3 (6 hallazgos): el resultado lleva el dispositivo como el perfil (`cpu`; `device_arg` solo en el argv); un proceso muerto por señal no lanza el respaldo y, con vigilante, este exige `minFreeMemoryMb` otra vez (si no, error del primer intento y nota); el motor hereda el descriptor del candado (`machine_lock.held_fds`, `pass_fds`) para que un motor huérfano siga ocupando la máquina, y `worker.run` no limpia `.qwentts-*` si el candado está ocupado; `EngineError`/`EngineTimeout`/`Cancelled` llevan `stats` (`min_free_mb`, `peak_rss_mb`) y el trabajador las pasa al registro (`log.record_for(stats=)`); pico de RSS exacto con `os.wait4` (`ru_maxrss`; `proc.returncode` fijado a mano con `waitstatus_to_exitcode`; `VmHWM` solo si `wait4` no da nada); tests del vigilante sin reloj (`WATCH_S` parcheable, lecturas de memoria inyectadas). Check verde.
 ## Pendiente
 
-Lo pendiente está en [`docs/records/pending.md`](records/pending.md) (24 entradas); se añade y se quita allí.
+Lo pendiente está en [`docs/records/pending.md`](records/pending.md) (25 entradas); se añade y se quita allí.
 
 ## Comprobar el estado
 

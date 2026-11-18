@@ -144,10 +144,7 @@ planea, decide y revisa. Esta línea es la autorización que piden las instrucci
 ## Reglas del proyecto
 
 - **Diseño y fases:** `docs/plan.md` (decisiones D1-D19, fases F0-F7, versiones); vocabulario en `GLOSSARY.md`.
-- **Flatpak:** en la Deck, la sesión corre dentro del Flatpak de VS Code. El compilador, `cmake` y las cabeceras de
-  Vulkan son del SDK `org.freedesktop.Sdk`, no de SteamOS, y no hay `journalctl` ni `dmesg`. Lo que tenga que
-  correr o comprobarse en el anfitrión va con `flatpak-spawn --host <orden>`. Detalle en
-  `docs/investigacion/2026-10-25-banco-deck.md`.
+- **En la Deck** (Flatpak de VS Code): lo del anfitrión va con `flatpak-spawn --host`; detalle en `docs/investigacion/2026-10-25-banco-deck.md`.
 - Instalar: —.
 - **Autoría:** los commits van a nombre de la persona: `git config user.name "Álvaro García Graña (Zeldris)"` y `user.email` el de sus commits en `main`, sin firmas del agente (`agentSignatures: false`).
 - **Stack:** Python 3 solo con la biblioteca estándar, sin dependencias (D1); tests con `unittest`.

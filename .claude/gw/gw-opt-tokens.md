@@ -72,3 +72,7 @@ las crea una vez; desde entonces son del proyecto.
   entorno de la nube.
 - 2026-11-17, versiones y cierre de 0.2.0 (`d2b52ac4`): 48 llamadas, contexto medio 98k (suelo 50k, techo 130k), 0
   compactaciones, 4,7M en la principal; 4 subagentes, 1,4M (arranque medio 18k).
+- 2026-11-18, `gw-update` 0.7.0 → 0.8.0 (`6ea0a867`, desde `4dfa016`): 29 llamadas, contexto medio 119k (suelo 107k,
+  techo 131k), 0 compactaciones, 3,46M de entrada; sin subagentes (diffs de plantilla de menos de 200 líneas leídos en
+  la principal). Suelo ≈ entorno de la nube (~87k de prompt, herramientas y MCP); la persona desconecta Claude Docs
+  (retro 2026-11-18, P4): medir el arranque del próximo `/clear`.

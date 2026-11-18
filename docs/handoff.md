@@ -10,8 +10,8 @@
 |---|---|
 | **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; `main` fusionado en la rama tras el PR #8, `d7037bf`, el 2026-11-18) |
 | **Fase / tarea** | **Actualización del flujo a Galivelop-workflow v0.8.0** (`gw-update`, pedida por la persona el 2026-11-18). Decisiones: `agentsSkillsDir: ""` (sin copia a `.agents/skills`), modo `careful` activo, `REVIEW.md` gana anclas/Observaciones, Invariantes, Navegadores y Ficha de tarea; `AGENTS.md` y `CLAUDE.md` fusionados (reglas del proyecto conservadas). F2.6 sigue esperando a la Deck; 0.3.0 con B1/B2 en `docs/plan.md` |
-| **Último punto estable** | `apply.py --update` a v0.8.0 aplicado (2026-11-18): doctor sin `FAIL` (aviso: `AGENTS.md` con 156 líneas, tope de aviso 150) y `apply.py --check` en 0 |
-| **Siguiente paso** | Llevar la actualización a `main` con las tres fases de AGENTS.md (revisión solo de lo fusionado a mano: `AGENTS.md`, `CLAUDE.md`, `REVIEW.md`, `.claude/gw.json`, `.claude/settings.json`; retro; marca) y abrir el PR, con la confirmación de la persona |
+| **Último punto estable** | Actualización a v0.8.0 aplicada y revisada (2026-11-18): fase 1 con 1 hallazgo medio (gancho `whole-read.py` duplicado por la fusión de `apply.py`) arreglado en `f95fd11`, fallo del flujo a pendientes; retro `docs/records/retro-2026-11-18-gw-update-0-8-0.md` decidida (P1-P4 aprobadas; P2: regla Flatpak a puntero, `AGENTS.md` en 153 líneas; P4 la aplica la persona) |
+| **Siguiente paso** | Fase 3: `check.sh`, `reviewed.sh`, push y PR a `main` con la skill `pr` (confirmado por la persona el 2026-11-18); fusionar solo con el CI en verde y su confirmación |
 | **Check** | verde (`bash -n` de cada gancho, `unittest` y `ci-local.py --validate`) |
 
 ## Para la próxima publicación

@@ -11,7 +11,7 @@
 | **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; `main` fusionado en la rama tras el PR #8, `d7037bf`, el 2026-11-18) |
 | **Fase / tarea** | **Actualización del flujo a Galivelop-workflow v0.8.0** (`gw-update`, pedida por la persona el 2026-11-18). Decisiones: `agentsSkillsDir: ""` (sin copia a `.agents/skills`), modo `careful` activo, `REVIEW.md` gana anclas/Observaciones, Invariantes, Navegadores y Ficha de tarea; `AGENTS.md` y `CLAUDE.md` fusionados (reglas del proyecto conservadas). F2.6 sigue esperando a la Deck; 0.3.0 con B1/B2 en `docs/plan.md` |
 | **Último punto estable** | Actualización a v0.8.0 aplicada y revisada (2026-11-18): fase 1 con 1 hallazgo medio (gancho `whole-read.py` duplicado por la fusión de `apply.py`) arreglado en `f95fd11`, fallo del flujo a pendientes; retro `docs/records/retro-2026-11-18-gw-update-0-8-0.md` decidida (P1-P4 aprobadas; P2: regla Flatpak a puntero, `AGENTS.md` en 153 líneas; P4 la aplica la persona) |
-| **Siguiente paso** | Fase 3: `check.sh`, `reviewed.sh`, push y PR a `main` con la skill `pr` (confirmado por la persona el 2026-11-18); fusionar solo con el CI en verde y su confirmación |
+| **Siguiente paso** | Fases 1-3 hechas (2026-11-18); marca `7a82abe`. **PR #9 abierto** a `main` (https://github.com/Zeldris/galivelop-voice-generator/pull/9). Fusionar solo con el CI en verde y la confirmación de la persona; luego, lo que decida (F2.6 en la Deck; 0.3.0 con B1/B2). P4 de la retro (desconectar Claude Docs) la hace la persona |
 | **Check** | verde (`bash -n` de cada gancho, `unittest` y `ci-local.py --validate`) |
 
 ## Para la próxima publicación

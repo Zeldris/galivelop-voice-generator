@@ -151,3 +151,4 @@ planea, decide y revisa. Esta línea es la autorización que piden las instrucci
 - **Paquete `gvoice/`**: código y contrato en inglés (D9); esquemas JSON en `gvoice/schemas/` (uno por documento),
   perfiles de máquina en `gvoice/machine_profiles/`, textos es/en en `gvoice/locales/`. Ejemplos en `examples/`.
 - Los módulos copiados de `gimg` llevan en la cabecera `Copiado de gimg@<sha>` (D7).
+- **Skills propias** del proyecto: prefijo `gvg-`; `gw-` y las sin prefijo son del flujo y no se renombran.

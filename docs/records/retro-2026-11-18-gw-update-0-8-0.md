@@ -27,3 +27,6 @@ ninguna.
   queda solo con `^(Read|Bash)$` tras `--update`.
 - `doctor.py` da `FAIL` cuando el mismo script está enganchado dos veces en un evento con matchers que se solapan, con
   la orden que lo arregla.
+- Prefijo de skills por proyecto (pedido por la persona el 2026-11-18): hoy las skills del flujo son `gw-*` fijas y
+  ningún campo de `.claude/gw.json` deja elegir otro; aquí las propias usan `gvg-`. Valorar una clave (p. ej.
+  `projectSkillPrefix`) que `gw-init` escriba y `doctor.py` compruebe en las skills que no son del flujo.

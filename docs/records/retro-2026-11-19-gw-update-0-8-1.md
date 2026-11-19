@@ -1,6 +1,6 @@
 # Retro: actualización del flujo a v0.8.1 (2026-11-19)
 
-**Estado:** pendiente de la decisión de la persona.
+**Estado:** decidida por la persona el 2026-11-19: P1-P4 aprobadas; P4 aplicada (AGENTS.md en 153 líneas); P1 y P3 van al flujo (sección For Galivelop-workflow); P2 la aplica la persona (desconectar Claude Docs).
 
 Sesión `6ea0a867` desde el último `/clear`: 44 llamadas, contexto medio 108k (suelo 91k, techo 134k), 4,7M de
 entrada en la principal, sin subagentes ni compactaciones. Medido con `measure.py --session` (sin `--session`, la

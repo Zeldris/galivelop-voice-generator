@@ -145,7 +145,6 @@ planea, decide y revisa. Esta línea es la autorización que piden las instrucci
 
 - **Diseño y fases:** `docs/plan.md` (decisiones D1-D19, fases F0-F7, versiones); vocabulario en `GLOSSARY.md`.
 - **En la Deck** (Flatpak de VS Code): lo del anfitrión va con `flatpak-spawn --host`; detalle en `docs/investigacion/2026-10-25-banco-deck.md`.
-- Instalar: —.
 - **Autoría:** los commits van a nombre de la persona: `git config user.name "Álvaro García Graña (Zeldris)"` y `user.email` el de sus commits en `main`, sin firmas del agente (`agentSignatures: false`).
 - **Stack:** Python 3 solo con la biblioteca estándar, sin dependencias (D1); tests con `unittest`.
 - **Paquete `gvoice/`**: código y contrato en inglés (D9); esquemas JSON en `gvoice/schemas/` (uno por documento),

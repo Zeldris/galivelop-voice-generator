@@ -1,9 +1,9 @@
-<!-- galivelop-workflow v0.8.0 -->
+<!-- galivelop-workflow v0.8.1 -->
 # galivelop-voice-generator — instrucciones para agentes
 
 Este proyecto se trabaja por relevos: una sesión puede acabarse en cualquier momento (tokens, contenedor, cambio de
 cuenta) y la siguiente tiene que seguir **sin perder nada y sin preguntar por dónde iba**. Todo lo de este archivo
-existe para eso. El flujo es Galivelop-workflow v0.8.0; sus scripts están en `.claude/gw/scripts/`, sus skills
+existe para eso. El flujo es Galivelop-workflow v0.8.1; sus scripts están en `.claude/gw/scripts/`, sus skills
 en `.claude/skills/` y su configuración en `.claude/gw.json` (solo la lee `.claude/gw/scripts/config.py`).
 
 ## Al empezar cualquier sesión
@@ -74,8 +74,8 @@ Cada sesión puede correr en un contenedor temporal: **lo que no está subido no
   `commitRefs: true`, un trailer `Refs: <id>` en el último párrafo, antes de `Siguiente:`; lo comprueba `commit-msg`.
 - Cuerpo: qué se hizo, qué queda de esa tarea si no está cerrada, y estado del check.
 - **Última línea: `Siguiente: <próximo paso concreto>`**, en el mismo bloque final que las líneas de atribución, si las hay.
-- El commit con los arreglos de una revisión lleva `Findings: <n hallazgos aceptados>` y el de un trabajo que tuvo
-  que subir de peldaño, `Retries: <n>` (los lee `metrics.py quality`).
+- El commit con los arreglos de una revisión lleva `Findings: <n aceptados>`, y el de un trabajo que subió de peldaño,
+  `Retries: <n>` (`metrics.py quality`), en el último párrafo con los demás trailers (`commit-msg` rechaza uno suelto).
 - Con `agentSignatures: false` en `.claude/gw.json`, el commit **no lleva firmas del agente** (ni `Co-Authored-By` de
   Claude, ni `Claude-Session`, ni «Generated with Claude Code», ni enlaces de sesión) y el gancho `commit-msg` rechaza
   el mensaje que las traiga. En la nube, el gancho `Stop` de Claude Code puede pedir que se reescriba el autor o se
@@ -145,7 +145,6 @@ planea, decide y revisa. Esta línea es la autorización que piden las instrucci
 
 - **Diseño y fases:** `docs/plan.md` (decisiones D1-D19, fases F0-F7, versiones); vocabulario en `GLOSSARY.md`.
 - **En la Deck** (Flatpak de VS Code): lo del anfitrión va con `flatpak-spawn --host`; detalle en `docs/investigacion/2026-10-25-banco-deck.md`.
-- Instalar: —.
 - **Autoría:** los commits van a nombre de la persona: `git config user.name "Álvaro García Graña (Zeldris)"` y `user.email` el de sus commits en `main`, sin firmas del agente (`agentSignatures: false`).
 - **Stack:** Python 3 solo con la biblioteca estándar, sin dependencias (D1); tests con `unittest`.
 - **Paquete `gvoice/`**: código y contrato en inglés (D9); esquemas JSON en `gvoice/schemas/` (uno por documento),

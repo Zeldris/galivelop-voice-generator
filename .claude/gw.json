@@ -1,8 +1,9 @@
 {
   "$schema": "gw/schema/gw.schema.json",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "schemaVersion": 1,
   "language": "es",
+  "workflowRepository": "https://github.com/Zeldris/Galivelop-workflow",
   "agentSignatures": false,
   "visibleLanguages": [
     "es",
@@ -32,8 +33,30 @@
   "protectedPaths": [],
   "staleRefs": [],
   "relatedTests": {
-    "fast": [],
+    "fast": [
+      {
+        "command": "python3 .claude/gw/scripts/tests-for.py --run {files}",
+        "paths": "^(gvoice|tests)/"
+      }
+    ],
     "slow": []
+  },
+  "testMap": {
+    "rules": [
+      {
+        "paths": "^gvoice/(?P<mod>\\w+)\\.py$",
+        "tests": [
+          "tests/test_{mod}.py"
+        ]
+      },
+      {
+        "paths": "^tests/test_\\w+\\.py$",
+        "tests": [
+          "{path}"
+        ]
+      }
+    ],
+    "command": "python3 -m unittest {files}"
   },
   "plan": [],
   "taskId": "[A-Z]{2,5}-\\d+",

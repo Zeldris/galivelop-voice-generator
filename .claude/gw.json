@@ -33,8 +33,27 @@
   "protectedPaths": [],
   "staleRefs": [],
   "relatedTests": {
-    "fast": [],
+    "fast": [
+      "python3 .claude/gw/scripts/tests-for.py --run {files}"
+    ],
     "slow": []
+  },
+  "testMap": {
+    "rules": [
+      {
+        "paths": "^gvoice/(?P<mod>\\w+)\\.py$",
+        "tests": [
+          "tests/test_{mod}.py"
+        ]
+      },
+      {
+        "paths": "^tests/test_\\w+\\.py$",
+        "tests": [
+          "{path}"
+        ]
+      }
+    ],
+    "command": "python3 -m unittest {files}"
   },
   "plan": [],
   "taskId": "[A-Z]{2,5}-\\d+",

@@ -10,8 +10,8 @@
 |---|---|
 | **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; `main` fusionado en la rama tras el PR #8, `d7037bf`, el 2026-11-18) |
 | **Fase / tarea** | **Actualización del flujo a Galivelop-workflow v0.8.1** (`gw-update`, pedida por la persona el 2026-11-19; parche sin migraciones). Decisiones de la persona: aplicar `--update`; en `AGENTS.md`, la viñeta nueva de `Findings:`/`Retries:` (reglas del proyecto conservadas); `workflowRepository` fijado en `.claude/gw.json` y `workflowClone` sin tocar (la ruta depende de la máquina). F2.6 sigue esperando a la Deck; 0.3.0 con B1/B2 en `docs/plan.md` |
-| **Último punto estable** | Actualización a v0.8.1 aplicada (2026-11-19): 82 archivos del flujo, marcadores de plantilla a v0.8.1, sin `.gw-new`; `doctor.py` sin FAIL (avisos: `AGENTS.md` 154 líneas, `relatedTests` vacío con `branchCheck: related`); `apply.py --check` en 0 |
-| **Siguiente paso** | Tres fases antes de `main` (`AGENTS.md`): revisión de lo fusionado a mano (`review-scope.py --workflow`), `gw-opt-tokens` + `retro` presentadas a la persona, `reviewed.sh` y PR. Decidir con la persona el aviso de `relatedTests` (rellenarlo o `branchCheck: full`) |
+| **Último punto estable** | Actualización a v0.8.1 aplicada y revisada (2026-11-19): 82 archivos del flujo, marcadores a v0.8.1, sin `.gw-new`; fase 1 sin hallazgos (diff trivial). `testMap` (`gvoice/<mod>.py` → `tests/test_<mod>.py`) y `relatedTests.fast` con `tests-for.py --run`, aprobado por la persona: las subidas a la rama ya no pasan el check entero; `doctor.py` solo avisa de `AGENTS.md` en 154 líneas |
+| **Siguiente paso** | Fase 2 (`gw-opt-tokens` + `retro`, presentadas a la persona), luego `reviewed.sh` y PR a `main` |
 | **Check** | verde (`bash -n` de cada gancho, `unittest` y `ci-local.py --validate`) |
 
 ## Para la próxima publicación

@@ -34,7 +34,10 @@
   "staleRefs": [],
   "relatedTests": {
     "fast": [
-      "python3 .claude/gw/scripts/tests-for.py --run {files}"
+      {
+        "command": "python3 .claude/gw/scripts/tests-for.py --run {files}",
+        "paths": "^(gvoice|tests)/"
+      }
     ],
     "slow": []
   },

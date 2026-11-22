@@ -76,3 +76,5 @@ las crea una vez; desde entonces son del proyecto.
   techo 131k), 0 compactaciones, 3,46M de entrada; sin subagentes (diffs de plantilla de menos de 200 líneas leídos en
   la principal). Suelo ≈ entorno de la nube (~87k de prompt, herramientas y MCP); la persona desconecta Claude Docs
   (retro 2026-11-18, P4): medir el arranque del próximo `/clear`.
+- 2026-11-22, `gw-update` 0.8.1 → 0.8.2 (`6ea0a867`): 22 llamadas, contexto medio 102k (suelo 88k, techo 115k),
+  0 compactaciones, 2,25M de entrada; sin subagentes. Claude Docs seguía conectado (retro 2026-11-22, P1).

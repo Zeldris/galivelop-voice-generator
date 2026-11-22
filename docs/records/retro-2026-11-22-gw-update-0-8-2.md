@@ -1,6 +1,6 @@
 # Retro: actualización del flujo a v0.8.2 (2026-11-22)
 
-**Estado:** pendiente de la persona.
+**Estado:** decidida por la persona el 2026-11-22: P1-P4 aprobadas; P4 aplicada con la opción b (`instructionLines.warn` a 160 en `.claude/gw.json`); P2 y P3 van al flujo (sección For Galivelop-workflow); P1 la aplica la persona (desconectar Claude Docs).
 
 Sesión `6ea0a867` desde el último `/clear` (`measure.py`, que ya mide la sesión abierta): 22 llamadas, contexto medio
 102k (suelo 88k, techo 115k), 2,25M de entrada en la principal, sin subagentes ni compactaciones. El resultado más

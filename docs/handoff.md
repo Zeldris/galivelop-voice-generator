@@ -11,7 +11,7 @@
 | **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; `main` fusionado en la rama tras el PR #8, `d7037bf`, el 2026-11-18) |
 | **Fase / tarea** | **Actualización del flujo a Galivelop-workflow v0.8.2** (`gw-update`, pedida por la persona el 2026-11-22; parche sin migraciones). Decisiones de la persona: aplicar `--update`; en `AGENTS.md`, la frase nueva sobre no hacer commit solo para el ledger (reglas del proyecto conservadas); en `REVIEW.md`, la regla nueva de test con muestra real; `findingsWords` sin fijar (vale el nuevo defecto). F2.6 sigue esperando a la Deck; 0.3.0 con B1/B2 en `docs/plan.md` |
 | **Último punto estable** | Actualización a v0.8.2 aplicada (2026-11-22): 82 archivos del flujo, marcadores a v0.8.2, sin `.gw-new`, `apply.py --check` en 0; `doctor.py` sin `FAIL` (avisa de `AGENTS.md` en 155 líneas y de que `workflowClone` no existe en la nube: el clon está en `/home/user/zeldris/galivelop-workflow`) |
-| **Siguiente paso** | Las tres fases antes de `main` (revisión del diff contra `origin/main`, `gw-opt-tokens` + `retro` presentadas a la persona, `reviewed.sh`) y PR a `main` solo con su confirmación; F2.6 sigue esperando a la Deck |
+| **Siguiente paso** | Fase 1 hecha (diff trivial, sin hallazgos). Fase 2: `gw-opt-tokens` y retro escritas (`docs/records/retro-2026-11-22-gw-update-0-8-2.md`, P1-P4 presentadas, **Estado** pendiente de la persona). Falta: su decisión en la retro, aplicar lo aprobado, `reviewed.sh`, push y PR a `main` con su confirmación; F2.6 sigue esperando a la Deck |
 | **Check** | verde (`bash -n` de cada gancho, `unittest` 751 tests y `ci-local.py --validate`) |
 
 ## Para la próxima publicación

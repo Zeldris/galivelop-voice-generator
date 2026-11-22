@@ -8,10 +8,10 @@
 
 | Campo | Valor |
 |---|---|
-| **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; `main` fusionado en la rama tras el PR #8, `d7037bf`, el 2026-11-18) |
+| **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; `main` fusionado en la rama tras el PR #11, `aeca90d`, el 2026-11-22) |
 | **Fase / tarea** | **Actualización del flujo a Galivelop-workflow v0.8.2** (`gw-update`, pedida por la persona el 2026-11-22; parche sin migraciones). Decisiones de la persona: aplicar `--update`; en `AGENTS.md`, la frase nueva sobre no hacer commit solo para el ledger (reglas del proyecto conservadas); en `REVIEW.md`, la regla nueva de test con muestra real; `findingsWords` sin fijar (vale el nuevo defecto). F2.6 sigue esperando a la Deck; 0.3.0 con B1/B2 en `docs/plan.md` |
 | **Último punto estable** | Actualización a v0.8.2 aplicada (2026-11-22): 82 archivos del flujo, marcadores a v0.8.2, sin `.gw-new`, `apply.py --check` en 0; `doctor.py` sin `FAIL` (avisa de `AGENTS.md` en 155 líneas y de que `workflowClone` no existe en la nube: el clon está en `/home/user/zeldris/galivelop-workflow`) |
-| **Siguiente paso** | PR #11 a `main` abierto el 2026-11-22. El CI de GitHub no arrancó (sin cuota de Actions): **comprobado solo en local** con `ci-local.py --record`, con confirmación de la persona, que también confirmó fusionar. Siguiente: fusionar el PR #11 y dejar la bitácora al día; F2.6 sigue esperando a la Deck |
+| **Siguiente paso** | v0.8.2 en `main`: PR #11 fusionado el 2026-11-22 (`aeca90d`) con confirmación de la persona; CI de GitHub sin arrancar (sin cuota de Actions), **comprobado solo en local** (`docs/records/ci-local.md`). Siguiente: lo que pida la persona; F2.6 sigue esperando a la Deck |
 | **Check** | verde (`bash -n` de cada gancho, `unittest` 751 tests y `ci-local.py --validate`) |
 
 ## Para la próxima publicación

@@ -1,7 +1,8 @@
 {
   "$schema": "gw/schema/gw.schema.json",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "schemaVersion": 1,
+  "instructionLines": {"warn": 160},
   "language": "es",
   "workflowRepository": "https://github.com/Zeldris/Galivelop-workflow",
   "agentSignatures": false,

@@ -1,4 +1,4 @@
-<!-- galivelop-workflow v0.8.1 -->
+<!-- galivelop-workflow v0.8.2 -->
 # Bitácora (traspaso)
 
 > Léela entera al empezar cualquier sesión. Lo que no está subido no existe: commit + push en cada punto estable,
@@ -9,10 +9,10 @@
 | Campo | Valor |
 |---|---|
 | **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; `main` fusionado en la rama tras el PR #8, `d7037bf`, el 2026-11-18) |
-| **Fase / tarea** | **Actualización del flujo a Galivelop-workflow v0.8.1** (`gw-update`, pedida por la persona el 2026-11-19; parche sin migraciones). Decisiones de la persona: aplicar `--update`; en `AGENTS.md`, la viñeta nueva de `Findings:`/`Retries:` (reglas del proyecto conservadas); `workflowRepository` fijado en `.claude/gw.json` y `workflowClone` sin tocar (la ruta depende de la máquina). F2.6 sigue esperando a la Deck; 0.3.0 con B1/B2 en `docs/plan.md` |
-| **Último punto estable** | Actualización a v0.8.1 aplicada y revisada (2026-11-19): 82 archivos del flujo, marcadores a v0.8.1, sin `.gw-new`; fase 1 sin hallazgos (diff trivial). `testMap` (`gvoice/<mod>.py` → `tests/test_<mod>.py`) y `relatedTests.fast` con `tests-for.py --run` solo sobre `gvoice/` y `tests/` (sin shellcheck en la nube, los `.sh` del flujo hacían fallar el `pre-push`), aprobado por la persona: las subidas a la rama ya no pasan el check entero; `doctor.py` solo avisa de `AGENTS.md` en 154 líneas |
-| **Siguiente paso** | Retro `docs/records/retro-2026-11-19-gw-update-0-8-1.md` decidida (P1-P4 aprobadas; P4 aplicada; P2 la hace la persona). Queda `reviewed.sh`, push y PR a `main`; fusionar solo con CI en verde y confirmación de la persona |
-| **Check** | verde (`bash -n` de cada gancho, `unittest` y `ci-local.py --validate`) |
+| **Fase / tarea** | **Actualización del flujo a Galivelop-workflow v0.8.2** (`gw-update`, pedida por la persona el 2026-11-22; parche sin migraciones). Decisiones de la persona: aplicar `--update`; en `AGENTS.md`, la frase nueva sobre no hacer commit solo para el ledger (reglas del proyecto conservadas); en `REVIEW.md`, la regla nueva de test con muestra real; `findingsWords` sin fijar (vale el nuevo defecto). F2.6 sigue esperando a la Deck; 0.3.0 con B1/B2 en `docs/plan.md` |
+| **Último punto estable** | Actualización a v0.8.2 aplicada (2026-11-22): 82 archivos del flujo, marcadores a v0.8.2, sin `.gw-new`, `apply.py --check` en 0; `doctor.py` sin `FAIL` (avisa de `AGENTS.md` en 155 líneas y de que `workflowClone` no existe en la nube: el clon está en `/home/user/zeldris/galivelop-workflow`) |
+| **Siguiente paso** | PR #11 a `main` abierto el 2026-11-22. El CI de GitHub no arrancó (sin cuota de Actions): **comprobado solo en local** con `ci-local.py --record`, con confirmación de la persona, que también confirmó fusionar. Siguiente: fusionar el PR #11 y dejar la bitácora al día; F2.6 sigue esperando a la Deck |
+| **Check** | verde (`bash -n` de cada gancho, `unittest` 751 tests y `ci-local.py --validate`) |
 
 ## Para la próxima publicación
 

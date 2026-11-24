@@ -237,7 +237,8 @@ def enqueue(project: str, key: str, specs: list) -> list:
         return [_entry(data, kind, project, key, now, seed=spec["seed"], text=spec["text"],
                        **({"instruction": spec["instruction"],
                            **({"locale": spec["locale"]} if spec.get("locale") else {})} if kind == "voice"
-                          else {"voice": spec.get("voice", order["voice"]), "reference": spec["reference"]}))
+                          else {"voice": spec.get("voice", order["voice"]), "reference": spec["reference"],
+                                **{k: spec[k] for k in ("said", "split") if spec.get(k)}}))
                 for spec in specs]
 
     return _txn(change, recover=True)

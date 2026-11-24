@@ -41,6 +41,7 @@ and `queue.finish` are best effort. No `finish` error ever stops `run()`."""
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import fcntl
 import os
 import shutil
@@ -50,7 +51,7 @@ import threading
 import time
 
 from . import engine as engine_mod
-from . import i18n, limits, log, machine_lock, orders, paths, queue, speech_locale
+from . import i18n, limits, log, machine_lock, orders, paths, queue, speech_locale, wavjoin
 from .errors import GvoiceError
 
 MEMORY_POLL_S = 0.5  # how often a job waiting for memory looks again
@@ -165,6 +166,24 @@ def _model_of(machine: dict, use: str):
     return model
 
 
+def _split_line(pieces: list, job_for, eng, output, should_cancel):
+    """Speak each of `pieces` (one engine call each), join them with `wavjoin.GAP_MS` of silence into `output` and
+    return the last result with the summed times and the length of the joined audio. The parts are removed."""
+    parts, results = [], []
+    try:
+        for index, piece in enumerate(pieces):
+            part = output.parent / (".part%d.wav" % index)
+            parts.append(part)
+            results.append(eng.line(job_for(piece, part), should_cancel))
+        audio_ms = wavjoin.join(parts, output)
+    finally:
+        for part in parts:
+            _unlink(part)
+    return dataclasses.replace(
+        results[-1], duration_ms=sum(r.duration_ms for r in results), audio_ms=audio_ms,
+        load_ms=sum(r.load_ms for r in results if r.load_ms is not None) or None)
+
+
 def _take(entry: dict, eng, machine: dict, state: dict, should_cancel):
     """A ``voice`` or ``line`` take, up to and including `add_attempt`; returns the attempt id."""
     entry_id, project, key = entry["id"], entry["project"], entry["key"]
@@ -197,16 +216,27 @@ def _take(entry: dict, eng, machine: dict, state: dict, should_cancel):
         spk, rvq = orders.print_paths(project, voice, reference, model)
         if not (spk.is_file() and rvq.is_file()):
             raise GvoiceError("worker.print_missing", model=model, voice=voice, take=reference["id"])
-        job = engine_mod.LineJob(
-            spk=str(spk), rvq=str(rvq), text=entry["text"], seed=entry["seed"], output=str(tmp), model=model,
-            machine=machine, timeout_s=limits.timeout_s(machine), reference_text=reference.get("text"),
-            language=speech_locale.language(reference.get("locale")))  # the take's, not the voice's now
+        said = entry.get("said") or entry["text"]  # what the engine is given; the attempt keeps the text
+        pieces = wavjoin.split_sentences(said) if entry.get("split") else [said]
+
+        def job_for(piece, output):
+            return engine_mod.LineJob(
+                spk=str(spk), rvq=str(rvq), text=piece, seed=entry["seed"], output=str(output), model=model,
+                machine=machine, timeout_s=limits.timeout_s(machine), reference_text=reference.get("text"),
+                language=speech_locale.language(reference.get("locale")))  # the take's, not the voice's now
+
         if reference.get("locale"):
             spec["locale"] = reference["locale"]
         spec["voice"] = voice
         spec["reference"] = entry["reference"]
+        if entry.get("said"):
+            spec["said"] = entry["said"]
         state["spec"] = {"model": model, "text": entry["text"]}
-        state["result"] = eng.line(job, should_cancel)
+        if len(pieces) < 2:
+            state["result"] = eng.line(job_for(pieces[0] if pieces else said, tmp), should_cancel)
+        else:
+            spec["split"] = True
+            state["result"] = _split_line(pieces, job_for, eng, tmp, should_cancel)
     if should_cancel():
         raise engine_mod.Cancelled()
     final = tmp.parent / "audio.wav"

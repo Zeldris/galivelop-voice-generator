@@ -559,6 +559,19 @@ class ClipTests(Base):
         order.update(changes)
         return order
 
+    def test_say_and_split_are_for_lines_and_a_resubmit_clears_them(self):
+        self.fixed_voice()
+        record = orders.submit(self.p, self.line(say="Doctor", split=True))
+        self.assertEqual((record["say"], record["split"]), ("Doctor", True))
+        spec, = orders.attempt_specs(self.p, "narrator/intro-01", seed=1)
+        self.assertEqual((spec["said"], spec["split"]), ("Doctor", True))
+        record = orders.submit(self.p, self.line())
+        self.assertNotIn("say", record)
+        self.assertNotIn("split", record)
+        with self.assertRaises(GvoiceError) as ctx:
+            orders.submit(self.p, self.voice(key="other", say="x"))
+        self.assertEqual(ctx.exception.code, "order.invalid")
+
     def test_clip_makes_take_one(self):
         rec = orders.submit(self.p, self.clip_order(self.wav(), locale="es-ES"))
         self.assertNotIn("designSheet", rec)

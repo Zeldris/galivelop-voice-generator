@@ -11,6 +11,8 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Añadido
 
+- Las frases (`line`) aceptan `say` (lo que se le da al motor cuando debe diferir de `text`; el intento guarda ambos) y
+  `split` (decir frase a frase y unir las partes con 450 ms de silencio).
 - `gvoice voice clone <proyecto> <clave> <clip.wav> --text <archivo> [--locale] [--source]`: una voz desde un clip de
   una voz humana (un WAV de 3 a 30 s dentro del proyecto); el clip es su toma 1 y no se genera nada. Un clip fuera del
   proyecto se rechaza (`order.clip_outside`).

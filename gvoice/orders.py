@@ -204,6 +204,9 @@ def submit(project: str, order: dict) -> dict:
     if kind == "line":
         _fixed_voice(project, order["voice"])
         fields = {"voice": order["voice"], "text": order["text"]}
+        for name in ("say", "split"):
+            if name in order:
+                fields[name] = order[name]
     elif "clip" in order:
         clip = copy.deepcopy(order["clip"])
         clip_data = _read_clip(project, clip)
@@ -236,6 +239,10 @@ def submit(project: str, order: dict) -> dict:
                 raise GvoiceError("order.clip_kind_changed", order=key, type="clip" if was_clip else "design")
             for gone in (("designSheet", "testText") if "clip" in fields else ("clip",)):
                 record.pop(gone, None)
+        if kind == "line":  # a resubmit replaces say and split: a missing one is cleared
+            for gone in ("say", "split"):
+                if gone not in fields:
+                    record.pop(gone, None)
         record.update(fields)
         if kind == "voice" and "clip" in fields:
             data, sha, ms = clip_data
@@ -292,6 +299,10 @@ def attempt_specs(project: str, key: str, count: int = 1, *, seed=None) -> list:
     else:
         extra = {"voice": order["voice"], "reference": _fixed_voice(project, order["voice"])[1],
                  "text": order["text"]}
+        if order.get("say"):
+            extra["said"] = order["say"]
+        if order.get("split"):
+            extra["split"] = True
     return [dict(extra, seed=_rng.randrange(SEED_LIMIT) if base is None else base + i) for i in range(count)]
 
 
@@ -397,6 +408,10 @@ def add_attempt(project: str, key: str, spec: dict, entry_id=None) -> int:
         else:
             record["voice"] = line_voice
             record["reference"] = spec["reference"]
+            if spec.get("said"):  # what the engine was given, when it is not the text
+                record["said"] = spec["said"]
+            if spec.get("split"):
+                record["split"] = True
         if spec.get("locale"):  # the language the take was spoken in (a line: its reference take's)
             record["locale"] = spec["locale"]
         if entry_id is not None:

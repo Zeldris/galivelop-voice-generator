@@ -7,7 +7,7 @@ import time
 import unittest
 from unittest import mock
 
-from gvoice import engine, limits, log, machine_lock, orders, paths, queue, worker
+from gvoice import engine, limits, log, machine_lock, orders, paths, queue, wavjoin, worker
 from gvoice.errors import GvoiceError
 from tests.test_machine_lock import HOLDER, ROOT
 from tests.test_queue import QueueBase
@@ -404,6 +404,40 @@ class LineTests(WorkerBase):
         self.assertEqual(queue.get(entry["id"])["state"], "done")
         attempt = orders.get(self.p, "narrator/intro-01")["attempts"][0]
         self.assertEqual((attempt["voice"], attempt["reference"]), ("narrator", 1))
+
+    def _spy_line(self, **changes):
+        self.voice_done()
+        orders.submit(self.p, self.line(**changes))
+        queue.enqueue(self.p, "narrator/intro-01", orders.attempt_specs(self.p, "narrator/intro-01", seed=3))
+        seen = []
+
+        class Spy(engine.FakeEngine):
+            def line(self, job, should_cancel):
+                seen.append(job.text)
+                return super().line(job, should_cancel)
+
+        self.run_worker(engine=Spy())
+        return seen, orders.get(self.p, "narrator/intro-01")["attempts"][0]
+
+    def test_say_is_what_the_engine_gets_and_text_stays_on_the_attempt(self):
+        seen, attempt = self._spy_line(text="Dr. Gómez", say="Doctor Gómez")
+        self.assertEqual(seen, ["Doctor Gómez"])
+        self.assertEqual((attempt["text"], attempt["said"]), ("Dr. Gómez", "Doctor Gómez"))
+        self.assertNotIn("split", attempt)
+
+    def test_split_line_speaks_each_sentence_and_joins_them(self):
+        seen, attempt = self._spy_line(text="Uno. Dos tres. Cuatro", split=True)
+        self.assertEqual(seen, ["Uno.", "Dos tres.", "Cuatro"])
+        self.assertTrue(attempt["split"])
+        ms = sum(engine._audio_ms(t) for t in seen) + 2 * wavjoin.GAP_MS
+        self.assertEqual(attempt["audioMs"], ms)
+        folder = orders.attempt_dir(self.p, "narrator/intro-01", attempt)
+        self.assertEqual(sorted(p.name for p in folder.iterdir()), ["audio.wav"])
+
+    def test_split_of_one_sentence_is_a_plain_line(self):
+        seen, attempt = self._spy_line(text="Una sola frase", split=True)
+        self.assertEqual(seen, ["Una sola frase"])
+        self.assertNotIn("split", attempt)
 
     def test_line_fails_with_its_reason_without_the_print(self):
         orders.submit(self.p, self.voice())

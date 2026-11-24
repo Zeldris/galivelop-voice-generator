@@ -75,6 +75,16 @@
       "minLength": 1,
       "maxLength": 4000,
       "description": "line: text to speak."
+    },
+    "say": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000,
+      "description": "line: what the engine is given when it must differ from text (respelling, pronunciation); text if missing."
+    },
+    "split": {
+      "type": "boolean",
+      "description": "line: speak sentence by sentence and join the pieces with a silence."
     }
   },
   "allOf": [
@@ -116,7 +126,9 @@
       "then": {
         "properties": {
           "voice": false,
-          "text": false
+          "text": false,
+          "say": false,
+          "split": false
         },
         "if": {
           "required": [

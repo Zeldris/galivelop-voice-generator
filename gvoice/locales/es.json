@@ -67,6 +67,7 @@
   "error.engine.reference_unreadable": "no se puede leer el audio de referencia {path}",
   "error.engine.binary_missing": "el programa del motor {path} no está instalado (mira el script de instalación)",
   "error.engine.model_missing": "el modelo «{id}» no está instalado ({state}): {path} (ejecuta: gvoice models fetch)",
+  "error.engine.split_format": "las partes de una frase partida no se pueden unir ({path}: {reason})",
   "error.engine.no_reference_text": "la voz no tiene texto de referencia para hacer la frase",
   "error.engine.bad_audio": "el motor no escribió un audio utilizable ({reason})",
   "error.engine.print_not_written": "el motor no escribió el archivo {path} de la huella de voz",

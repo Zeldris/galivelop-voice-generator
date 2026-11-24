@@ -67,6 +67,7 @@
   "error.engine.reference_unreadable": "cannot read the reference audio {path}",
   "error.engine.binary_missing": "the engine program {path} is not installed (see the install script)",
   "error.engine.model_missing": "the model \"{id}\" is not installed ({state}): {path} (run: gvoice models fetch)",
+  "error.engine.split_format": "the pieces of a split line cannot be joined ({path}: {reason})",
   "error.engine.no_reference_text": "the voice has no reference text to make the line with",
   "error.engine.bad_audio": "the engine wrote no usable audio ({reason})",
   "error.engine.print_not_written": "the engine wrote no {path} voice print file",

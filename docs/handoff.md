@@ -1,4 +1,4 @@
-<!-- galivelop-workflow v0.8.2 -->
+<!-- galivelop-workflow v0.9.0 -->
 # Bitácora (traspaso)
 
 > Léela entera al empezar cualquier sesión. Lo que no está subido no existe: commit + push en cada punto estable,
@@ -8,10 +8,10 @@
 
 | Campo | Valor |
 |---|---|
-| **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; `main` fusionado en la rama tras el PR #8, `d7037bf`, el 2026-11-18) |
-| **Fase / tarea** | **Actualización del flujo a Galivelop-workflow v0.8.2** (`gw-update`, pedida por la persona el 2026-11-22; parche sin migraciones). Decisiones de la persona: aplicar `--update`; en `AGENTS.md`, la frase nueva sobre no hacer commit solo para el ledger (reglas del proyecto conservadas); en `REVIEW.md`, la regla nueva de test con muestra real; `findingsWords` sin fijar (vale el nuevo defecto). F2.6 sigue esperando a la Deck; 0.3.0 con B1/B2 en `docs/plan.md` |
-| **Último punto estable** | Actualización a v0.8.2 aplicada (2026-11-22): 82 archivos del flujo, marcadores a v0.8.2, sin `.gw-new`, `apply.py --check` en 0; `doctor.py` sin `FAIL` (avisa de `AGENTS.md` en 155 líneas y de que `workflowClone` no existe en la nube: el clon está en `/home/user/zeldris/galivelop-workflow`) |
-| **Siguiente paso** | PR #11 a `main` abierto el 2026-11-22. El CI de GitHub no arrancó (sin cuota de Actions): **comprobado solo en local** con `ci-local.py --record`, con confirmación de la persona, que también confirmó fusionar. Siguiente: fusionar el PR #11 y dejar la bitácora al día; F2.6 sigue esperando a la Deck |
+| **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; `main` fusionado en la rama tras el PR #11, `aeca90d`, el 2026-11-22) |
+| **Fase / tarea** | **Actualización del flujo a Galivelop-workflow v0.9.0** (`gw-update`, pedida por la persona el 2026-11-24; `schemaVersion` 1 → 2: `language`/`visibleLanguages` pasan al bloque `languages`). Decisiones de la persona (2026-11-24, «todo ok»): aplicar `--update`; en `AGENTS.md`, `merge-main.py` en el paso 5, `timeout` de 90 min para push y check largo, y el «Siguiente» tras un cierre (reglas del proyecto conservadas); en `CLAUDE.md`, la línea de idioma nueva; en `REVIEW.md`, `languages.ui`; marcadores a v0.9.0. F2.6 sigue esperando a la Deck; 0.3.0 con B1/B2 en `docs/plan.md` |
+| **Último punto estable** | Actualización a v0.9.0 aplicada (2026-11-24): 83 archivos del flujo actualizados y 11 nuevos (`front.py`, `merge-main.py`, `profile.py`, `generated-check.py`, `other-repo-read.py`, skill `gw-seo`), `.claude/gw.json` migrado, gancho `PreToolUse` en `.claude/settings.json`, sin `.gw-new`, `apply.py --check` en 0; `doctor.py` sin `FAIL` (avisa de que `workflowClone` no existe en la nube: el clon está en `/home/user/zeldris/galivelop-workflow`) |
+| **Siguiente paso** | PR #12 (v0.9.0 → `main`): CI de GitHub sin arrancar (sin cuota de Actions); la persona da por bueno el check local el 2026-11-24 (**comprobado solo en local**, `docs/records/ci-local.md`) y pide fusionar. Tras fusionar: `/clear`; F2.6 sigue esperando a la Deck |
 | **Check** | verde (`bash -n` de cada gancho, `unittest` 751 tests y `ci-local.py --validate`) |
 
 ## Para la próxima publicación

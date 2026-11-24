@@ -494,6 +494,5 @@
   "ui.order.cloned": "clonada",
   "ui.order.clonedFrom": "clonada · {source}",
   "ui.order.clonedText": "Texto del clip",
-  "ui.order.cloneNote": "Voz clonada de un clip: sus tomas son clips y no se generan más.",
   "ui.take.noSeed": "sin semilla"
 }

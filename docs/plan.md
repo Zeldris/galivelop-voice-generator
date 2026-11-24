@@ -70,7 +70,8 @@ release al día; solo la última menor recibe parches. El historial anterior se 
 | 0.7.0 | F4: API HTTP y arranque bajo demanda | — |
 | 0.8.0 | F5.6, F5.9 y F5.8 | — |
 | 0.9.0 | F6 piloto WMF | — |
-| 0.10.0 | F7 fauna | — |
+| 0.10.0 | Interfaz: activar y conectar en el front todo lo que gane el motor de 0.3.0 a 0.9.0 (crear voces clonadas subiendo el clip, filtro y veredictos, efectos y presets, paquete de voces, conversión y recetas, API HTTP); pedido de la persona (2026-11-24) | — |
+| 0.11.0 | F7 fauna | — |
 | 1.0.0 | Contrato (configuración, pedido, API) estable tras el piloto WMF | Por decidir |
 
 ## 0.3.0 en detalle: clonado desde clip y filtro de tomas (2026-11-24)

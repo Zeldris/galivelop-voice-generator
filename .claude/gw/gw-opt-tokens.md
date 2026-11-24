@@ -78,3 +78,6 @@ las crea una vez; desde entonces son del proyecto.
   (retro 2026-11-18, P4): medir el arranque del próximo `/clear`.
 - 2026-11-22, `gw-update` 0.8.1 → 0.8.2 (`6ea0a867`): 22 llamadas, contexto medio 102k (suelo 88k, techo 115k),
   0 compactaciones, 2,25M de entrada; sin subagentes. Claude Docs seguía conectado (retro 2026-11-22, P1).
+- 2026-11-24, `gw-update` 0.8.2 → 0.9.0 (`6ea0a867`): 29 llamadas, contexto medio 107k (suelo 91k, techo 129k),
+  0 compactaciones, 3,09M de entrada; revisor `sonnet` 0,17M. Arranque fijo ~81,5k (77 %); Claude Docs seguía
+  conectado (retro 2026-11-24, P1, la aplica la persona).

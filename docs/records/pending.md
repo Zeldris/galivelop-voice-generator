@@ -68,4 +68,3 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
   - `loading()` vive en `gvoice/ui/js/components/shortcuts.js` y `projects-view.js`/`project-view.js` lo importan solo por eso: su sitio es `dom.js`.
   - Dos líneas en blanco seguidas tras los imports en `project-view.js` y `projects-view.js`.
 - Flujo (upstream, 2026-11-18): la fusión de settings.json de apply.py v0.8.0 añade PreToolUse ^(Read|Bash)$ → whole-read.py sin quitar el Read antiguo, y el gancho corre dos veces en cada Read; aquí se quitó a mano. Llevarlo a Galivelop-workflow.
-- Flujo (leve, revisión v0.9.0, 2026-11-24): `workflowClone` en `.claude/gw.json` apunta a `../Galivelop-workflow`, que no existe en la nube (el clon está en `/home/user/zeldris/galivelop-workflow`); `doctor.py` avisa y `review-scope.py` sin `--workflow` lee todo el diff. Decidir si se fija una ruta o se deja para el equipo local.

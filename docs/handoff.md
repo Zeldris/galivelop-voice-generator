@@ -1,4 +1,4 @@
-<!-- galivelop-workflow v0.7.0 -->
+<!-- galivelop-workflow v0.8.2 -->
 # Bitácora (traspaso)
 
 > Léela entera al empezar cualquier sesión. Lo que no está subido no existe: commit + push en cada punto estable,
@@ -8,10 +8,10 @@
 
 | Campo | Valor |
 |---|---|
-| **Rama** | `claude/via1-clonado` (desde `main` en `17b4255`, 2026-11-17; `claude/lectora-es` fusionada por el PR #7) |
+| **Rama** | `claude/via1-clonado` (desde `main` en `17b4255`, 2026-11-17; `origin/main` fusionado en `aeca90d`, flujo v0.8.2 y F5.9, el 2026-11-24) |
 | **Fase / tarea** | **0.3.0** (`docs/plan.md` § Versiones): D19 vía 1, capa 1 (clonado desde referencia peninsular) + B1 (barrido de leves de `gvoice/effects.py`). Investigación de partida: `docs/investigacion/2026-11-17-motores-via1-deck.md` |
 | **Último punto estable** | 0.2.0 publicada: PR #7 fusionado con CI de GitHub en verde (vuelve a funcionar), `v0.1.0` y `v0.2.0` con su release. Retro: `docs/records/retro-2026-11-17-v0-2-0.md`. Conectores MCP Claude Docs y easel desactivados por la persona. **Limpieza 2026-11-21:** borrados de `~/.local/share/galivelop-voice` Chatterbox (modelos, venv, compilación), StyleTTS2-Celtia y aHoTTS; quedan Qwen, whisper, `verif`, Matcha-Celtia y Nós (35→12 GiB) |
-| **Siguiente paso** | **Castellano `final/es` con el tono de `inicio`** (2026-11-18). Medido: la huella de `qwen-codec` no discrimina (0,989-0,996); el tono sí (F0 mediana, rango p10-p90, pico y subida de `filtro.py`). `equipo` era la que más se apartaba. Hechas 30 tomas y elegidas por tono + filtro (`verif.py --asr whisper-cpp-es` nuevo, referencia = texto del motor): 01-s3, 02-s17, 03-s21, 04-s3 en `escucha/es-tono/equipo/para-oir/`, **pendientes de oído de la persona**. Si aprueba: a `final/es/equipo` y seguir con los graves y planos (image-generator/07, workflow/06, toveriai/03, tarkor/08). Una carga pesada a la vez, `nice` |
+| **Siguiente paso** | **Generación de audio parada** (la persona, 2026-11-24: las pruebas salen bien, se sigue con la hoja de ruta). Las 4 tomas de `escucha/es-tono/equipo/para-oir/` y los graves y planos de `final/es` quedan sin cerrar (en `pending.md`). Siguiente: cerrar 0.3.0 (alcance por decidir con la persona: B2, leves de B1, llevar a `gvoice` el clonado por huella y el filtro) y pasar a 0.4.0 |
 | **Check** | verde salvo dos tests que ya fallan en `main` en la Deck (`test_install…no_compiler_and_no_flatpak` 127 y `test_peaks…is_fast` por tiempo) |
 
 ## Para la próxima publicación
@@ -27,7 +27,7 @@ Nada todavía: el diseño ya está en `main` (PR #2).
 5. 2026-11-14 — Arreglos de la revisión de bloque F2.1-F2.3 (6 hallazgos): el resultado lleva el dispositivo como el perfil (`cpu`; `device_arg` solo en el argv); un proceso muerto por señal no lanza el respaldo y, con vigilante, este exige `minFreeMemoryMb` otra vez (si no, error del primer intento y nota); el motor hereda el descriptor del candado (`machine_lock.held_fds`, `pass_fds`) para que un motor huérfano siga ocupando la máquina, y `worker.run` no limpia `.qwentts-*` si el candado está ocupado; `EngineError`/`EngineTimeout`/`Cancelled` llevan `stats` (`min_free_mb`, `peak_rss_mb`) y el trabajador las pasa al registro (`log.record_for(stats=)`); pico de RSS exacto con `os.wait4` (`ru_maxrss`; `proc.returncode` fijado a mano con `waitstatus_to_exitcode`; `VmHWM` solo si `wait4` no da nada); tests del vigilante sin reloj (`WATCH_S` parcheable, lecturas de memoria inyectadas). Check verde.
 ## Pendiente
 
-Lo pendiente está en [`docs/records/pending.md`](records/pending.md) (30 entradas); se añade y se quita allí.
+Lo pendiente está en [`docs/records/pending.md`](records/pending.md); se añade y se quita allí.
 
 ## Comprobar el estado
 

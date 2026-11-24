@@ -11,12 +11,11 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
   - `tests/test_peaks.py`: el umbral de 1,0 s de `is_fast` es frágil (falla en la Deck).
   - `tests/test_examples.py` no tiene un ejemplo roto de locale (p. ej. `es-MX`).
 
-- Hallazgo leve de la revisión de bloque F5.5, sin arreglar en este PR: el cableado de teclado y mando (`mergeSources`, filtros de `onKey` y de `startGamepad`) y `loading()` están copiados entre `order-view.js` y `compare-view.js`; sacar un `bindShortcuts(perform)` a `shortcuts.js`. La ayuda de atajos de la vista A/B lista también U/C/D/G, que allí no hacen nada (filtrarla por vista).
 
 - Mando por Gamepad API sin probar en la Deck (de la persona, F5.8); F5.4 solo lo cubre con tests.
   La revisión de bloque F5.4 añadió deduplicar teclado y mando (Steam Input convierte el mando en teclas): comprobar en la Deck que cada pulsación actúa una sola vez.
 
-- Hallazgos leves de la revisión de bloque F5.4, sin arreglar en este PR: `peaks.py` toma la duración y las cubetas de la cabecera de un WAV truncado, no de los frames leídos; `loading()` está copiado en `projects-view.js`, `project-view.js` y `order-view.js`.
+- Hallazgos leves de la revisión de bloque F5.4, sin arreglar en este PR: `peaks.py` toma la duración y las cubetas de la cabecera de un WAV truncado, no de los frames leídos.
 
 - Hallazgos leves de la revisión de bloque F5.3, sin arreglar en este PR: `sheetWarnings` de `sheet-warnings.js` solo lo usan los tests y el respaldo del icono está en dos sitios (`warningItems` y `warningIcon`); el botón que abre el diálogo de la ficha se pierde si la lista se rehace con el diálogo abierto, y el foco cae a `body`.
 - Hallazgo leve de la revisión de bloque F5.2, sin arreglar en este PR: los tests del JS pasaron de `test_ui.py` (estáticos) a `test_ui_js.py`, que se salta entero sin `node` ≥ 18; en la Deck (Flatpak) el check local no los corre: comprobar si hay `node` allí o dejar los estáticos como respaldo.
@@ -52,14 +51,6 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
 - Para proponer al flujo: R1-R5 de `docs/records/retro-2026-11-14-gw-update.md`, R3 de `docs/records/retro-2026-11-11-f1.md`, R2-R3 de `docs/records/retro-2026-10-25-f0.md`, R2-R4 de `docs/records/retro-2026-10-25-diseno-voces.md`, y las aplazadas de la retro anterior: rama por defecto del flujo en 0.1.0; camino para CI
   agotado (`ci-local.sh`); 2 tests de `scout-updates` fallan fuera del flujo; `gw-init` debe decir que no se llame a
   `register_repo_root`.
-- Leves de la revisión de bloque de F5.7 (2026-11-16), sin arreglar:
-  - `queue-model.js` `errorOf`: un `error.code` sin clave `error.<code>` ni `errorText` deja la fallida sin motivo; recurrir a un texto con el código.
-  - `queue-bar.js`: un `state` o `kind` desconocido enseña la clave en crudo (`ui.queue.state.x`); usar el valor crudo si `i18n` no la tiene.
-  - `queue-bar.js`: `aria-label` en un `div` sin rol (la entrada); darle `role: 'group'`.
-  - `store.queueCounts()` repite `queue-model.counts()` y nadie lo usa.
-  - `tests/test_ui_browser.py`: `setUpClass` crea `cls.tmp` y nadie lo usa.
-  - `tests/test_ui_browser.py`: sin Chrome se salta también en el CI (REVIEW.md pide fallar allí); y `find_chrome()` corre al importar (en el Flatpak, un `flatpak-spawn --host flatpak info` en cada `discover`): moverlo a `setUpClass`.
-  - `tests/browser.py` `goto()`: espera `readyState === 'complete'`, que ya es cierto en el documento anterior; esperar `Page.loadEventFired` o el cambio de `location.href`.
 - **Motor en la Deck (2026-11-17):** (1) los binarios de `engine/bin-*` son de la compilación del banco, con RPATH a `engine/build-vk` y `engine/build-cpu2`; puestos dos enlaces simbólicos con esos nombres para que arranquen; el arreglo es volver a pasar `instalar.sh` (F2.6). (2) Dentro del Flatpak de VS Code `qwen-tts` solo ve `CPU` (Vulkan0 «not found»): `gvoice work` lanzado desde VS Code cae siempre a CPU; con `flatpak-spawn --host` sí ve Vulkan (~12 s por toma frente a ~60 s). Decidir si el motor se lanza por `flatpak-spawn --host` cuando corre en Flatpak. (3) Sin `GVOICE_ENGINE=qwentts` el generador usa el motor falso sin avisar.
 - Leves de la revisión de 0.2.0 (2026-11-17), sin arreglar:
   - `tests/test_changelog.py` `has_entries` repite el recorrido de `releases.section`; reutilizarla.
@@ -74,7 +65,7 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
   - Pronunciación desde las `notas` del guion (`pron.py`): tildes en nombres inventados; los nombres en inglés se dejan tal cual (la persona); `toVeriAI` → «to Veri AI».
   - Leer los guiones del Portal (`Portal-Galivelop/src/data/guiones/<pagina>.json`) y dejar lo aprobado en `final/es/<pagina>/<nn>-<seccion>.wav`.
 - 2026-11-17 — Gallego (`gl`) para `final/gl/`: ni Qwen3-TTS ni Chatterbox lo declaran y `locale` no lo admite; buscar motor o probar si se defienden. La persona elige (2026-11-17) **voz gallega nativa, de mujer adulta** (no la huella de `lectora-es`); investigación en `docs/investigacion/2026-11-17-voz-gallega.md`; los guiones `gl` los escribe el Portal. **Tono:** el mismo que `lectora-es` (referente de oído: la Galadriel del doblaje de España: serena, cálida, solemne sin teatro) con el acento y la entonación gallegos; la persona, gallega, será exigente con la pronunciación. **Base elegida (2026-11-17): Celtia** (la persona aprueba la muestra de la demo, `escucha/gl-demo/`). Licencia: la persona decide **no consultar a la USC**: uso sin ánimo de lucro, nacido de la investigación del generador, con atribución «Voz gallega: Celtia, Proxecto Nós (USC), Apache-2.0» en el README del generador y en el Portal (créditos o pie).
-- 2026-11-18 — Portal `final/es`: la voz de la cabecera de `inicio` y la de `equipo` (y quizá otras páginas) no suenan a la misma persona. El modelo a seguir es la **primera voz generada, la de `inicio`**; revisar y rehacer las que se aparten **al cerrar el gallego** (lo pide la persona).
+- 2026-11-18 — Portal `final/es`: la voz de la cabecera de `inicio` y la de `equipo` (y quizá otras páginas) no suenan a la misma persona. El modelo a seguir es la **primera voz generada, la de `inicio`**; revisar y rehacer las que se aparten **al cerrar el gallego** (lo pide la persona). **En pausa (2026-11-24):** 4 tomas de `equipo` sin oír en `escucha/es-tono/equipo/para-oir/` (01-s3, 02-s17, 03-s21, 04-s3); quedan image-generator/07, workflow/06, toveriai/03, tarkor/08.
 - 2026-11-18 — **Para la retro de 0.3.0 (lo pide la persona): convertir en regla determinista** que ningún audio generado se presente a la persona sin pasar un filtro automático. Casuística: dos rondas de audio gallego (`escucha/gl-portal/`, `escucha/gl-ficha/`) se le pasaron para escuchar con ruidos y cortes. El único control era whisper genérico con WER, que castellaniza el gallego y no ve ruidos ni cortes; los resultados se le daban en tabla sin aprobar ni suspender nada. Propuesta: un script de filtro (ASR calibrado con voz humana de la lengua, detector de cortes y DNSMOS por tramos) con umbral, que se corre al final de cada lote y deja en una carpeta aparte solo lo que pasa; y una regla en `AGENTS.md` o una comprobación que impida decir «escúchalo» sin su informe. Vale para gl, es y en.
 - **Interpretación en castellano sin medir (2026-11-18):** los 10 audios de `final/es` rehechos con otra semilla
   no difieren en sonido (NISQA) de los aprobados: se rechazaron por la interpretación. El filtro no mide entonación;
@@ -97,3 +88,8 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
   (4) `effects.py:176-179`: tercera variante de escritura atómica (temporal adivinable, sin creación exclusiva, sin `fsync`); unificar con `fsutil.write_json`/`engine._write_atomic`.
   (5) `effects.py:179`: si la salida es un enlace simbólico, `os.replace` lo cambia por un archivo y se pierden sus permisos.
   (6) `tests/test_effects.py:278`: `import os` local que sobra.
+- Leves de la revisión fase 1 F5.9 (2026-11-17), sin arreglar:
+  - `gvoice/ui/js/queue-model.js:41` `errorOf` cae a la cadena fija en inglés `error: <code>` en vez de usar la clave `ui.error.code`.
+  - `loading()` vive en `gvoice/ui/js/components/shortcuts.js` y `projects-view.js`/`project-view.js` lo importan solo por eso: su sitio es `dom.js`.
+  - Dos líneas en blanco seguidas tras los imports en `project-view.js` y `projects-view.js`.
+- Flujo (upstream, 2026-11-18): la fusión de settings.json de apply.py v0.8.0 añade PreToolUse ^(Read|Bash)$ → whole-read.py sin quitar el Read antiguo, y el gancho corre dos veces en cada Read; aquí se quitó a mano. Llevarlo a Galivelop-workflow.

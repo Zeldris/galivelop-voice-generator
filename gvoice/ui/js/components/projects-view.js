@@ -9,8 +9,8 @@ import { to } from '../router.js';
 import { confirmAction } from './confirm.js';
 import { toastError, toastOk } from './toast.js';
 import { latest, lifetime, STALE } from '../async-guard.js';
+import { loading } from './shortcuts.js';
 
-const loading = () => h('p.empty', {}, h('span.spin', { aria: { hidden: true } }), ' ', t('ui.loading'));
 
 export function projectsView() {
   const life = lifetime();

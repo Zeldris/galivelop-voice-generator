@@ -170,6 +170,7 @@ class Page:
         self.ws, self.session, self.problems = ws, session, problems
         self.next_id = 0
         self.events = []
+        self.loaded = set()   # loaderIds whose load lifecycle event was seen
 
     def call(self, method, params=None, timeout=30):
         self.next_id += 1
@@ -191,7 +192,9 @@ class Page:
 
     def _event(self, msg):
         method, p = msg.get("method"), msg.get("params", {})
-        if method == "Runtime.exceptionThrown":
+        if method == "Page.lifecycleEvent" and p.get("name") == "load":
+            self.loaded.add(p.get("loaderId"))   # per document: a late event of the one being left is another loader
+        elif method == "Runtime.exceptionThrown":
             d = p["exceptionDetails"]
             self.problems.append("exception: %s" % ((d.get("exception") or {}).get("description") or d.get("text")))
         elif method == "Runtime.consoleAPICalled" and p.get("type") == "error":
@@ -229,7 +232,16 @@ class Page:
         self.ws.close()
 
     def goto(self, url):
-        self.call("Page.navigate", {"url": url})
+        res = self.call("Page.navigate", {"url": url})
+        if res.get("errorText"):
+            raise CdpError("navigation to %s failed: %s" % (url, res["errorText"]))
+        loader = res.get("loaderId")
+        if loader:   # a new document: wait for the load of THAT loader, not for any load event (e.g. of about:blank)
+            end = time.time() + 15
+            while loader not in self.loaded and time.time() < end:
+                self.pump(0.05)
+            if loader not in self.loaded:
+                raise CdpError("timeout waiting for the load event of %s" % url)
         self.wait("document.readyState === 'complete'")
 
     def wait(self, expression, timeout=15, step=0.1):
@@ -332,6 +344,7 @@ class Browser:
         page.target = target
         for method in ("Page.enable", "Runtime.enable", "Log.enable"):
             page.call(method)
+        page.call("Page.setLifecycleEventsEnabled", {"enabled": True})
         page.call("Emulation.setFocusEmulationEnabled", {"enabled": True})
         page.call("Emulation.setDeviceMetricsOverride", {"width": width, "height": height, "deviceScaleFactor": 1, "mobile": False})
         self.pages.append(page)

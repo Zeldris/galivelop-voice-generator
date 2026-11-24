@@ -63,7 +63,7 @@ release al día; solo la última menor recibe parches. El historial anterior se 
 |---|---|---|
 | 0.1.0 | F0, F1, F2.1-F2.5 y F5.1-F5.7 (todo lo de `main` en `2236444`) | Etiqueta `v0.1.0` y release (2026-11-17) |
 | 0.2.0 | Rama `claude/lectora-es`: `locale` en los pedidos, pasos `denoise`/`dereverb`/`trimSilence`/`loudnorm`, preset `lectura`, `gvoice fx apply`; herramientas de versión | PR #7 fusionado (`17b4255`); etiqueta `v0.2.0` y release (2026-11-17) |
-| 0.3.0 | D19 vía 1, capa 1: clonado desde referencia peninsular (clips CC0), Qwen3 Base frente a Chatterbox (motor enchufable si gana, D18); voz `lectora-es` del Portal entregada; **B1**: barrido de los 5 leves de `gvoice/effects.py` de `docs/records/pending.md` (`samefile`, temporal + `os.replace`, nombre del preset, `_SUPPORTED` doble, `_n`; retro 2026-11-17, P5) | — |
+| 0.3.0 | D19 vía 1, capa 1: clonado desde referencia peninsular (clips CC0), Qwen3 Base frente a Chatterbox (motor enchufable si gana, D18); voz `lectora-es` del Portal entregada; **B1**: barrido de los 5 leves de `gvoice/effects.py` de `docs/records/pending.md` (`samefile`, temporal + `os.replace`, nombre del preset, `_SUPPORTED` doble, `_n`; retro 2026-11-17, P5); **B2**: barrido de los leves de `gvoice/ui/js/api.js` de `docs/records/pending.md` (`request` sin `blob`, `describeError` sin `ui.error.code` y su par `errorOf` de `queue-model.js`, `withHeaders`/`put` muertos; retro 2026-11-17 F5.9, P3) | — |
 | 0.4.0 | D19 vía 2 determinista: semilla y muestreo por toma, pruebas sin oído, ficha de escucha; cierre de F2.6 | — |
 | 0.5.0 | Cierre de F3: paquete de voces (D13), guía de integración, efectos de la capa 3 (formantes, tono, coro) | — |
 | 0.6.0 | D19 vía 1, capa 2: conversión de voz (OpenVoice V2) y voces como receta (muestra, destino, cadena) | — |
@@ -156,7 +156,7 @@ sorpresas).
 
 ## F5 en detalle (hoja de ruta, 2026-11-15)
 
-Borrador para la persona; solo F5.1-F5.4 están implementados. **Avance: F5.1-F5.4 hechos (4 de 9 pasos, ~44 %).** Hay base de interfaz, contrato y simulador; no hay API (F4) ni efectos
+Borrador para la persona; F5.1-F5.5, F5.7 y F5.9 están implementados. **Avance: 7 de 10 pasos hechos (~70 %); quedan F5.0 y F5.8 (la persona) y F5.6 (espera a F3).** Hay base de interfaz, contrato y simulador; no hay API (F4) ni efectos
 (F3). La base que usará ya existe: proyectos, pedidos, tomas, elegir y deshacer, cola, avisos de la ficha y textos
 es/en (F1), además del motor real (F2).
 
@@ -217,7 +217,7 @@ de `changeSize.block`; el comportamiento del JS se prueba con `node` en `tests/t
 | F5.6 | Efectos con escucha previa: editor de la cadena de vocabulario cerrado (D12), escucha generada por `ffmpeg` en el servidor | Escucha previa igual al grafo exportado |
 | F5.7 | **Hecho (2026-11-16).** Barra de cola (`queue-bar.js` de `gimg@46248251` y `queue-model.js`): píldora «N en marcha · M en cola», cajón con filtros, cancelar por entrada y vaciar (todo o del proyecto) con confirmación; fallidas con ✗ y el motivo. Sin mover ni pausar (el contrato no los tiene). Arnés de Chrome (`tests/browser.py`, `tests/test_ui_browser.py`) con `?mock=1`: es/en, tema, cuatro pantallas y el cajón a 360, 768 y 1280 px | `test_ui_browser` en verde |
 | F5.8 | Recorrido en la Deck, con mando, y en escritorio (la persona) | La persona lo confirma |
-| F5.9 | Barrido de leves de la interfaz (retro `docs/records/retro-2026-11-16-pr-f5.md`, P4): `loading()` y `bindShortcuts(perform)` comunes en `shortcuts.js` para las cuatro vistas, ayuda de atajos filtrada por vista; leves de `queue-bar.js`/`queue-model.js` (estado o tipo desconocido, fallida sin motivo, `role: 'group'`, `store.queueCounts()` muerto); arnés: sin Chrome falla en el CI, `find_chrome()` en `setUpClass`, sin `cls.tmp`, `goto()` que espera la página nueva. Encargo a `implementador` sonnet; quita esas entradas de `docs/records/pending.md` | Tests de JS y arnés de Chrome en verde; el CI falla si falta Chrome |
+| F5.9 | **Hecho (2026-11-17).** Barrido de leves de la interfaz (retro `docs/records/retro-2026-11-16-pr-f5.md`, P4): `loading()` y `bindShortcuts(perform)` comunes en `shortcuts.js` para las cuatro vistas, ayuda de atajos filtrada por vista; leves de `queue-bar.js`/`queue-model.js` (estado o tipo desconocido, fallida sin motivo, `role: 'group'`, `store.queueCounts()` muerto); arnés: sin Chrome falla en el CI, `find_chrome()` en `setUpClass`, sin `cls.tmp`, `goto()` que espera la página nueva. Encargo a `implementador` sonnet; quita esas entradas de `docs/records/pending.md` | Tests de JS y arnés de Chrome en verde; el CI falla si falta Chrome |
 
 ### Lo que hay que pedir a la persona
 

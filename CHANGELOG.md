@@ -14,6 +14,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `gvoice fx apply` refuses the same file as input and output, writes to a temporary file and replaces the output
   only when ffmpeg succeeds; a local chain file wins over a preset of the same name, and preset names are
   restricted to `[a-z0-9_-]`.
+- UI: the shortcut help lists only the shortcuts of the open view (the A/B view no longer lists U/C/D/G).
+- Queue bar: an unknown state or kind is shown as is, a failed entry without text shows its code, and each entry
+  is an accessible group.
 
 ## [0.2.0] - 2026-11-17
 

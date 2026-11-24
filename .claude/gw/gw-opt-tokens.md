@@ -1,4 +1,4 @@
-<!-- galivelop-workflow v0.7.0 -->
+<!-- galivelop-workflow v0.8.2 -->
 # gw-opt-tokens — notas del proyecto
 
 Las lee la skill `gw-opt-tokens` antes de proponer nada, y se actualizan cuando la persona aprueba un cambio. El flujo
@@ -43,6 +43,10 @@ las crea una vez; desde entonces son del proyecto.
   con `measure.py` en la primera (retro 2026-11-16, P2).
 - Los arreglos de una revisión de bloque van a `implementador` sonnet, no a la principal: en F5.7 arrastraron ~150k
   (retro 2026-11-16, P3).
+- `gw-reviewer` lanza `/code-review`, que abre otro subagente `general-purpose` opus: en la fase 1 de F5.9 (diff de
+  ~220 líneas) 0,93M de los 1,03M de la revisión. Propuesto revisar sin anidar en diffs pequeños y rechazado por la
+  persona (retro 2026-11-17 F5.9, P1): medir cada revisión pequeña; si se repite y pesa, se vuelve a proponer con
+  las cifras.
 
 ## Ajustes en vigor
 
@@ -68,3 +72,9 @@ las crea una vez; desde entonces son del proyecto.
   entorno de la nube.
 - 2026-11-17, versiones y cierre de 0.2.0 (`d2b52ac4`): 48 llamadas, contexto medio 98k (suelo 50k, techo 130k), 0
   compactaciones, 4,7M en la principal; 4 subagentes, 1,4M (arranque medio 18k).
+- 2026-11-18, `gw-update` 0.7.0 → 0.8.0 (`6ea0a867`, desde `4dfa016`): 29 llamadas, contexto medio 119k (suelo 107k,
+  techo 131k), 0 compactaciones, 3,46M de entrada; sin subagentes (diffs de plantilla de menos de 200 líneas leídos en
+  la principal). Suelo ≈ entorno de la nube (~87k de prompt, herramientas y MCP); la persona desconecta Claude Docs
+  (retro 2026-11-18, P4): medir el arranque del próximo `/clear`.
+- 2026-11-22, `gw-update` 0.8.1 → 0.8.2 (`6ea0a867`): 22 llamadas, contexto medio 102k (suelo 88k, techo 115k),
+  0 compactaciones, 2,25M de entrada; sin subagentes. Claude Docs seguía conectado (retro 2026-11-22, P1).

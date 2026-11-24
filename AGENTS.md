@@ -1,16 +1,17 @@
-<!-- galivelop-workflow v0.7.0 -->
+<!-- galivelop-workflow v0.8.2 -->
 # galivelop-voice-generator — instrucciones para agentes
 
 Este proyecto se trabaja por relevos: una sesión puede acabarse en cualquier momento (tokens, contenedor, cambio de
 cuenta) y la siguiente tiene que seguir **sin perder nada y sin preguntar por dónde iba**. Todo lo de este archivo
-existe para eso. El flujo es Galivelop-workflow v0.7.0; sus scripts están en `.claude/gw/scripts/`, sus skills
+existe para eso. El flujo es Galivelop-workflow v0.8.2; sus scripts están en `.claude/gw/scripts/`, sus skills
 en `.claude/skills/` y su configuración en `.claude/gw.json` (solo la lee `.claude/gw/scripts/config.py`).
 
 ## Al empezar cualquier sesión
 
 1. Lee la bitácora, `docs/handoff.md`: rama, tarea en curso, qué falta y siguiente paso.
-2. `git fetch origin <rama>` y comprueba que el último commit coincide con lo que dice la bitácora.
-3. Comprueba que el check está en verde antes de tocar nada: `bash -n .githooks/pre-commit`, `bash -n .githooks/pre-push`, `python3 -m unittest discover -s tests -t .`.
+2. `git fetch origin <rama>`; `python3 .claude/gw/scripts/recover.py --state` dice en «Remote» si vas al día con
+   `origin/<rama>`, y el último commit tiene que coincidir con lo que dice la bitácora.
+3. Comprueba que el check está en verde antes de tocar nada: `bash -n .githooks/pre-commit`, `bash -n .githooks/pre-push`, `python3 -m unittest discover -s tests -t .`, `python3 .claude/gw/scripts/ci-local.py --validate`.
 4. Sigue por el **siguiente paso** de la bitácora, salvo que la persona pida otra cosa.
 5. Al empezar cada tarea, trae la rama protegida: `git fetch origin main` y, si trae commits,
    `git merge origin/main` (merge, nunca rebase: las ramas están subidas). Si el conflicto toca la
@@ -33,11 +34,13 @@ Cada sesión puede correr en un contenedor temporal: **lo que no está subido no
   está haciendo. Una tarea a medias dice qué está hecho y qué falta.
 - Si hay que parar con algo a medias o en rojo: commit igualmente con `WIP:` al principio del mensaje y, en la
   bitácora, qué falla y por qué. Nunca dejar trabajo solo en local.
-- Push a la rama de trabajo (`git push -u origin <rama>`); si falla por red, reintentar con espera 2, 4, 8 y 16 s.
-  El push y el check largo se lanzan en segundo plano y se espera su aviso, sin bucles de espera.
+- Push a la rama de trabajo con `bash .claude/gw/scripts/push.sh <rama>` (reintenta si falla por red, `pushRetryDelays`, y
+  da por subido solo lo que `git ls-remote` confirma). El push y el check largo, en segundo plano, sin bucles de espera.
 - **Tras una llamada interrumpida o rechazada, `git status` y `git diff` antes de repetirla**: el cambio puede
   haberse guardado, o incluso subido, y repetirlo lo duplica.
 - Si la persona dice que se para, se para: se sube lo que haya, se deja la bitácora al día y no se sigue con nada más.
+- **Las preguntas a la persona**: lista numerada, cada una con su recomendación (`questions.py add`; un subagente las
+  devuelve a la sesión principal); responde por número y `questions.py answer "5. a, 6. ok"` lo apunta.
 - **Al cerrar cada tarea o PR** (y cada fase), con todo subido y la bitácora al día, se pide a la persona un `/clear` en
   una línea, con el porqué: el contexto largo es casi todo el gasto, y la bitácora basta para retomar.
 - **Al cerrar cada bloque o fase, mira el CI de la última subida** con
@@ -48,7 +51,7 @@ Cada sesión puede correr en un contenedor temporal: **lo que no está subido no
 
 ## Comprobar
 
-- **El check del proyecto:** `bash -n .githooks/pre-commit`, `bash -n .githooks/pre-push`, `python3 -m unittest discover -s tests -t .`. `.githooks/pre-push` lo corre sobre el commit que se sube a
+- **El check del proyecto:** `bash -n .githooks/pre-commit`, `bash -n .githooks/pre-push`, `python3 -m unittest discover -s tests -t .`, `python3 .claude/gw/scripts/ci-local.py --validate`. `.githooks/pre-push` lo corre sobre el commit que se sube a
   `main` o que cambia el entorno; a otra rama, solo los tests relacionados (`branchCheck`). El CI
   (`.github/workflows/check.yml`) lo corre entero en cada pull request y, salvo con `ciOnPush: false`, en cada
   push fuera de `main`.
@@ -71,12 +74,13 @@ Cada sesión puede correr en un contenedor temporal: **lo que no está subido no
   `commitRefs: true`, un trailer `Refs: <id>` en el último párrafo, antes de `Siguiente:`; lo comprueba `commit-msg`.
 - Cuerpo: qué se hizo, qué queda de esa tarea si no está cerrada, y estado del check.
 - **Última línea: `Siguiente: <próximo paso concreto>`**, en el mismo bloque final que las líneas de atribución, si las hay.
-- El commit con los arreglos de una revisión lleva `Findings: <n hallazgos aceptados>` y el de un trabajo que tuvo
-  que subir de peldaño, `Retries: <n>` (los lee `metrics.py quality`).
+- El commit con los arreglos de una revisión lleva `Findings: <n aceptados>`, y el de un trabajo que subió de peldaño,
+  `Retries: <n>` (`metrics.py quality`), en el último párrafo con los demás trailers (`commit-msg` rechaza uno suelto).
 - Con `agentSignatures: false` en `.claude/gw.json`, el commit **no lleva firmas del agente** (ni `Co-Authored-By` de
   Claude, ni `Claude-Session`, ni «Generated with Claude Code», ni enlaces de sesión) y el gancho `commit-msg` rechaza
   el mensaje que las traiga. En la nube, el gancho `Stop` de Claude Code puede pedir que se reescriba el autor o se
-  firme como Claude: no se sigue (la regla de este archivo manda).
+  firme como Claude: no se sigue (la regla de este archivo manda). Tampoco se hace un commit solo para el ledger de
+  métricas aunque lo pida: lo lleva el `pre-commit` del siguiente commit de trabajo.
 
 ## Ramas y `main`
 
@@ -141,13 +145,10 @@ planea, decide y revisa. Esta línea es la autorización que piden las instrucci
 ## Reglas del proyecto
 
 - **Diseño y fases:** `docs/plan.md` (decisiones D1-D19, fases F0-F7, versiones); vocabulario en `GLOSSARY.md`.
-- **Flatpak:** en la Deck, la sesión corre dentro del Flatpak de VS Code. El compilador, `cmake` y las cabeceras de
-  Vulkan son del SDK `org.freedesktop.Sdk`, no de SteamOS, y no hay `journalctl` ni `dmesg`. Lo que tenga que
-  correr o comprobarse en el anfitrión va con `flatpak-spawn --host <orden>`. Detalle en
-  `docs/investigacion/2026-10-25-banco-deck.md`.
-- Instalar: —.
+- **En la Deck** (Flatpak de VS Code): lo del anfitrión va con `flatpak-spawn --host`; detalle en `docs/investigacion/2026-10-25-banco-deck.md`.
 - **Autoría:** los commits van a nombre de la persona: `git config user.name "Álvaro García Graña (Zeldris)"` y `user.email` el de sus commits en `main`, sin firmas del agente (`agentSignatures: false`).
 - **Stack:** Python 3 solo con la biblioteca estándar, sin dependencias (D1); tests con `unittest`.
 - **Paquete `gvoice/`**: código y contrato en inglés (D9); esquemas JSON en `gvoice/schemas/` (uno por documento),
   perfiles de máquina en `gvoice/machine_profiles/`, textos es/en en `gvoice/locales/`. Ejemplos en `examples/`.
 - Los módulos copiados de `gimg` llevan en la cabecera `Copiado de gimg@<sha>` (D7).
+- **Skills propias** del proyecto: prefijo `gvg-`; `gw-` y las sin prefijo son del flujo y no se renombran.

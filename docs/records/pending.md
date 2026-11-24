@@ -83,4 +83,4 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
   el único registro (`portal`, 17-nov) es una prueba de humo y no vale como ronda.
 - Flujo (upstream, 2026-11-18): la fusión de settings.json de apply.py v0.8.0 añade PreToolUse ^(Read|Bash)$ → whole-read.py sin quitar el Read antiguo, y el gancho corre dos veces en cada Read; aquí se quitó a mano. Llevarlo a Galivelop-workflow.
 - 2026-11-24 — Tests JS de B2 (`tests/test_ui_js.py`) sin ejecutar: no hay `node` en la Deck ni en el anfitrión; correrlos donde haya node 18+ (CI de GitHub cuando tenga cuota).
-- Flujo (upstream, 2026-11-24): `merge-branch.sh` da los tests relacionados por fallidos con «ran 39, discovered 131: a -k pattern missed or repeated a test» aunque el check completo pasa (fusión de B1/B2, `d72e7d9`). Llevarlo a Galivelop-workflow.
+- Flujo (upstream, 2026-11-24): `tests-for.py` da por fallido un archivo cuya clase se salta en `setUpClass` (corre 0 tests y lo toma por un patrón `-k` sin tests), y bloquea el `pre-push` de la rama. Aquí se esquivó saltando por test en `tests/test_ui_js.py`; llevarlo a Galivelop-workflow.

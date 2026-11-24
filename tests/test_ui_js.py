@@ -1,5 +1,6 @@
 """Behaviour of the UI's JavaScript, run with ``node`` (no npm packages): each test writes a small ``.mjs`` in a
 temporary directory, imports the real modules of ``gvoice/ui/`` by ``file://`` URL, and compares the JSON it prints."""
+import functools
 import json
 import re
 import shutil
@@ -18,6 +19,7 @@ NODE = shutil.which("node")
 MIN_NODE = 18  # ES modules, structuredClone, global fetch/URL
 
 
+@functools.lru_cache(maxsize=None)
 def node_major():
     out = subprocess.run([NODE, "--version"], capture_output=True, text=True, timeout=20).stdout
     m = re.match(r"v(\d+)", out.strip())
@@ -39,12 +41,13 @@ SHEETS = [
 
 
 class UiJs(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
+    def setUp(self):
+        # Per test, not in setUpClass: a class-level skip runs 0 tests and the related-tests runner of the workflow
+        # (tests-for.py) takes the missing count for a -k pattern that matched nothing.
         if NODE is None:
-            raise unittest.SkipTest("node no está: los tests del JS se saltan")
+            self.skipTest("node no está: los tests del JS se saltan")
         if node_major() < MIN_NODE:
-            raise unittest.SkipTest(f"node < {MIN_NODE}: los tests del JS se saltan")
+            self.skipTest(f"node < {MIN_NODE}: los tests del JS se saltan")
 
     def run_js(self, body, timeout=30):
         """Run ``body`` as an ES module with ``mod(path)`` importing from gvoice/ui; return the JSON it ``out(...)``s."""

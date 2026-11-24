@@ -112,7 +112,7 @@ propio y contrato JSON; `gvoice` no importa nada suyo.
 | B1 | 5 leves de `effects.py` + 6 de su revisión de bloque (`fsutil.atomic_output`, enlaces resueltos) | Hecho (`5964f6b`) |
 | B2 | Leves de `api.js`/`queue-model.js` (blob, `ui.error.code`, código muerto, `loading` a `dom.js`) | Hecho (`e4976fe`); tests JS sin correr en la Deck (no hay `node`) |
 | C1 | Esquema y `orders`: `clip` en `voice`, toma 1, `origin`, errores | Hecho (`2403b91`) |
-| C2 | `gvoice voice clone` y la interfaz con voces sin ficha | — |
+| C2 | `gvoice voice clone` y la interfaz con voces sin ficha | Hecho (`403f044`) |
 | C3 | `say` y `split` en `line` (`wavjoin.py`) | — |
 | C4 | `verif/` en el repo (copias con origen), `gvoice_check.py`, `requirements.txt` fijo, `instalar.sh --verif` | — |
 | C5 | `gvoice/verifier.py` (proceso, plazo, grupo, validación) y `tests/fake_verif.py` | — |

@@ -107,6 +107,18 @@ class Static(unittest.TestCase):
         self.assertNotIn("pedidos", router)  # D9: the URL segment is English
         self.assertLess(app.index("onOffline("), app.index("i18n.load("))  # the band hears a boot that finds the API down
 
+    def test_cloned_voices_have_no_sheet_and_no_new_takes(self):
+        # (a node test cannot mount these views): the guards for a voice from a clip are in the source
+        self.assertIn("o.cloned) return link", read("js/components/project-view.js"))
+        order_view = read("js/components/order-view.js")
+        self.assertIn("moreCard.hidden = cloned", order_view)
+        self.assertIn("if (isCloned(order)) return;", order_view)
+        for view in ("project-view", "order-view", "compare-view"):
+            self.assertNotIn(".testText", read(f"js/components/{view}.js").replace("ui.order.testText", ""))
+        mock = read("mock/api-mock.js")
+        self.assertIn("clip: {", mock)
+        self.assertEqual(mock.count("'order.clip_no_design'"), 2)  # sheet and more takes
+
 
 def luminance(hexcolor):
     h = hexcolor.lstrip("#")
@@ -270,6 +282,15 @@ class ServerTests(unittest.TestCase):
             err = json.loads(body)["error"]
             self.assertEqual(err["code"], "api.not_implemented")
             self.assertTrue(err["message"])
+
+    def test_cloned_voice_routes_never_answer_500(self):
+        # the API is still F4: sheet and new takes of a voice from a clip (they will be 409 order.clip_no_design) are 501
+        for method, path in (("GET", "/api/projects/w/orders/lector/sheet"),
+                             ("POST", "/api/projects/w/orders/lector/attempts"),
+                             ("GET", "/api/projects/w/orders/lector/attempts/1/audio")):
+            status, _, body = self.get(path, method=method, data=b"{}" if method == "POST" else None)
+            self.assertEqual(status, 501, path)
+            self.assertEqual(json.loads(body)["error"]["code"], "api.not_implemented")
 
     def test_wrong_method_and_unknown_path(self):
         status, _, body = self.get("/api/queue", method="POST", data=b"{}")

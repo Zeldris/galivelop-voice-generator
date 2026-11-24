@@ -147,7 +147,7 @@ export function takeCard({ project, key, type, models = [], actions, onPlay = ()
       chosen ? h('span.chip.chip-fill-ok', {}, h('span', { aria: { hidden: true } }, '✓ '), t('ui.take.chosen')) : null,
       take.state === 'discarded' ? h('span.chip.chip-bad', {}, '✗ ', t('ui.take.state.discarded'))
         : h('span.chip' + (take.state === 'candidate' ? '.chip-accent' : ''), {}, t(take.state === 'candidate' ? 'ui.take.state.candidate' : 'ui.take.state.new')));
-    replace(meta, [take.seed !== undefined && take.seed !== null ? t('ui.take.seed', { seed: take.seed }) : null,
+    replace(meta, [take.seed !== undefined && take.seed !== null ? t('ui.take.seed', { seed: take.seed }) : (take.origin === 'clip' ? t('ui.take.noSeed') : null),
       hasAudio(take) ? mmss(take.audioMs) : null, take.device || null].filter(Boolean).join(' · '));
     const audible = hasAudio(take);
     play.hidden = !audible; time.hidden = !audible; wave.node.hidden = !audible; noAudio.hidden = audible;

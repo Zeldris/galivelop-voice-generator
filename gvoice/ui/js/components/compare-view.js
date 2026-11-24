@@ -12,6 +12,7 @@ import { t } from '../i18n.js';
 import { api, describeError } from '../api.js';
 import { to, replaceHash } from '../router.js';
 import { busy, latest, lifetime, STALE } from '../async-guard.js';
+import { orderText } from '../order-model.js';
 import { bucketsFor, canChoose, hasAudio, takeState } from '../take-model.js';
 import { otherSide, pickPair, switchPoint } from '../compare-model.js';
 import { icon } from './icons.js';
@@ -153,7 +154,7 @@ export function compareView(route) {
       replace(s.stateSlot,
         chosen ? h('span.chip.chip-fill-ok', {}, h('span', { aria: { hidden: true } }, '✓ '), t('ui.take.chosen')) : null,
         take && take.state === 'discarded' ? h('span.chip.chip-bad', {}, '✗ ', t('ui.take.state.discarded')) : null);
-      replace(s.meta, [take && take.seed !== undefined && take.seed !== null ? t('ui.take.seed', { seed: take.seed }) : null, take ? mmss(take.audioMs) : null].filter(Boolean).join(' · '));
+      replace(s.meta, [take && take.seed !== undefined && take.seed !== null ? t('ui.take.seed', { seed: take.seed }) : (take && take.origin === 'clip' ? t('ui.take.noSeed') : null), take ? mmss(take.audioMs) : null].filter(Boolean).join(' · '));
       s.wave.node.setAttribute('aria-label', t('ui.take.seek', { id: s.id }));
       replace(s.select, takes.map((x) => h('option', { value: x.id, disabled: x.id === other.id },
         t('ui.take.title', { id: x.id }) + (takeState(order, x) === 'chosen' ? ` · ✓ ${t('ui.take.chosen')}` : ''))));
@@ -256,10 +257,9 @@ export function compareView(route) {
 
   /* ---- carga ---- */
   function paintHead() {
-    const isLine = order.type === 'line';
     replace(head,
       h('div.page-head', {}, h('h1', {}, t('ui.compare.title')), h('span.chip', {}, key), backLink()),
-      isLine ? h('blockquote.order-text', {}, order.text || '') : h('blockquote.order-text', {}, order.testText || ''));
+      h('blockquote.order-text', {}, orderText(order)));
   }
 
   async function refresh() {

@@ -169,6 +169,17 @@ def _read_clip(project: str, clip: dict) -> tuple:
     return data, hashlib.sha256(data).hexdigest(), int(round(seconds * 1000))
 
 
+def clip_relative(project: str, source) -> str:
+    """The path of a clip file of the system (relative to the cwd, or absolute) as a POSIX path relative to the root
+    of the project, links resolved. Outside the root: ``order.clip_outside``."""
+    root = Path(projects.get(project)["root"]).resolve()
+    try:
+        target = Path(source).expanduser().resolve()
+        return target.relative_to(root).as_posix()
+    except (ValueError, OSError, RuntimeError):
+        raise GvoiceError("order.clip_outside", path=str(source), root=str(root))
+
+
 def submit(project: str, order: dict) -> dict:
     """Create or update an order; returns the stored record (a copy).
 

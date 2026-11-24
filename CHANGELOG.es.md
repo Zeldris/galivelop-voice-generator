@@ -9,6 +9,14 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ## [Sin publicar]
 
+### Añadido
+
+- `gvoice voice clone <proyecto> <clave> <clip.wav> --text <archivo> [--locale] [--source]`: una voz desde un clip de
+  una voz humana (un WAV de 3 a 30 s dentro del proyecto); el clip es su toma 1 y no se genera nada. Un clip fuera del
+  proyecto se rechaza (`order.clip_outside`).
+- Interfaz: las voces clonadas llevan el distintivo «clonada» (y su origen) y muestran el texto del clip; no tienen
+  ficha ni «más tomas», y sus tomas dicen «sin semilla». El simulador (`?mock=1`) trae una voz clonada.
+
 ### Corregido
 
 - Interfaz: los errores sin texto de la API enseñan `ui.error.code` (también en la barra de cola) en vez de una

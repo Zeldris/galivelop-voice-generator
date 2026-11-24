@@ -481,5 +481,19 @@
   "cli.arg.fx_chain": "preset (e.g. lectura) or path to an effect chain JSON",
   "cli.arg.fx_src": "input WAV",
   "cli.arg.fx_dst": "output WAV",
-  "cli.out.fx_applied": "{dst} written with the chain \"{name}\""
+  "cli.out.fx_applied": "{dst} written with the chain \"{name}\"",
+  "error.order.clip_outside": "the clip \"{path}\" is outside the project ({root}): copy it into the project and try again",
+  "error.cli.text_unreadable": "could not read the clip text \"{path}\": {reason}",
+  "cli.cmd.voice": "voices cloned from a clip",
+  "cli.cmd.voice_clone": "create or update a voice from a clip of a human voice (it becomes take 1; nothing is generated)",
+  "cli.arg.clip": "WAV clip (3 to 30 s) inside the project folder",
+  "cli.arg.clip_text": "UTF-8 text file with what the clip says",
+  "cli.arg.clip_locale": "language of the clip (e.g. es-ES)",
+  "cli.arg.clip_source": "where the clip comes from (author, license...)",
+  "cli.out.voice_cloned": "Voice \"{order}\" from clip {audio}: {takes} take(s).",
+  "ui.order.cloned": "cloned",
+  "ui.order.clonedFrom": "cloned · {source}",
+  "ui.order.clonedText": "Clip text",
+  "ui.order.cloneNote": "Voice cloned from a clip: its takes are clips and no more are generated.",
+  "ui.take.noSeed": "no seed"
 }

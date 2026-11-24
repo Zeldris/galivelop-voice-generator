@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import wave
 from pathlib import Path
 from unittest import mock
 
@@ -372,6 +373,87 @@ class ModelsTests(CliBase):
     def test_unknown_id_and_unknown_engine(self):
         self.fails("models", "verify", "nope", message='unknown model "nope"')
         self.fails("models", "list", "--engine", "other", message='no catalog for the engine "other"')
+
+
+class CloneTests(CliBase):
+    def setUp(self):
+        super().setUp()
+        self.add_project()
+        self.clip = self.wav(self.root / "clips" / "voz.wav")
+        self.text = self.tmp / "voz.txt"
+        self.text.write_text("  Hola a todos.\n", encoding="utf-8")
+
+    def wav(self, path, seconds=4):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with wave.open(str(path), "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(8000)
+            w.writeframes(b"\x10\x00" * 8000 * seconds)
+        return path
+
+    def clone(self, *extra, clip=None):
+        return ("voice", "clone", PROJECT, "lector", str(clip or self.clip), "--text", str(self.text)) + extra
+
+    def test_clone_makes_take_one_from_the_clip(self):
+        out = self.ok(*self.clone())
+        self.assertIn('Voice "lector" from clip clips/voz.wav: 1 take(s).', out)
+        order = self.js("order", "show", PROJECT, "lector")
+        self.assertEqual(order["clip"], {"audio": "clips/voz.wav", "text": "Hola a todos."})
+        take, = order["attempts"]
+        self.assertEqual((take["origin"], take["seed"], take["audioMs"]), ("clip", None, 4000))
+        self.assertEqual(self.js("queue", "list"), [])  # nothing to generate: no engine needed either
+
+    def test_relative_clip_resolves_from_the_cwd(self):
+        old = os.getcwd()
+        os.chdir(self.root)
+        self.addCleanup(os.chdir, old)
+        self.ok("voice", "clone", PROJECT, "lector", "clips/../clips/voz.wav", "--text", str(self.text))
+        self.assertEqual(self.js("order", "show", PROJECT, "lector")["clip"]["audio"], "clips/voz.wav")
+
+    def test_locale_and_source_reach_the_order_and_json(self):
+        got = self.js(*self.clone("--locale", "es-ES", "--source", "grabación propia"))
+        self.assertEqual(got["entries"], [])
+        self.assertEqual(got["order"]["clip"]["source"], "grabación propia")
+        self.assertEqual(got["order"]["locale"], "es-ES")
+        self.assertEqual(self.js("order", "show", PROJECT, "lector")["locale"], "es-ES")
+
+    def test_same_clip_twice_adds_no_take(self):
+        self.ok(*self.clone())
+        self.ok(*self.clone())
+        self.assertEqual(len(self.js("order", "show", PROJECT, "lector")["attempts"]), 1)
+
+    def test_clip_outside_the_project_is_refused_with_its_code(self):
+        outside = self.wav(self.tmp / "fuera.wav")
+        with self.assertRaises(GvoiceError) as ctx:  # the typed error is what main() prints
+            cli._voice(cli._build("en").parse_args(self.clone(clip=outside)), cli._Out("en", False))
+        self.assertEqual(ctx.exception.code, "order.clip_outside")
+        self.fails(*self.clone(clip=outside), message="is outside the project")
+        self.fails(*self.clone(clip=outside), message="fuera del proyecto", lang="es")
+        self.assertEqual(self.js("order", "list", PROJECT), [])
+
+    def test_a_link_out_of_the_project_is_outside(self):
+        outside = self.wav(self.tmp / "fuera.wav")
+        link = self.root / "enlace.wav"
+        link.symlink_to(outside)
+        self.fails(*self.clone(clip=link), message="is outside the project")
+
+    def test_empty_text_is_a_schema_error(self):
+        self.text.write_text(" \n ", encoding="utf-8")
+        code, out, err = self.run_cli(*self.clone())
+        self.assertEqual((code, out), (1, ""))
+        self.assertIn("/clip/text: must be at least 1 characters long", err)
+        self.assertEqual(self.js("order", "list", PROJECT), [])
+
+    def test_unreadable_text(self):
+        self.fails("voice", "clone", PROJECT, "lector", str(self.clip), "--text", str(self.tmp / "nope.txt"),
+                   message="could not read the clip text")
+        self.text.write_bytes(b"\xff\xfe\x00bad")
+        self.fails(*self.clone(), message="could not read the clip text")
+
+    def test_text_option_is_required(self):
+        code, _, err = self.run_cli("voice", "clone", PROJECT, "lector", str(self.clip))
+        self.assertEqual(code, 2)
 
 
 if __name__ == "__main__":

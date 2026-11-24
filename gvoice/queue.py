@@ -395,7 +395,10 @@ def entry_view(entry: dict, lang: str | None = None) -> dict:
 
 def submit_order(project: str, order: dict, count: int = 1) -> tuple:
     """Store the order and queue `count` takes of it. Returns ``(record, entries)``; the record of a ``voice`` has
-    the `sheet` warnings. A line whose machine cannot make it (`production_model`) is refused before it is stored."""
+    the `sheet` warnings. A line whose machine cannot make it (`production_model`) is refused before it is stored.
+    A voice from a ``clip`` makes no take to generate (the clip is take 1): it needs no engine and queues nothing."""
+    if isinstance(order, dict) and order.get("type") == "voice" and "clip" in order:
+        return orders.submit(project, order), []
     engine.check_configured()
     if isinstance(order, dict):
         orders.check_count(count, order.get("seed"))

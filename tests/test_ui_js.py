@@ -223,6 +223,22 @@ out({
         self.assertEqual((got["count"]["takes"], got["count"]["chosen"]), (4, False))
         self.assertEqual((got["none"]["takes"], got["none"]["text"]), (0, ""))
 
+    def test_cloned_voice_summary_and_text(self):
+        got = self.run_js("""
+const { orderSummary, orderText, isCloned } = await mod('js/order-model.js');
+const clone = { key: 'lector', type: 'voice', clip: { audio: 'a.wav', text: 'Hola.', source: 'propia' }, attempts: [{ id: 1, seed: null, origin: 'clip' }], chosen: null };
+const bare = { key: 'v', type: 'voice', clip: { audio: 'a.wav', text: 'Adiós.' }, attempts: [] };
+const design = { key: 'orc', type: 'voice', testText: 'Blood.', designSheet: {} };
+out({ clone: orderSummary(clone), bare: orderSummary(bare), design: orderSummary(design),
+  flags: [isCloned(clone), isCloned(design), isCloned({ type: 'line', clip: {} }), isCloned(null)],
+  texts: [orderText(clone), orderText(design), orderText({ type: 'line', text: 'x' }), orderText(null)] });
+""")
+        self.assertEqual((got["clone"]["text"], got["clone"]["cloned"], got["clone"]["source"]), ("Hola.", True, "propia"))
+        self.assertEqual((got["bare"]["text"], got["bare"]["cloned"], got["bare"]["source"]), ("Adiós.", True, ""))
+        self.assertEqual((got["design"]["text"], got["design"]["cloned"], got["design"]["source"]), ("Blood.", False, ""))
+        self.assertEqual(got["flags"], [True, False, False, False])
+        self.assertEqual(got["texts"], ["Hola.", "Blood.", "x", ""])
+
     def build(self, fields):
         """Run the real buildOrder on ``fields`` (a dict of form values) and return {body, errors}."""
         return self.run_js(f"const {{ buildOrder }} = await mod('js/order-model.js'); out(buildOrder({json.dumps(fields)}));")

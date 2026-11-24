@@ -32,6 +32,7 @@ Deja `qwen-tts` y `qwen-codec` en `<datos>/engine/bin-cpu/` y `bin-vulkan/`.
 ```sh
 python3 -m gvoice project add <carpeta>              # carpeta con galivelop-voices.json
 python3 -m gvoice order submit <proyecto> examples/order-voice.json   # muestra los avisos de la ficha
+python3 -m gvoice voice clone <proyecto> lector clips/voz.wav --text clips/voz.txt   # voz desde un clip (toma 1; `--locale`, `--source`)
 python3 -m gvoice work                               # procesa la cola hasta vaciarla
 python3 -m gvoice order show <proyecto> narrator     # tomas, huellas y frases desfasadas
 python3 -m gvoice choose <proyecto> narrator 1       # fija la voz y encola sus huellas

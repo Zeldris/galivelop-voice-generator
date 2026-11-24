@@ -32,6 +32,7 @@ It leaves `qwen-tts` and `qwen-codec` in `<data>/engine/bin-cpu/` and `bin-vulka
 ```sh
 python3 -m gvoice project add <folder>               # folder with galivelop-voices.json
 python3 -m gvoice order submit <project> examples/order-voice.json   # shows the design sheet warnings
+python3 -m gvoice voice clone <project> reader clips/voice.wav --text clips/voice.txt   # voice from a clip (take 1; `--locale`, `--source`)
 python3 -m gvoice work                               # process the queue until it is empty
 python3 -m gvoice order show <project> narrator      # takes, voice prints and stale lines
 python3 -m gvoice choose <project> narrator 1        # fixes the voice and queues its prints

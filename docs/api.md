@@ -10,6 +10,9 @@ implementa; hasta entonces `gvoice ui` responde 501 (`api.not_implemented`) a to
 - Solo se atiende la cabecera `Host` local (403 `api.bad_host`); una ruta con otro método responde 405.
 - `gvoice ui --host` solo acepta direcciones locales (`127.0.0.1`, `localhost`, `::1`); otra se rechaza sin enlazar
   (`cli.ui_host_not_local`). Con `::1` el servidor escucha en IPv6 y la URL es `http://[::1]:<puerto>/`.
+- Una voz clonada (con `clip` en vez de ficha) no tiene ficha ni se le piden tomas: `GET …/sheet` y
+  `POST …/attempts` responden 409 `order.clip_no_design`. Su lista y su detalle llevan `clip` en vez de
+  `designSheet`/`testText`, y sus tomas `origin: "clip"` y `seed: null`.
 - Un segmento vacío en la ruta (`/api/projects//orders`) es 404 `api.not_found`; una sola barra final se tolera.
 - El cuerpo de una petición se lee según `Content-Length` y se descarta mientras F4 no lo use: por encima de 1 MiB, 413
   `api.body_too_large`; un `Content-Length` no numérico o negativo, 400 `api.bad_param`.

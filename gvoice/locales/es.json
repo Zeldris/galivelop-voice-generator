@@ -481,5 +481,19 @@
   "cli.arg.fx_chain": "preset (p. ej. lectura) o ruta a un JSON de cadena de efectos",
   "cli.arg.fx_src": "WAV de entrada",
   "cli.arg.fx_dst": "WAV de salida",
-  "cli.out.fx_applied": "{dst} escrito con la cadena «{name}»"
+  "cli.out.fx_applied": "{dst} escrito con la cadena «{name}»",
+  "error.order.clip_outside": "el clip «{path}» está fuera del proyecto ({root}): cópialo dentro del proyecto y vuelve a intentarlo",
+  "error.cli.text_unreadable": "no se pudo leer el texto del clip «{path}»: {reason}",
+  "cli.cmd.voice": "voces clonadas desde un clip",
+  "cli.cmd.voice_clone": "crear o actualizar una voz desde un clip de una voz humana (será su toma 1; no genera nada)",
+  "cli.arg.clip": "clip WAV (de 3 a 30 s) dentro de la carpeta del proyecto",
+  "cli.arg.clip_text": "archivo de texto UTF-8 con lo que dice el clip",
+  "cli.arg.clip_locale": "idioma del clip (p. ej. es-ES)",
+  "cli.arg.clip_source": "de dónde viene el clip (autor, licencia…)",
+  "cli.out.voice_cloned": "Voz «{order}» desde el clip {audio}: {takes} toma(s).",
+  "ui.order.cloned": "clonada",
+  "ui.order.clonedFrom": "clonada · {source}",
+  "ui.order.clonedText": "Texto del clip",
+  "ui.order.cloneNote": "Voz clonada de un clip: sus tomas son clips y no se generan más.",
+  "ui.take.noSeed": "sin semilla"
 }

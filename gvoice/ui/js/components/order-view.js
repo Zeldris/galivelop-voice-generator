@@ -11,7 +11,7 @@ import { api, describeError } from '../api.js';
 import { to, navigate } from '../router.js';
 import { busy, latest, lifetime, STALE } from '../async-guard.js';
 import { openEntries, pendingTakes, undoTarget } from '../take-model.js';
-import { MAX_COUNT } from '../order-model.js';
+import { MAX_COUNT, isCloned, orderText } from '../order-model.js';
 import { pickPair } from '../compare-model.js';
 import { takeCard } from './take-card.js';
 import { icon } from './icons.js';
@@ -44,11 +44,12 @@ export function orderView(route) {
   const compareBtn = h('button.btn', { type: 'button', disabled: true, onclick: () => { if (compareHash) navigate(compareHash); } }, icon('swap'), ' ', t('ui.compare.open'));
   const compareHint = h('p.hint', { hidden: true }, t('ui.compare.openHint'));
   const helpBtn = h('button.btn.btn-ghost', { type: 'button', onclick: () => openHelp(helpBtn) }, icon('keys'), ' ', t('ui.shortcuts.open'), ' ', h('kbd.kbd', {}, '?'));
+  const moreCard = h('div.card', {}, h('h2', {}, t('ui.order.moreTitle')), h('div.field', {}, h('label', { for: 'more-count' }, t('ui.order.moreCount')), count), moreBtn, pending);
   const panel = h('aside.order-panel', { aria: { label: t('ui.order.panel') } },
     h('div.card', {}, h('h2', {}, t('ui.order.election')), chosenLine, undoBtn, undoHint),
     printsNote,
     h('div.card', {}, h('h2', {}, t('ui.compare.title')), compareBtn, compareHint),
-    h('div.card', {}, h('h2', {}, t('ui.order.moreTitle')), h('div.field', {}, h('label', { for: 'more-count' }, t('ui.order.moreCount')), count), moreBtn, pending),
+    moreCard,
     helpBtn);
   const list = h('section', {}, h('h2', {}, t('ui.order.takes')), emptyNote, gallery);
   const body = h('div.order-layout', {}, panel, list);
@@ -116,14 +117,17 @@ export function orderView(route) {
 
   function paintHead() {
     const isLine = order.type === 'line';
+    const cloned = isCloned(order);
+    moreCard.hidden = cloned;   // a voice from a clip gets no new takes (the server refuses them)
     replace(head,
       h('div.page-head', {}, h('h1', {}, key),
         h('span.chip', {}, t(isLine ? 'ui.project.type.line' : 'ui.project.type.voice')),
+        cloned ? h('span.chip', {}, t(order.clip.source ? 'ui.order.clonedFrom' : 'ui.order.cloned', { source: order.clip.source || '' })) : null,
         isLine && order.voice ? h('a.chip', { href: to.order(project, order.voice) }, t('ui.project.voice', { voice: order.voice })) : null,
         isLine && order.stale ? h('span.chip.chip-warn', {}, t('ui.order.stale')) : null),
       isLine
         ? h('blockquote.order-text', {}, order.text || '')
-        : h('div', {}, h('p.label', {}, t('ui.order.testText')), h('blockquote.order-text', {}, order.testText || '')),
+        : h('div', {}, h('p.label', {}, t(cloned ? 'ui.order.clonedText' : 'ui.order.testText')), h('blockquote.order-text', {}, orderText(order))),
       isLine && order.stale ? h('p.notice.notice-warn', { role: 'status' }, warningIcon('default'), h('span', {}, t('ui.order.staleHint'))) : null,
       !isLine && (order.staleLines || []).length
         ? h('div.notice.notice-warn', { role: 'status' }, warningIcon('default'),
@@ -194,6 +198,7 @@ export function orderView(route) {
     await refresh();
   });
   const more = () => exclusive(async () => {
+    if (isCloned(order)) return;   // also the shortcut: a cloned voice has no more takes to ask for
     const n = Number(count.value);
     if (!Number.isInteger(n) || n < 1 || n > MAX_COUNT) { toastError(t('ui.newOrder.error.count', { max: MAX_COUNT })); count.focus(); return; }
     try {

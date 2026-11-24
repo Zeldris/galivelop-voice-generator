@@ -89,6 +89,9 @@ const orders = {
     { key: 'orc', type: 'voice', seed: null, testText: 'Blood for the war chief.', designSheet: ORC_SHEET,
       attempts: [take(1, 77, 'Blood for the war chief.', { instruction: instructionOf(ORC_SHEET), prints: {} })],
       chosen: null, chosenHistory: [], createdAt: ago(3000), updatedAt: ago(3000) },
+    { key: 'lector', type: 'voice', seed: null, locale: 'es-ES', clip: { audio: 'clips/lector.wav', text: 'Hola a todos, esta es mi voz.', source: 'grabación propia' },
+      attempts: [take(1, null, 'Hola a todos, esta es mi voz.', { origin: 'clip', sourceSha256: 'a'.repeat(64), prints: {}, durationMs: undefined, model: undefined, device: undefined, engineVersion: undefined, engineCommit: undefined, loadMs: undefined })],
+      chosen: null, chosenHistory: [], createdAt: ago(1500), updatedAt: ago(1500) },
     { key: 'narrator/intro-01', type: 'line', voice: 'narrator', text: 'Long ago, the valley was silent.', seed: 7,
       attempts: [take(1, 7, 'Long ago, the valley was silent.', { state: 'candidate', voice: 'narrator', reference: 2 })],
       chosen: 1, chosenHistory: [null], createdAt: ago(2400), updatedAt: ago(2000) },
@@ -265,6 +268,7 @@ route('GET', '/api/projects/{p}/orders/{key}/sheet', async (c) => {
   const o = lookup(c);
   if (o.error) return o.error;
   if (o.type !== 'voice') return fail(c.lang, 409, 'order.wrong_type', { order: o.key, expected: 'voice' });
+  if (o.clip) return fail(c.lang, 409, 'order.clip_no_design', { order: o.key });   // a cloned voice has no sheet
   return ok({ instruction: instructionOf(o.designSheet), warnings: await warnView(c.lang, warningsOf(o.designSheet)) });
 });
 route('POST', '/api/sheet/check', async (c) => {
@@ -298,6 +302,7 @@ route('POST', '/api/projects/{p}/orders/{key}/attempts', (c) => {
   if (o.error) return o.error;
   const count = (c.body && c.body.count) ?? 1;
   if (!Number.isInteger(count) || count < 1 || count > 50) return fail(c.lang, 400, 'api.bad_param', { name: 'count' });
+  if (o.clip) return fail(c.lang, 409, 'order.clip_no_design', { order: o.key });   // a cloned voice gets no design takes
   const seed = c.body && Number.isInteger(c.body.seed) ? c.body.seed : null;
   return ok(Array.from({ length: count }, (_, i) => ({ ...enqueueTake(c.params.p, o, seed === null ? null : seed + i) })));
 });

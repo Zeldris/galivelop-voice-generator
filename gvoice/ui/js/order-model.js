@@ -40,6 +40,16 @@ export function ordersOf(res) {
 
 /* ---- fila de la lista ---- */
 
+/** ¿Voz clonada de un clip (`clip` en vez de ficha)? No tiene ficha ni se le generan tomas nuevas. */
+export const isCloned = (o) => Boolean(o) && o.type === 'voice' && Boolean(o.clip) && typeof o.clip === 'object';
+
+/** El texto de un pedido: el de la frase, el del clip (voz clonada) o el texto de prueba. */
+export function orderText(o) {
+  if (!o) return '';
+  if (o.type === 'line') return o.text || '';
+  return (isCloned(o) ? o.clip.text : o.testText) || '';
+}
+
 /** Lo que muestra una fila: clave, tipo, voz (solo `line`), texto de prueba o texto, nº de tomas y toma elegida. */
 export function orderSummary(o) {
   const takes = Array.isArray(o.attempts) ? o.attempts.length : (Number.isFinite(o.attempts) ? o.attempts : (o.attemptCount || 0));
@@ -48,7 +58,9 @@ export function orderSummary(o) {
     key: o.key,
     type: o.type,
     voice: o.type === 'line' ? (o.voice || '') : '',
-    text: (o.type === 'line' ? o.text : o.testText) || '',
+    text: orderText(o),
+    cloned: isCloned(o),
+    source: isCloned(o) ? (o.clip.source || '') : '',
     takes,
     chosen,
     chosenId: chosen ? o.chosen : null,

@@ -9,6 +9,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- `gvoice voice clone <project> <key> <clip.wav> --text <file> [--locale] [--source]`: a voice from a clip of a
+  human voice (a WAV of 3 to 30 s inside the project); the clip is its take 1 and nothing is generated. A clip outside
+  the project is refused (`order.clip_outside`).
+- UI: cloned voices show a "cloned" badge (and their source) and the clip text; they have no sheet and no "more
+  takes", and their takes show "no seed". The simulator (`?mock=1`) has a cloned voice.
+
 ### Fixed
 
 - UI: error messages without text from the API show `ui.error.code` (also in the queue bar) instead of a fixed

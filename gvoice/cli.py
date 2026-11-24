@@ -75,6 +75,11 @@ def _build(lang: str) -> argparse.ArgumentParser:
     mutex.add_argument("--unchosen", action="store_true", help=t("cli.arg.unchosen"))
     leaf(g, "show", "cli.cmd.order_show", project, okey)
 
+    g = group(top, "voice", "cli.cmd.voice")
+    leaf(g, "clone", "cli.cmd.voice_clone", project, okey, arg("clip", "cli.arg.clip"),
+         opt("--text", "cli.arg.clip_text", required=True), opt("--locale", "cli.arg.clip_locale"),
+         opt("--source", "cli.arg.clip_source"))
+
     g = group(top, "attempt", "cli.cmd.attempt")
     leaf(g, "new", "cli.cmd.attempt_new", project, okey,
          opt("--seed", "cli.arg.seed", type=int), opt("--count", "cli.arg.count", type=int, default=1))
@@ -136,6 +141,29 @@ def _read_order(source: str) -> dict:
         return json.loads(text)
     except (OSError, ValueError) as exc:  # includes UnicodeDecodeError
         raise GvoiceError("cli.order_unreadable", path=source, reason=str(exc))
+
+
+def _read_text(source: str) -> str:
+    try:
+        with open(source, encoding="utf-8") as fh:
+            return fh.read().strip()
+    except (OSError, ValueError) as exc:  # includes UnicodeDecodeError
+        raise GvoiceError("cli.text_unreadable", path=source, reason=str(exc))
+
+
+def _voice(args, out: _Out) -> None:
+    """``voice clone``: a ``voice`` order from a clip (take 1); the same path as ``order submit`` (schema included)."""
+    clip = {"audio": orders.clip_relative(args.project, args.clip), "text": _read_text(args.text)}
+    if args.source:
+        clip["source"] = args.source
+    order = {"key": args.key, "type": "voice", "clip": clip}
+    if args.locale:
+        order["locale"] = args.locale
+    record, entries = queue.submit_order(args.project, order)
+    if out.as_json:
+        _queued(out, entries, order=record, warnings=[])
+    else:
+        out.line("cli.out.voice_cloned", order=record["key"], takes=len(record["attempts"]), audio=clip["audio"])
 
 
 def _queued(out: _Out, entries: list, **extra) -> None:
@@ -339,6 +367,8 @@ def _run(args, out: _Out) -> int:
                 out.line("cli.out.project_line", name=n, root=v["root"])
     elif cmd == "order":
         _order(args, sub, out)
+    elif cmd == "voice":
+        _voice(args, out)
     elif cmd == "attempt":
         _attempt(args, sub, out)
     elif cmd in ("choose", "undo"):

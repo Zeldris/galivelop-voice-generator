@@ -1,9 +1,9 @@
-<!-- galivelop-workflow v0.8.2 -->
+<!-- galivelop-workflow v0.9.0 -->
 @AGENTS.md
 
 ## Solo para Claude Code
 
-- Responde en el idioma del proyecto (`es`).
+- Responde en el idioma de la línea `Agent language:` que imprime el inicio de sesión; si no la ves, el de `languages.docs.primary`.
 - Al empezar cada tarea, di en una línea qué skill y qué modelo pide el caso, con la skill `gw-selector`. El modelo de
   la sesión lo elige la persona; los subagentes, el más barato que haga bien el trabajo.
 - **Compactación:** `.claude/settings.json` fija la ventana de compactación automática. Tras una compactación o un

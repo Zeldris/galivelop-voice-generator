@@ -1,4 +1,4 @@
-<!-- galivelop-workflow v0.8.2 -->
+<!-- galivelop-workflow v0.9.0 -->
 # Bitácora (traspaso)
 
 > Léela entera al empezar cualquier sesión. Lo que no está subido no existe: commit + push en cada punto estable,
@@ -9,9 +9,9 @@
 | Campo | Valor |
 |---|---|
 | **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; `main` fusionado en la rama tras el PR #11, `aeca90d`, el 2026-11-22) |
-| **Fase / tarea** | **Actualización del flujo a Galivelop-workflow v0.8.2** (`gw-update`, pedida por la persona el 2026-11-22; parche sin migraciones). Decisiones de la persona: aplicar `--update`; en `AGENTS.md`, la frase nueva sobre no hacer commit solo para el ledger (reglas del proyecto conservadas); en `REVIEW.md`, la regla nueva de test con muestra real; `findingsWords` sin fijar (vale el nuevo defecto). F2.6 sigue esperando a la Deck; 0.3.0 con B1/B2 en `docs/plan.md` |
-| **Último punto estable** | Actualización a v0.8.2 aplicada (2026-11-22): 82 archivos del flujo, marcadores a v0.8.2, sin `.gw-new`, `apply.py --check` en 0; `doctor.py` sin `FAIL` (avisa de `AGENTS.md` en 155 líneas y de que `workflowClone` no existe en la nube: el clon está en `/home/user/zeldris/galivelop-workflow`) |
-| **Siguiente paso** | v0.8.2 en `main`: PR #11 fusionado el 2026-11-22 (`aeca90d`) con confirmación de la persona; CI de GitHub sin arrancar (sin cuota de Actions), **comprobado solo en local** (`docs/records/ci-local.md`). Siguiente: lo que pida la persona; F2.6 sigue esperando a la Deck |
+| **Fase / tarea** | **Actualización del flujo a Galivelop-workflow v0.9.0** (`gw-update`, pedida por la persona el 2026-11-24; `schemaVersion` 1 → 2: `language`/`visibleLanguages` pasan al bloque `languages`). Decisiones de la persona (2026-11-24, «todo ok»): aplicar `--update`; en `AGENTS.md`, `merge-main.py` en el paso 5, `timeout` de 90 min para push y check largo, y el «Siguiente» tras un cierre (reglas del proyecto conservadas); en `CLAUDE.md`, la línea de idioma nueva; en `REVIEW.md`, `languages.ui`; marcadores a v0.9.0. F2.6 sigue esperando a la Deck; 0.3.0 con B1/B2 en `docs/plan.md` |
+| **Último punto estable** | Actualización a v0.9.0 aplicada (2026-11-24): 83 archivos del flujo actualizados y 11 nuevos (`front.py`, `merge-main.py`, `profile.py`, `generated-check.py`, `other-repo-read.py`, skill `gw-seo`), `.claude/gw.json` migrado, gancho `PreToolUse` en `.claude/settings.json`, sin `.gw-new`, `apply.py --check` en 0; `doctor.py` sin `FAIL` (avisa de que `workflowClone` no existe en la nube: el clon está en `/home/user/zeldris/galivelop-workflow`) |
+| **Siguiente paso** | Llevar v0.9.0 a `main`: fase 1 (revisión de lo fusionado a mano: `AGENTS.md`, `CLAUDE.md`, `REVIEW.md`, `.claude/gw.json`), fase 2 (`gw-opt-tokens` y retro, presentadas a la persona), fase 3 (`reviewed.sh`) y PR con la skill `pr`; fusionar solo con confirmación de la persona |
 | **Check** | verde (`bash -n` de cada gancho, `unittest` 751 tests y `ci-local.py --validate`) |
 
 ## Para la próxima publicación

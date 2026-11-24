@@ -1,15 +1,27 @@
 {
   "$schema": "gw/schema/gw.schema.json",
-  "version": "0.8.2",
-  "schemaVersion": 1,
-  "instructionLines": {"warn": 160},
-  "language": "es",
+  "version": "0.9.0",
+  "schemaVersion": 2,
+  "instructionLines": {
+    "warn": 160
+  },
+  "languages": {
+    "code": "en",
+    "docs": {
+      "primary": "es",
+      "others": []
+    },
+    "public": {
+      "primary": "es",
+      "others": []
+    },
+    "ui": [
+      "es",
+      "en"
+    ]
+  },
   "workflowRepository": "https://github.com/Zeldris/Galivelop-workflow",
   "agentSignatures": false,
-  "visibleLanguages": [
-    "es",
-    "en"
-  ],
   "logRows": false,
   "protectedBranch": "main",
   "pushToProtected": "pr",

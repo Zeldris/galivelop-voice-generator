@@ -4,6 +4,7 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
 
 ## Pendiente
 
+- **Pedido del Portal del 2026-11-24** ([`pedido-portal-2026-11-24.md`](pedido-portal-2026-11-24.md)): regrabar 7 trozos con `lectora-es` en la Deck (motor real) y, al entregar, decir cuáles están aprobados para pasarlos a MP3.
 - Hallazgos leves de la revisión de bloque de la lectora es (F2-F3, locale y efectos), sin arreglar en este PR (no vuelven a revisarse en él):
   - Un locale desconocido lanza `ValueError` en vez de un `GvoiceError` traducido (`worker.py:183`, `speech_locale.py:17`).
   - `gvoice/queue.py:239` usa un criterio truthy para `locale` y `orders.py` usa `is not None`: unificarlos.

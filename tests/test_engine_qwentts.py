@@ -146,6 +146,21 @@ class QwenTtsTests(unittest.TestCase):
         self.assertEqual((result.audio_ms, result.model), (600, "0.6b-base"))
         self.assertEqual(self.leftovers(), ["0.6b-base.rvq", "0.6b-base.spk", "l.wav"])
 
+    def test_line_print_only_passes_the_speaker_print_alone(self):
+        pj = self.make_print()
+        self.eng.voiceprint(pj, NEVER)
+        self.log.unlink()
+        job = engine.LineJob(spk=pj.spk, rvq=None, text="a line", seed=7, output=str(self.out / "l.wav"),
+                             model="0.6b-base", machine=self.machine)
+        self.eng.line(job, NEVER)
+        argv = self.calls()[0]["argv"]
+        self.assertEqual(argv, ["--model", self.mp("0.6b-base"), "--codec", self.mp("tokenizer-12hz"),
+                                "--ref-spk", pj.spk, "--lang", "Spanish", "--seed", "7", "--device", "Vulkan0",
+                                "-o", argv[-1]])
+        missing = engine.LineJob(spk=str(self.tmp / "no.spk"), rvq=None, text="x", seed=1,
+                                 output=str(self.out / "m.wav"), machine=self.machine)
+        self.assertEqual(self.error(lambda: self.eng.line(missing, NEVER)).code, "engine.print_missing")
+
     def test_line_needs_print_and_reference_text(self):
         job = engine.LineJob(spk=str(self.tmp / "no.spk"), rvq=str(self.tmp / "no.rvq"), text="x", seed=1,
                              output=str(self.out / "l.wav"), machine=self.machine, reference_text="r")

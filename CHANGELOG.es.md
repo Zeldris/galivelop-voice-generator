@@ -16,6 +16,10 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 - `gvoice voice clone <proyecto> <clave> <clip.wav> --text <archivo> [--locale] [--source]`: una voz desde un clip de
   una voz humana (un WAV de 3 a 30 s dentro del proyecto); el clip es su toma 1 y no se genera nada. Un clip fuera del
   proyecto se rechaza (`order.clip_outside`).
+- `gvoice voice import-print <proyecto> <clave> <huella.spk> --model <modelo base> [--locale] [--source]`: modo
+  huella sola. Una voz desde una huella de hablante sin audio, sin `.rvq` y sin texto de referencia, como la
+  `lectora-es` mezclada; la huella es su toma 1, elegida al importar, y sus líneas se hacen solo con `--ref-spk`.
+  Solo vale con el modelo que hizo la huella.
 - Interfaz: las voces clonadas llevan el distintivo «clonada» (y su origen) y muestran el texto del clip; no tienen
   ficha ni «más tomas», y sus tomas dicen «sin semilla». El simulador (`?mock=1`) trae una voz clonada.
 

@@ -16,6 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `gvoice voice clone <project> <key> <clip.wav> --text <file> [--locale] [--source]`: a voice from a clip of a
   human voice (a WAV of 3 to 30 s inside the project); the clip is its take 1 and nothing is generated. A clip outside
   the project is refused (`order.clip_outside`).
+- `gvoice voice import-print <project> <key> <print.spk> --model <base model> [--locale] [--source]`: print-only
+  mode. A voice from a bare speaker print (no audio, no `.rvq`, no reference text), such as the blended `lectora-es`;
+  the print is its take 1, chosen on import, and its lines are made with `--ref-spk` alone. It only works with the
+  model that made the print.
 - UI: cloned voices show a "cloned" badge (and their source) and the clip text; they have no sheet and no "more
   takes", and their takes show "no seed". The simulator (`?mock=1`) has a cloned voice.
 

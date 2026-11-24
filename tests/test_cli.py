@@ -404,6 +404,19 @@ class CloneTests(CliBase):
         self.assertEqual((take["origin"], take["seed"], take["audioMs"]), ("clip", None, 4000))
         self.assertEqual(self.js("queue", "list"), [])  # nothing to generate: no engine needed either
 
+    def test_import_print_makes_a_chosen_take_without_audio(self):
+        spk = self.root / "lectora.spk"
+        spk.write_bytes(b"FAKE-SPK\nabc\n")
+        out = self.ok("voice", "import-print", PROJECT, "lectora", str(spk), "--model", "0.6b-base",
+                      "--locale", "es-ES", "--source", "mezcla")
+        self.assertIn('Voice "lectora" from print lectora.spk (0.6b-base): 1 take(s), chosen.', out)
+        order = self.js("order", "show", PROJECT, "lectora")
+        self.assertEqual((order["print"], order["chosen"], order["attempts"][0]["origin"]),
+                         ({"spk": "lectora.spk", "model": "0.6b-base", "source": "mezcla"}, 1, "print"))
+        self.assertEqual(self.js("queue", "list"), [])
+        self.fails("voice", "import-print", PROJECT, "x", str(self.root / "nope.spk"), "--model", "0.6b-base",
+                   message="does not exist in the project or is empty")
+
     def test_relative_clip_resolves_from_the_cwd(self):
         old = os.getcwd()
         os.chdir(self.root)

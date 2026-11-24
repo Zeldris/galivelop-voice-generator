@@ -14,7 +14,8 @@ import sys
 import traceback
 from pathlib import Path
 
-from . import __version__, bench, effects, engine, i18n, limits, models, orders, projects, queue, server, sheet, worker
+from . import (__version__, bench, effects, engine, i18n, limits, models, orders, projects, queue, schema, server,
+               sheet, worker)
 from .errors import GvoiceError
 
 LANGS = ("es", "en")
@@ -79,6 +80,9 @@ def _build(lang: str) -> argparse.ArgumentParser:
     leaf(g, "clone", "cli.cmd.voice_clone", project, okey, arg("clip", "cli.arg.clip"),
          opt("--text", "cli.arg.clip_text", required=True), opt("--locale", "cli.arg.clip_locale"),
          opt("--source", "cli.arg.clip_source"))
+    leaf(g, "import-print", "cli.cmd.voice_import_print", project, okey, arg("spk", "cli.arg.spk"),
+         opt("--model", "cli.arg.print_model", required=True, choices=schema.load_schema("common")["$defs"]["baseModel"]["enum"]),
+         opt("--locale", "cli.arg.clip_locale"), opt("--source", "cli.arg.print_source"))
 
     g = group(top, "attempt", "cli.cmd.attempt")
     leaf(g, "new", "cli.cmd.attempt_new", project, okey,
@@ -152,7 +156,22 @@ def _read_text(source: str) -> str:
 
 
 def _voice(args, out: _Out) -> None:
-    """``voice clone``: a ``voice`` order from a clip (take 1); the same path as ``order submit`` (schema included)."""
+    """``voice clone``: a ``voice`` order from a clip (take 1); ``voice import-print``: from a speaker print alone
+    (take 1, already chosen). The same path as ``order submit`` (schema included)."""
+    if args.sub == "import-print":
+        print_ = {"spk": orders.clip_relative(args.project, args.spk), "model": args.model}
+        if args.source:
+            print_["source"] = args.source
+        order = {"key": args.key, "type": "voice", "print": print_}
+        if args.locale:
+            order["locale"] = args.locale
+        record, entries = queue.submit_order(args.project, order)
+        if out.as_json:
+            _queued(out, entries, order=record, warnings=[])
+        else:
+            out.line("cli.out.voice_printed", order=record["key"], takes=len(record["attempts"]), spk=print_["spk"],
+                     model=args.model)
+        return
     clip = {"audio": orders.clip_relative(args.project, args.clip), "text": _read_text(args.text)}
     if args.source:
         clip["source"] = args.source
@@ -233,7 +252,7 @@ def _order(args, sub, out: _Out) -> None:
         if not o["attempts"]:
             out.line("cli.out.attempts_none")
         for a in o["attempts"]:
-            out.line("cli.out.attempt_line", id=a["id"], state=a["state"], seed=out.none(a["seed"]), audio=a["audio"])
+            out.line("cli.out.attempt_line", id=a["id"], state=a["state"], seed=out.none(a["seed"]), audio=out.none(a.get("audio")))
             if o["type"] == "line":
                 out.line("cli.out.attempt_reference", reference=a["reference"])
             else:

@@ -214,14 +214,15 @@ def _take(entry: dict, eng, machine: dict, state: dict, should_cancel):
         if reference is None:
             raise GvoiceError("order.reference_unknown", reference=str(entry["reference"]), voice=voice)
         spk, rvq = orders.print_paths(project, voice, reference, model)
-        if not (spk.is_file() and rvq.is_file()):
+        print_only = reference.get("origin") == "print"  # no codes and no reference text: --ref-spk alone
+        if not (spk.is_file() and (print_only or rvq.is_file())):
             raise GvoiceError("worker.print_missing", model=model, voice=voice, take=reference["id"])
         said = entry.get("said") or entry["text"]  # what the engine is given; the attempt keeps the text
         pieces = wavjoin.split_sentences(said) if entry.get("split") else [said]
 
         def job_for(piece, output):
             return engine_mod.LineJob(
-                spk=str(spk), rvq=str(rvq), text=piece, seed=entry["seed"], output=str(output), model=model,
+                spk=str(spk), rvq=None if print_only else str(rvq), text=piece, seed=entry["seed"], output=str(output), model=model,
                 machine=machine, timeout_s=limits.timeout_s(machine), reference_text=reference.get("text"),
                 language=speech_locale.language(reference.get("locale")))  # the take's, not the voice's now
 

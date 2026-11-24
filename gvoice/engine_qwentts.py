@@ -368,8 +368,14 @@ class QwenTtsEngine(Engine):
 
     def line(self, job: LineJob, should_cancel) -> EngineResult:
         for path in (job.spk, job.rvq):
-            if not Path(path).is_file():
+            if path is not None and not Path(path).is_file():
                 raise EngineError("voice print missing: %s" % path, "engine.print_missing", path=path)
+        if job.rvq is None:  # print-only: the speaker print alone, no codes and no reference text
+
+            def extra(work):
+                return ["--ref-spk", job.spk]
+
+            return self._tts(job, job.model or DEFAULT_BASE_MODEL, extra, job.text, should_cancel, job.seed)
         if not job.reference_text:
             raise EngineError("the reference text is missing", "engine.no_reference_text")
 

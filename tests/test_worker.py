@@ -393,6 +393,25 @@ class LineTests(WorkerBase):
         self.assertEqual([j.reference_text for j in seen], [self.attempt("narrator", take)["text"]])
         self.assertTrue(seen[0].reference_text)
 
+    def test_line_of_a_print_only_voice_runs_without_rvq_or_text(self):
+        spk = self.tmp / "world" / "lectora.spk"
+        spk.parent.mkdir(parents=True, exist_ok=True)
+        spk.write_bytes(b"FAKE-SPK\nabc\n")
+        orders.submit(self.p, {"key": "narrator", "type": "voice", "print": {"spk": "lectora.spk", "model": "0.6b-base"}})
+        orders.submit(self.p, self.line())
+        queue.enqueue(self.p, "narrator/intro-01", orders.attempt_specs(self.p, "narrator/intro-01", seed=3))
+        seen = []
+
+        class Spy(engine.FakeEngine):
+            def line(self, job, should_cancel):
+                seen.append(job)
+                return super().line(job, should_cancel)
+
+        self.run_worker(engine=Spy())
+        self.assertEqual([(j.rvq, j.reference_text) for j in seen], [(None, "")])
+        self.assertEqual(queue.list_entries()[-1]["state"], "done")
+        self.assertEqual(orders.get(self.p, "narrator/intro-01")["attempts"][0]["reference"], 1)
+
     def test_line_uses_the_voice_it_was_queued_for(self):
         self.voice_done()
         orders.submit(self.p, self.voice(key="orc"))

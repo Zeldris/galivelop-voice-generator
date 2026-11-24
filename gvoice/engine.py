@@ -52,7 +52,7 @@ class DesignJob:
 @dataclass
 class LineJob:
     spk: str  # absolute path of the voice print
-    rvq: str
+    rvq: Optional[str]  # ``None``: print-only mode (``--ref-spk`` alone, no reference text)
     text: str
     seed: int
     output: str
@@ -237,7 +237,8 @@ class FakeEngine(Engine):
     def line(self, job: LineJob, should_cancel) -> EngineResult:
         start = self._wait(job, should_cancel)
         try:
-            spk, rvq = Path(job.spk).read_bytes(), Path(job.rvq).read_bytes()
+            spk = Path(job.spk).read_bytes()
+            rvq = Path(job.rvq).read_bytes() if job.rvq else b""
         except OSError:
             missing = job.spk if not Path(job.spk).is_file() else job.rvq
             raise EngineError("voice print missing: %s" % missing, "engine.print_missing", path=missing)

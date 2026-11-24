@@ -15,6 +15,9 @@ key ``a`` (a key segment cannot hold ``@``). Beside ``order.json``, one folder p
   A voice is *designed* (takes with ``origin: "design"``) or *cloned*: its order holds ``clip`` (``audio``, ``text``,
   ``source``) instead of a sheet, and its takes are clips of a human voice (``origin: "clip"``, ``sourceSha256``,
   ``seed: None``, no ``instruction``; take 1 is the clip). A voice never changes class (``order.clip_kind_changed``).
+  A third class is the *print-only* voice: its order holds ``print`` (``spk``, ``model``, ``source``) and its one take
+  (``origin: "print"``, ``sourceSha256``, no audio, no ``audioMs``, ``prints[model]`` with ``spkOnly``) is chosen on
+  import; the lines of such a voice are made with ``--ref-spk`` alone (no ``.rvq`` or reference text).
   An attempt without ``origin`` (older data) is a ``design`` one; read it with ``attempt.get("origin", "design")``.
 * ``line``: a voice (a ``voice`` order of the same project with a chosen reference) and a text. Each attempt records
   the voice (``voice``) and the reference take (``reference``) it was made with. A chosen line is *stale*
@@ -169,6 +172,33 @@ def _read_clip(project: str, clip: dict) -> tuple:
     return data, hashlib.sha256(data).hexdigest(), int(round(seconds * 1000))
 
 
+def _read_print(project: str, print_: dict) -> tuple:
+    """``(spk bytes, sha256 hex)`` of ``print_["spk"]``, a path relative to the project root (D25).
+    Raises ``order.print_missing`` (no such file or empty)."""
+    root = projects.get(project)["root"]
+    path = paths.inside(root, print_["spk"])
+    try:
+        data = path.read_bytes()
+    except OSError:
+        data = b""
+    if not data:
+        raise GvoiceError("order.print_file_missing", path=print_["spk"])
+    return data, hashlib.sha256(data).hexdigest()
+
+
+def _voice_class(record: dict) -> set:
+    """The classes (``design``, ``clip``, ``print``) a stored voice order shows."""
+    found = set()
+    for name in ("clip", "print"):
+        if name in record:
+            found.add(name)
+    for a in record["attempts"]:
+        found.add(a.get("origin", "design"))
+    if "designSheet" in record:
+        found.add("design")
+    return found
+
+
 def clip_relative(project: str, source) -> str:
     """The path of a clip file of the system (relative to the cwd, or absolute) as a POSIX path relative to the root
     of the project, links resolved. Outside the root: ``order.clip_outside``."""
@@ -213,6 +243,12 @@ def submit(project: str, order: dict) -> dict:
         fields = {"clip": clip}
         if order.get("locale") is not None:
             fields["locale"] = order["locale"]
+    elif "print" in order:
+        print_ = copy.deepcopy(order["print"])
+        clip_data = _read_print(project, print_)
+        fields = {"print": print_}
+        if order.get("locale") is not None:
+            fields["locale"] = order["locale"]
     else:
         clip_data = None
         fields = {"testText": order["testText"], "designSheet": copy.deepcopy(order["designSheet"])}
@@ -232,13 +268,13 @@ def submit(project: str, order: dict) -> dict:
         if record["type"] != kind:
             raise GvoiceError("order.type_changed", order=key, type=record["type"], new=kind)
         if kind == "voice":
-            was_clip = "clip" in record or any(a.get("origin") == "clip" for a in record["attempts"])
-            was_design = "designSheet" in record or any(a.get("origin", "design") == "design"
-                                                         for a in record["attempts"])
-            if (was_clip and "clip" not in fields) or (was_design and "clip" in fields):
-                raise GvoiceError("order.clip_kind_changed", order=key, type="clip" if was_clip else "design")
-            for gone in (("designSheet", "testText") if "clip" in fields else ("clip",)):
-                record.pop(gone, None)
+            new_class = "clip" if "clip" in fields else "print" if "print" in fields else "design"
+            before = _voice_class(record)
+            if before and before != {new_class}:
+                raise GvoiceError("order.clip_kind_changed", order=key, type=" + ".join(sorted(before)))
+            for gone in ("clip", "print", "designSheet", "testText"):
+                if gone not in fields:
+                    record.pop(gone, None)
         if kind == "line":  # a resubmit replaces say and split: a missing one is cleared
             for gone in ("say", "split"):
                 if gone not in fields:
@@ -259,6 +295,24 @@ def submit(project: str, order: dict) -> dict:
                 if record.get("locale"):
                     take["locale"] = record["locale"]
                 record["attempts"].append(take)
+        if kind == "voice" and "print" in fields:
+            data, sha = clip_data
+            if not any(a.get("origin") == "print" and a.get("sourceSha256") == sha for a in record["attempts"]):
+                new_id = max((a["id"] for a in record["attempts"]), default=0) + 1
+                folder = _attempt_folder(new_id, None)
+                model = fields["print"]["model"]
+                target = paths.inside(_order_dir(project, key), "%s/prints/%s.spk" % (folder, model))
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with fsutil.atomic_output(target) as tmp:
+                    tmp.write_bytes(data)
+                take = {"id": new_id, "origin": "print", "state": "new", "seed": None, "text": "",
+                        "sourceSha256": sha, "dir": folder, "note": "", "createdAt": now,
+                        "prints": {model: {"madeAt": now, "spkOnly": True}}}
+                if record.get("locale"):
+                    take["locale"] = record["locale"]
+                record["attempts"].append(take)
+                record["chosenHistory"].append(record["chosen"])  # importing a print is choosing it: nothing to audition
+                record["chosen"] = new_id
         record["updatedAt"] = now
         fsutil.write_json(path, record)
     result = copy.deepcopy(record)
@@ -290,7 +344,7 @@ def attempt_specs(project: str, key: str, count: int = 1, *, seed=None) -> list:
     base = order.get("seed") if seed is None else seed
     check_count(count, base)
     if order["type"] == "voice":
-        if "clip" in order:
+        if "clip" in order or "print" in order:
             raise GvoiceError("order.clip_no_design", order=key)
         locale = order.get("locale")
         extra = {"instruction": sheet.instruction(order["designSheet"], locale), "text": order["testText"]}
@@ -320,7 +374,10 @@ def attempt_dir(project: str, key: str, attempt: dict) -> Path:
 
 
 def attempt_audio(project: str, key: str, attempt: dict) -> Path:
-    """Where the audio of an attempt record lives: its ``audio`` field (D25). Path only; nothing is read."""
+    """Where the audio of an attempt record lives: its ``audio`` field (D25). Path only; nothing is read.
+    A print-only take has none (``worker.take_without_audio``)."""
+    if "audio" not in attempt:
+        raise GvoiceError("worker.take_without_audio", take=attempt["id"], voice=key)
     return paths.inside(_order_dir(project, key), attempt["audio"])
 
 
@@ -356,6 +413,8 @@ def missing_prints(project: str, key: str, attempt_id: int) -> list:
     _is_type(order, "voice")
     attempt = _attempt(order, attempt_id)
     models = projects.get(project)["config"]["printModels"]
+    if attempt.get("origin") == "print":  # imported as it is: there is no audio to make another print from
+        return []
     return [m for m in models if not all(p.is_file() for p in print_paths(project, key, attempt, m))]
 
 

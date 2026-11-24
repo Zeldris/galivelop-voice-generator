@@ -114,12 +114,12 @@ propio y contrato JSON; `gvoice` no importa nada suyo.
 | B2 | Leves de `api.js`/`queue-model.js` (blob, `ui.error.code`, código muerto, `loading` a `dom.js`) | Hecho (`e4976fe`); tests JS sin correr en la Deck (no hay `node`) |
 | C1 | Esquema y `orders`: `clip` en `voice`, toma 1, `origin`, errores | Hecho (`2403b91`) |
 | C2 | `gvoice voice clone` y la interfaz con voces sin ficha | Hecho (`403f044`) |
-| C3 | `say` y `split` en `line` (`wavjoin.py`) | Hecho (pendiente de sha) |
+| C3 | `say` y `split` en `line` (`wavjoin.py`) | Hecho (`8998492`) |
 | C4 | `verif/` en el repo (copias con origen), `gvoice_check.py`, `requirements.txt` fijo, `instalar.sh --verif` | — |
 | C5 | `gvoice/verifier.py` (proceso, plazo, grupo, validación) y `tests/fake_verif.py` | — |
 | C6 | Trabajo `check` en la cola tras cada toma, candado, `check: off`, puerta y `--force` en `choose`, `gvoice check` | — |
 | C7 | Interfaz sin reproducción de lo que no pasó, regla en `AGENTS.md`, CHANGELOG, `docs/api.md` | — |
-| C8 | Huella sola (sin `rvq`): importar `lectora-es` y producir líneas con ella | — |
+| C8 | Huella sola (sin `rvq`): importar `lectora-es` y producir líneas con ella (`gvoice voice import-print`, `print` en `voice`, toma `origin: print` elegida al importar, `LineJob.rvq` opcional). **Pendiente de la persona:** probar con el `.spk` real de `lectora-es` que `qwen-tts --ref-spk` solo produce audio | Hecho (pendiente de sha) |
 
 **A 0.4.0:** reintento automático (semillas y luego `split`), diccionario de pronunciación desde las `notas`,
 importar guiones del Portal, mezcla de huellas, `gvoice check` sobre archivos sueltos, prosodia, `attempt mark` →

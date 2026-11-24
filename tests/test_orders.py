@@ -663,6 +663,52 @@ class ClipTests(Base):
         self.assertEqual(len(orders.get(self.p, "narrator")["attempts"]), 1)
 
 
+class PrintOnlyTests(ClipTests):
+    def spk(self, name="lectora.spk", data=b"FAKE-SPK\nabc\n"):
+        path = self.tmp / "world" / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        return name
+
+    def print_order(self, spk="lectora.spk", **changes):
+        order = {"key": "lectora", "type": "voice", "print": {"spk": spk, "model": "0.6b-base"}}
+        order.update(changes)
+        return order
+
+    def test_print_makes_take_one_chosen_without_audio(self):
+        rec = orders.submit(self.p, self.print_order(self.spk(), locale="es-ES"))
+        take, = rec["attempts"]
+        self.assertEqual((take["id"], take["origin"], take["text"], rec["chosen"]), (1, "print", "", 1))
+        self.assertNotIn("audio", take)
+        self.assertNotIn("audioMs", take)
+        self.assertEqual(take["prints"]["0.6b-base"]["spkOnly"], True)
+        self.assertEqual(take["locale"], "es-ES")
+        spk, rvq = orders.print_paths(self.p, "lectora", take, "0.6b-base")
+        self.assertEqual(spk.read_bytes(), b"FAKE-SPK\nabc\n")
+        self.assertFalse(rvq.exists())
+        self.assertEqual(orders.missing_prints(self.p, "lectora", 1), [])  # nothing to extract: no audio
+        self.assertEqual(self.code(orders.attempt_audio, self.p, "lectora", take).code, "worker.take_without_audio")
+        self.assertEqual(self.code(orders.attempt_specs, self.p, "lectora").code, "order.clip_no_design")
+
+    def test_same_print_adds_nothing_and_another_is_chosen(self):
+        orders.submit(self.p, self.print_order(self.spk()))
+        self.assertEqual(len(orders.submit(self.p, self.print_order("lectora.spk"))["attempts"]), 1)
+        rec = orders.submit(self.p, self.print_order(self.spk("otra.spk", b"other")))
+        self.assertEqual((len(rec["attempts"]), rec["chosen"], rec["chosenHistory"]), (2, 2, [None, 1]))
+
+    def test_print_errors_and_class_is_kept(self):
+        self.assertEqual(self.code(orders.submit, self.p, self.print_order("nope.spk")).code, "order.print_file_missing")
+        self.assertEqual(self.code(orders.submit, self.p, self.print_order(self.spk("vacia.spk", b""))).code,
+                         "order.print_file_missing")
+        self.assertTrue(self.code(orders.submit, self.p, self.print_order("../fuera.spk")).code.startswith("path."))
+        bad = self.print_order(self.spk(), clip={"audio": "x.wav", "text": "x"})
+        self.assertEqual(self.code(orders.submit, self.p, bad).code, "order.invalid")
+        orders.submit(self.p, self.print_order(self.spk()))
+        err = self.code(orders.submit, self.p, self.clip_order(self.wav(), key="lectora"))
+        self.assertEqual((err.code, err.params["type"]), ("order.clip_kind_changed", "print"))
+        self.assertEqual(self.code(orders.submit, self.p, self.voice(key="lectora")).code, "order.clip_kind_changed")
+
+
 class SchemaDataTests(Base):
     def test_limits_come_from_the_schema(self):
         import importlib

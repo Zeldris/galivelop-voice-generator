@@ -11,7 +11,7 @@
 | **Rama** | `claude/via1-clonado` (desde `main` en `17b4255`, 2026-11-17; `origin/main` fusionado en `aeca90d`, flujo v0.8.2 y F5.9, el 2026-11-24) |
 | **Fase / tarea** | **0.3.0** (`docs/plan.md` § Versiones): D19 vía 1, capa 1 (clonado desde referencia peninsular) + B1 (barrido de leves de `gvoice/effects.py`). Investigación de partida: `docs/investigacion/2026-11-17-motores-via1-deck.md` |
 | **Último punto estable** | 0.2.0 publicada: PR #7 fusionado con CI de GitHub en verde (vuelve a funcionar), `v0.1.0` y `v0.2.0` con su release. Retro: `docs/records/retro-2026-11-17-v0-2-0.md`. Conectores MCP Claude Docs y easel desactivados por la persona. **Limpieza 2026-11-21:** borrados de `~/.local/share/galivelop-voice` Chatterbox (modelos, venv, compilación), StyleTTS2-Celtia y aHoTTS; quedan Qwen, whisper, `verif`, Matcha-Celtia y Nós (35→12 GiB) |
-| **Siguiente paso** | **Generación de audio parada** (la persona, 2026-11-24). Cierre de 0.3.0 decidido (`docs/plan.md` § Versiones): (a) barridos B1 (6 leves) + B2 en un subagente; (b) diseño del clonado desde clip y del filtro en `gvoice` (subagente de diseño; luego pasos C1… en el plan). Después: revisión, retro y PR |
+| **Siguiente paso** | **Generación de audio parada** (la persona, 2026-11-24). 0.3.0: B1 y B2 hechos; diseño de clonado y filtro con las decisiones de la persona en `docs/plan.md` § «0.3.0 en detalle». Siguiente: **C1** (esquema y `orders` con `clip`), luego C2-C3 y C8; C4-C7 (filtro) pueden ir en otro PR |
 | **Check** | verde salvo dos tests que ya fallan en `main` en la Deck (`test_install…no_compiler_and_no_flatpak` 127 y `test_peaks…is_fast` por tiempo) |
 
 ## Para la próxima publicación

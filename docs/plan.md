@@ -73,6 +73,61 @@ release al día; solo la última menor recibe parches. El historial anterior se 
 | 0.10.0 | F7 fauna | — |
 | 1.0.0 | Contrato (configuración, pedido, API) estable tras el piloto WMF | Por decidir |
 
+## 0.3.0 en detalle: clonado desde clip y filtro de tomas (2026-11-24)
+
+Diseño de un subagente revisado con la persona. Una voz clonada es una toma más de un pedido `voice`: el clip es la
+toma 1, se elige y el trabajo `prints` existente (`gvoice/worker.py`) saca `.spk`/`.rvq` con `qwen-codec`; las
+líneas siguen con `--ref-spk/--ref-rvq/--ref-text`. El filtro es **otro motor externo** (D1, D18): proceso con venv
+propio y contrato JSON; `gvoice` no importa nada suyo.
+
+**Decisiones de la persona (2026-11-24):**
+- Una toma que no pasa el filtro se rechaza en `choose`, salvo `--force`, que guarda `forced: true` y el motivo.
+- `lectora-es` (huella mezclada, sin `rvq` ni `ref-text`) se carga con un modo **huella sola** que entra en 0.3.0 (C8).
+- `instalar.sh --verif` baja los pesos de NISQA (CC BY-NC-SA) avisando de la licencia.
+- Inglés sin calibrar: pasa con WER, cortes y nivel, con aviso `locale_uncalibrated`; se calibra en 0.4.0.
+
+**Contrato:**
+- `order.schema.json`: `voice` lleva `designSheet`+`testText` **o** `clip: {audio, text, source?}` (ruta dentro del
+  proyecto, D25; WAV PCM de 3 a 30 s leído con `wave`). `line` acepta `say` (texto para el motor; si falta, `text`) y
+  `split` (frase a frase con 450 ms de silencio, `gvoice/wavjoin.py`).
+- Intento: `origin: design|clip|print`, `sourceSha256`, `said`, `forced`, y `check: {verdict: pass|fail|error|off,
+  reasons:[{code, detail}], warnings, metrics, verifier, at}`. Las tomas `clip` (voz humana) no pasan por la puerta.
+- Perfil de máquina: `check: required|off` (`off` para tests y máquinas sin filtro; la interfaz lo avisa).
+- Filtro: `<datos>/engine/verif/venv/bin/python verif/gvoice_check.py`, todo el lote por stdin
+  (`{"version":1,"items":[{id, audio, text, locale}]}`) y veredictos por stdout, validados con
+  `gvoice/schemas/check-result.schema.json`. Motivos: `level`, `wer`, `omission`, `duration`, `pronunciation`, `cuts`,
+  `clicks`, `rhythm`, `nisqa`, `dnsmos`, `locale_uncalibrated`. `es-ES`: whisper.cpp, WER ≤ 8 %, sin omisiones de 3+
+  palabras, nivel, cortes, chasquidos y NISQA; `gl`: `filtro.py` completo.
+- Órdenes: `gvoice voice clone <proyecto> <clave> <clip.wav> --text <archivo> [--locale] [--source]`,
+  `gvoice voice import-print …` (C8), `gvoice check <proyecto> [<clave>…]`, `order show` con veredicto, `choose --force`.
+- Errores nuevos (es/en): `order.clip_*`, `order.choose_unchecked`, `order.choose_failed`, `verifier.missing|failed|
+  timeout|bad_output`, `engine.split_format`.
+- Las tomas no se mueven: el veredicto vive en el intento y «lo que pasa» es una vista. La interfaz no reproduce lo
+  que no pasó.
+
+### Pasos de 0.3.0
+
+| Paso | Qué | Estado |
+|---|---|---|
+| B1 | 5 leves de `effects.py` + 6 de su revisión de bloque (`fsutil.atomic_output`, enlaces resueltos) | Hecho (`5964f6b`) |
+| B2 | Leves de `api.js`/`queue-model.js` (blob, `ui.error.code`, código muerto, `loading` a `dom.js`) | Hecho (`e4976fe`); tests JS sin correr en la Deck (no hay `node`) |
+| C1 | Esquema y `orders`: `clip` en `voice`, toma 1, `origin`, errores | — |
+| C2 | `gvoice voice clone` y la interfaz con voces sin ficha | — |
+| C3 | `say` y `split` en `line` (`wavjoin.py`) | — |
+| C4 | `verif/` en el repo (copias con origen), `gvoice_check.py`, `requirements.txt` fijo, `instalar.sh --verif` | — |
+| C5 | `gvoice/verifier.py` (proceso, plazo, grupo, validación) y `tests/fake_verif.py` | — |
+| C6 | Trabajo `check` en la cola tras cada toma, candado, `check: off`, puerta y `--force` en `choose`, `gvoice check` | — |
+| C7 | Interfaz sin reproducción de lo que no pasó, regla en `AGENTS.md`, CHANGELOG, `docs/api.md` | — |
+| C8 | Huella sola (sin `rvq`): importar `lectora-es` y producir líneas con ella | — |
+
+**A 0.4.0:** reintento automático (semillas y luego `split`), diccionario de pronunciación desde las `notas`,
+importar guiones del Portal, mezcla de huellas, `gvoice check` sobre archivos sueltos, prosodia, `attempt mark` →
+`corpus/juicios.csv`, calibrar inglés, registro del filtro en `log.jsonl`.
+
+**Riesgos:** el venv del filtro (torch CPU, whisper-medium-gl ~3 GB, ~64 s de CPU por minuto de audio) bloquea la
+cola mientras corre; umbrales calibrados con pocos casos (un falso NO se salva con `--force`); los scripts de
+`verif/` solo se prueban por sintaxis y contrato fuera del venv real.
+
 ## F1 en detalle
 
 Decisiones de implementación de la sesión que abre F1 (2026-11-10), dentro de D1-D17; la persona puede revisarlas

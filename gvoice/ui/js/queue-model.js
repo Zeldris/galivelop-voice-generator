@@ -34,10 +34,12 @@ export function visible(entries, filter) {
 }
 
 /** El texto de error de una entrada fallida: su `errorText` ya traducido; si no, `error.<código>` con `lookup(clave, params)`
-    (que devuelve null si no hay clave); si tampoco, un texto con el código; sin código, null. */
+    (que devuelve null si no hay clave); si tampoco, `ui.error.code` con el código (o el código solo si ni esa clave
+    está cargada); sin código, null. */
 export function errorOf(entry, lookup = () => null) {
   if (!entry || entry.state !== 'failed') return null;
   if (entry.errorText) return entry.errorText;
-  if (entry.error && entry.error.code) return lookup(`error.${entry.error.code}`, entry.error.params || {}) || `error: ${entry.error.code}`;   // no text for the code: show the code
+  if (entry.error && entry.error.code) return lookup(`error.${entry.error.code}`, entry.error.params || {}) ||
+    lookup('ui.error.code', { code: entry.error.code }) || entry.error.code;   // no text for the code: show the code
   return null;
 }

@@ -7,7 +7,7 @@
    GET …/orders/{key}, audio y picos como la tarjeta de toma; elegir recarga el pedido.
    Devuelve {node, cleanup}: cleanup revoca las URL de audio, quita las escuchas y para la animación. */
 
-import { h, mmss, replace } from '../dom.js';
+import { h, loading, mmss, replace } from '../dom.js';
 import { t } from '../i18n.js';
 import { api, describeError } from '../api.js';
 import { to, replaceHash } from '../router.js';
@@ -16,7 +16,7 @@ import { bucketsFor, canChoose, hasAudio, takeState } from '../take-model.js';
 import { otherSide, pickPair, switchPoint } from '../compare-model.js';
 import { icon } from './icons.js';
 import { createWaveform } from './waveform.js';
-import { bindShortcuts, loading, openHelp } from './shortcuts.js';
+import { bindShortcuts, openHelp } from './shortcuts.js';
 import { toast, toastError, toastOk } from './toast.js';
 
 const LETTER = { a: 'A', b: 'B' };

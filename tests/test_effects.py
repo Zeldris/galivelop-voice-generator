@@ -1,6 +1,7 @@
 import array
 import json
 import math
+import os
 import random
 import re
 import shutil
@@ -148,6 +149,58 @@ class Compile(unittest.TestCase):
                 self.assertIn("mismo archivo", caught.exception.message("es"))
                 run.assert_not_called()
 
+    def test_apply_rejects_a_directory_or_a_nameless_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "a.wav"
+            write_wav_header(src, rate=RATE, fmt=1, bits=16)
+            (Path(tmp) / "sub.wav").mkdir()
+            for dst in (Path(tmp) / "sub.wav", Path(tmp), Path("."), Path("/"), Path("..")):
+                with mock.patch.object(effects, "_run") as run, self.assertRaises(GvoiceError) as caught:
+                    effects.apply(chain({"type": "gain", "gainDb": 1}), src, dst)
+                self.assertEqual(caught.exception.code, "effects.bad_output", dst)
+                self.assertIn("directory", caught.exception.message("en"))
+                self.assertIn("directorio", caught.exception.message("es"))
+                run.assert_not_called()
+
+    def test_apply_rejects_an_output_that_is_not_wav(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "a.wav"
+            write_wav_header(src, rate=RATE, fmt=1, bits=16)
+            for name in ("out.mp3", "out", "out.wav.txt"):
+                with mock.patch.object(effects, "_run") as run, self.assertRaises(GvoiceError) as caught:
+                    effects.apply(chain({"type": "gain", "gainDb": 1}), src, Path(tmp) / name)
+                self.assertEqual(caught.exception.code, "effects.bad_extension", name)
+                self.assertIn(".wav", caught.exception.message("en"))
+                run.assert_not_called()
+            self.assertEqual(sorted(p.name for p in Path(tmp).iterdir()), ["a.wav"])
+
+    def test_apply_writes_through_a_symlink_output_and_keeps_the_link(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src, real, link = Path(tmp) / "a.wav", Path(tmp) / "real.wav", Path(tmp) / "link.wav"
+            write_wav_header(src, rate=RATE, fmt=1, bits=16)
+            real.write_bytes(b"old")
+            link.symlink_to(real)
+            with mock.patch.object(effects, "_run", side_effect=fake_run):
+                effects.apply(chain({"type": "gain", "gainDb": 1}), src, link)
+            self.assertTrue(link.is_symlink())
+            self.assertEqual(real.read_bytes(), b"out")
+            self.assertEqual(sorted(p.name for p in Path(tmp).iterdir()), ["a.wav", "link.wav", "real.wav"])
+
+    def test_apply_temp_is_exclusive_unguessable_and_in_the_output_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src, dst = Path(tmp) / "a.wav", Path(tmp) / "b.wav"
+            write_wav_header(src, rate=RATE, fmt=1, bits=16)
+            seen = []
+
+            def run(args):
+                seen.append(Path(args[-1]))
+                self.assertTrue(Path(args[-1]).is_file())  # created before ffmpeg runs (exclusive creation)
+                return fake_run(args)
+            with mock.patch.object(effects, "_run", side_effect=run):
+                effects.apply(chain({"type": "gain", "gainDb": 1}), src, dst)
+            self.assertNotIn(str(os.getpid()), seen[0].name)
+            self.assertEqual(seen[0].parent, dst.parent)
+
     def test_apply_writes_a_wav_temp_then_replaces_dst(self):
         with tempfile.TemporaryDirectory() as tmp:
             src, dst = Path(tmp) / "a.wav", Path(tmp) / "b.wav"
@@ -275,7 +328,6 @@ class Preset(unittest.TestCase):
             self.assertEqual(caught.exception.code, "effects.unreadable")
 
     def test_preset_names_are_sanitised_and_a_local_file_wins(self):
-        import os
         with tempfile.TemporaryDirectory() as tmp:
             local = Path(tmp) / "lectura"
             local.write_text(json.dumps(chain({"type": "gain", "gainDb": 7})), encoding="utf-8")
@@ -294,7 +346,8 @@ class Preset(unittest.TestCase):
                 os.chdir(old)
 
     def test_effect_texts_exist_in_both_languages(self):
-        for code in ("unsupported", "invalid", "unreadable", "no_ffmpeg", "failed", "many_loudnorm", "same_file"):
+        for code in ("unsupported", "invalid", "unreadable", "no_ffmpeg", "failed", "many_loudnorm", "same_file",
+                     "bad_output", "bad_extension"):
             for lang in ("es", "en"):
                 self.assertNotEqual(i18n.t("error.effects." + code, lang, type="x", path="x", reason="x"),
                                     "error.effects." + code)

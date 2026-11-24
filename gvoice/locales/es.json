@@ -469,6 +469,8 @@
   "error.effects.failed": "ffmpeg ha fallado: {reason}",
   "error.effects.many_loudnorm": "la cadena solo puede llevar un paso loudnorm",
   "error.effects.same_file": "la entrada y la salida son el mismo archivo: {path}",
+  "error.effects.bad_output": "la salida no puede ser un directorio ni carecer de nombre: {path}",
+  "error.effects.bad_extension": "la salida debe ser un archivo .wav (ffmpeg escribe WAV): {path}",
   "cli.cmd.fx": "efectos de audio",
   "cli.cmd.fx_apply": "aplicar una cadena de efectos (preset o archivo) a un WAV con ffmpeg",
   "cli.arg.fx_chain": "preset (p. ej. lectura) o ruta a un JSON de cadena de efectos",

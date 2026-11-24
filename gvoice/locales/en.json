@@ -469,6 +469,8 @@
   "error.effects.failed": "ffmpeg failed: {reason}",
   "error.effects.many_loudnorm": "the chain can carry only one loudnorm step",
   "error.effects.same_file": "input and output are the same file: {path}",
+  "error.effects.bad_output": "the output cannot be a directory or lack a name: {path}",
+  "error.effects.bad_extension": "the output must be a .wav file (ffmpeg writes WAV): {path}",
   "cli.cmd.fx": "audio effects",
   "cli.cmd.fx_apply": "apply an effect chain (preset or file) to a WAV with ffmpeg",
   "cli.arg.fx_chain": "preset (e.g. lectura) or path to an effect chain JSON",

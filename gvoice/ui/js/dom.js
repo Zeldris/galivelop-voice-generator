@@ -2,6 +2,8 @@
    Ayudas de DOM: construir nodos sin innerHTML (ningún dato del servidor se interpreta como HTML),
    variables CSS por CSSOM (la CSP prohíbe `style=` en el marcado, no `el.style`), formatos. */
 
+import { t } from './i18n.js';
+
 /** h('button.btn.btn-primary', {type: 'button', onclick: fn, aria: {pressed: true}, data: {id: 3}}, 'texto', nodo…) */
 export function h(spec, attrs = {}, ...children) {
   const [tag, ...classes] = spec.split('.');
@@ -66,3 +68,6 @@ export function el(id) { return document.getElementById(id); }
 
 /** Devuelve el primer antecesor (o el propio nodo) que cumple el selector. */
 export function closest(target, selector) { return target instanceof Element ? target.closest(selector) : null; }
+
+/** El aviso «cargando…» de las vistas mientras esperan a la API. */
+export const loading = () => h('p.empty', {}, h('span.spin', { aria: { hidden: true } }), ' ', t('ui.loading'));

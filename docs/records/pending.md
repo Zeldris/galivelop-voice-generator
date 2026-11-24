@@ -21,7 +21,7 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
 - Hallazgo leve de la revisión de bloque F5.2, sin arreglar en este PR: los tests del JS pasaron de `test_ui.py` (estáticos) a `test_ui_js.py`, que se salta entero sin `node` ≥ 18; en la Deck (Flatpak) el check local no los corre: comprobar si hay `node` allí o dejar los estáticos como respaldo.
 - **F5, decisiones y recursos para la persona** (`docs/plan.md` § «F5 en detalle»): confirmar los pasos [P] y el orden F3 → F4+F5; encargar en GVIG el logo (símbolo + lockup) y decidir quién dibuja los iconos de interfaz.
 - `gvoice ui --host ::1` (IPv6) sin probar: el contenedor de la nube no tiene IPv6 y `test_ipv6_loopback_is_served` se salta; lo comprueba la persona en la Deck o su equipo.
-- Hallazgos leves de la revisión de bloque F5.1, sin arreglar en este PR: el simulador devuelve `blob` para el audio, pero `api.js` `request` solo devuelve `json` y `<audio src>` iría al servidor real (resolver en F5.4); `describeError` nunca llega a `ui.error.code`; carrera en `i18n.load` con cambios rápidos de idioma; `api.bad_host` no hace caso de `?lang=`; `cli.py` importa `server` en cada orden; `server.main` repite el argparse de `gvoice ui`; `api.js` tiene `withHeaders` y `put` muertos; `api_contract.match` parte los patrones y `i18n.available()` hace glob en cada petición.
+- Hallazgos leves de la revisión de bloque F5.1, sin arreglar en este PR: carrera en `i18n.load` con cambios rápidos de idioma; `api.bad_host` no hace caso de `?lang=`; `cli.py` importa `server` en cada orden; `server.main` repite el argparse de `gvoice ui`; `api_contract.match` parte los patrones y `i18n.available()` hace glob en cada petición.
 - Hallazgos leves de la revisión de bloque F2.4-F2.5, sin arreglar en este PR: `bench._wait_for_memory` duplica `worker._wait_for_memory`; `instalar.sh --dry-run` dice «modelos: verificados»; `gvoice bench --steps design --models …` ignora `--models` sin avisar y la comprobación de lista vacía de `cli.py` ~297 es enrevesada.
 - Hallazgos leves de la revisión de bloque F2.1-F2.3, sin arreglar en este PR (no vuelven a revisarse en él):
   - stdout del motor descartado (`stdout=DEVNULL`): mejor al mismo archivo que stderr.
@@ -81,15 +81,4 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
   Hacer que escriban el mismo formato (`gvoice/log.py`: perfil, dispositivo, `duration_ms`, `load_ms`, `audio_ms`,
   memoria). Además, rellenar `.claude/gw/gw-opt-ai.md` (banco de pruebas, tiempos aceptables, script de parada):
   el único registro (`portal`, 17-nov) es una prueba de humo y no vale como ronda.
-- Leves de la revisión de bloque de 0.3.0 (B1, `gvoice/effects.py`, 2026-11-18), sin arreglar:
-  (1) `effects.py:179`: salida que es un directorio existente → `IsADirectoryError` sin `GvoiceError` (sale `cli.unexpected`).
-  (2) `effects.py:176`: salida sin nombre (`.`, `/`, `..`) → `ValueError` de `with_name`, no un error `effects.*`.
-  (3) `effects.py:178`: `-f wav` forzado escribe WAV en `out.mp3` sin avisar; rechazar extensiones distintas de `.wav`.
-  (4) `effects.py:176-179`: tercera variante de escritura atómica (temporal adivinable, sin creación exclusiva, sin `fsync`); unificar con `fsutil.write_json`/`engine._write_atomic`.
-  (5) `effects.py:179`: si la salida es un enlace simbólico, `os.replace` lo cambia por un archivo y se pierden sus permisos.
-  (6) `tests/test_effects.py:278`: `import os` local que sobra.
-- Leves de la revisión fase 1 F5.9 (2026-11-17), sin arreglar:
-  - `gvoice/ui/js/queue-model.js:41` `errorOf` cae a la cadena fija en inglés `error: <code>` en vez de usar la clave `ui.error.code`.
-  - `loading()` vive en `gvoice/ui/js/components/shortcuts.js` y `projects-view.js`/`project-view.js` lo importan solo por eso: su sitio es `dom.js`.
-  - Dos líneas en blanco seguidas tras los imports en `project-view.js` y `projects-view.js`.
 - Flujo (upstream, 2026-11-18): la fusión de settings.json de apply.py v0.8.0 añade PreToolUse ^(Read|Bash)$ → whole-read.py sin quitar el Read antiguo, y el gancho corre dos veces en cada Read; aquí se quitó a mano. Llevarlo a Galivelop-workflow.

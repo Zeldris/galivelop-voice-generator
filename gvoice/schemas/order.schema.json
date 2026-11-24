@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Order",
-  "description": "A request to design a voice (type voice) or generate a line (type line). Type sound is reserved for F7.",
+  "description": "A request to design a voice (type voice, designed or cloned from a clip) or generate a line (type line). Type sound is reserved for F7.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -40,6 +40,32 @@
       "$ref": "design-sheet.schema.json",
       "description": "voice: design sheet the instruct is built from."
     },
+    "clip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "audio",
+        "text"
+      ],
+      "properties": {
+        "audio": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path of the clip (PCM WAV, 3 to 30 s) relative to the project root."
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000,
+          "description": "What the clip says, as spoken."
+        },
+        "source": {
+          "type": "string",
+          "description": "Free text: where the clip comes from (optional)."
+        }
+      },
+      "description": "voice: clip of a human voice, take 1 of a cloned voice (instead of designSheet and testText)."
+    },
     "voice": {
       "$ref": "common.schema.json#/$defs/key",
       "description": "line: key of the voice that speaks."
@@ -69,6 +95,7 @@
           "text"
         ],
         "properties": {
+          "clip": false,
           "designSheet": false,
           "locale": false,
           "testText": false
@@ -87,13 +114,26 @@
         }
       },
       "then": {
-        "required": [
-          "designSheet",
-          "testText"
-        ],
         "properties": {
           "voice": false,
           "text": false
+        },
+        "if": {
+          "required": [
+            "clip"
+          ]
+        },
+        "then": {
+          "properties": {
+            "designSheet": false,
+            "testText": false
+          }
+        },
+        "else": {
+          "required": [
+            "designSheet",
+            "testText"
+          ]
         }
       }
     }

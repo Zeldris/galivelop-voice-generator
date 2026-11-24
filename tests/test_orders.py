@@ -3,10 +3,11 @@ import json
 import os
 import tempfile
 import unittest
+import wave
 from pathlib import Path
 from unittest import mock
 
-from gvoice import engine, orders, paths, projects
+from gvoice import engine, orders, paths, projects, schema
 from gvoice.errors import GvoiceError
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -540,6 +541,113 @@ class StaleTests(Base):
     def test_attempt_specs_of_a_line_carry_its_voice(self):
         spec, = orders.attempt_specs(self.p, "narrator/intro-01")
         self.assertEqual((spec["voice"], spec["reference"]), ("narrator", self.ref1))
+
+
+class ClipTests(Base):
+    def wav(self, name="clip.wav", seconds=5.0, tone=100):
+        path = self.tmp / "world" / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with wave.open(str(path), "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(8000)
+            w.writeframes(bytes([tone % 256, 0]) * int(8000 * seconds))
+        return name
+
+    def clip_order(self, audio="clip.wav", **changes):
+        order = {"key": "narrator", "type": "voice", "clip": {"audio": audio, "text": "Hola a todos."}}
+        order.update(changes)
+        return order
+
+    def test_clip_makes_take_one(self):
+        rec = orders.submit(self.p, self.clip_order(self.wav(), locale="es-ES"))
+        self.assertNotIn("designSheet", rec)
+        self.assertEqual(len(rec["attempts"]), 1)
+        take = rec["attempts"][0]
+        self.assertEqual((take["id"], take["origin"], take["state"], take["seed"], take["audioMs"], take["text"]),
+                         (1, "clip", "new", None, 5000, "Hola a todos."))
+        self.assertEqual((take["locale"], take["prints"], take["note"]), ("es-ES", {}, ""))
+        self.assertEqual(len(take["sourceSha256"]), 64)
+        self.assertEqual(orders.attempt_audio(self.p, "narrator", take).read_bytes(),
+                         (self.tmp / "world" / "clip.wav").read_bytes())
+        self.assertEqual(orders.choose(self.p, "narrator", 1), {"old": None, "new": 1})
+        self.assertEqual(orders.missing_prints(self.p, "narrator", 1),
+                         projects.get(self.p)["config"]["printModels"])
+        self.assertEqual(orders.get(self.p, "narrator")["chosen"], 1)
+        self.assertEqual(len(orders.list_orders(self.p, type="voice")), 1)
+
+    def test_same_clip_adds_nothing_other_clip_adds_take(self):
+        orders.submit(self.p, self.clip_order(self.wav()))
+        self.assertEqual(len(orders.submit(self.p, self.clip_order("clip.wav"))["attempts"]), 1)
+        rec = orders.submit(self.p, self.clip_order(self.wav("otro.wav", tone=7)))
+        self.assertEqual([(a["id"], a["origin"]) for a in rec["attempts"]], [(1, "clip"), (2, "clip")])
+        rec = orders.submit(self.p, self.clip_order("clip.wav"))  # back to the first: still no new take
+        self.assertEqual(len(rec["attempts"]), 2)
+
+    def test_duration_bounds(self):
+        for seconds in (3, 30):
+            orders.submit(self.p, self.clip_order(self.wav("%d.wav" % seconds, seconds=seconds), key="v%d" % seconds))
+        for seconds in (2, 31):
+            err = self.code(orders.submit, self.p, self.clip_order(self.wav("%d.wav" % seconds, seconds=seconds)))
+            self.assertEqual(err.code, "order.clip_duration")
+            self.assertEqual((err.params["min"], err.params["max"], err.params["seconds"]),
+                             (3, 30, "%d.0" % seconds))
+        self.assertEqual(orders.list_orders(self.p, chosen=False)[0]["key"], "v3")
+
+    def test_bad_paths_and_files(self):
+        self.assertEqual(self.code(orders.submit, self.p, self.clip_order("nope.wav")).code, "order.clip_missing")
+        (self.tmp / "world" / "x.wav").write_bytes(b"not a wav at all")
+        self.assertEqual(self.code(orders.submit, self.p, self.clip_order("x.wav")).code, "order.clip_not_wav")
+        (self.tmp / "outside.wav").write_bytes(b"x")
+        err = self.code(orders.submit, self.p, self.clip_order("../outside.wav"))
+        self.assertTrue(err.code.startswith("path."), err.code)
+        self.assertEqual(self.code(orders.get, self.p, "narrator").code, "order.unknown")
+
+    def test_schema_rules(self):
+        both = self.clip_order(designSheet=self.voice()["designSheet"], testText="hola")
+        self.assertEqual(self.code(orders.submit, self.p, both).code, "order.invalid")
+        only_sheet = self.clip_order(designSheet=self.voice()["designSheet"])
+        self.assertEqual(self.code(orders.submit, self.p, only_sheet).code, "order.invalid")
+        line = self.line(clip={"audio": "a.wav", "text": "x"})
+        self.assertEqual(self.code(orders.submit, self.p, line).code, "order.invalid")
+        extra = self.clip_order()
+        extra["clip"]["other"] = 1
+        self.assertEqual(self.code(orders.submit, self.p, extra).code, "order.invalid")
+        long = self.clip_order()
+        long["clip"]["text"] = "x" * 4001
+        self.assertEqual(self.code(orders.submit, self.p, long).code, "order.invalid")
+        neither = {"key": "narrator", "type": "voice"}
+        self.assertTrue(schema.validate(neither, schema.load_schema("order")))
+        ok = self.clip_order()
+        ok["clip"]["source"] = "grabación de prueba"
+        self.assertEqual(schema.validate(ok, schema.load_schema("order")), [])
+
+    def test_kind_cannot_change(self):
+        orders.submit(self.p, self.voice())
+        err = self.code(orders.submit, self.p, self.clip_order(self.wav()))
+        self.assertEqual(err.code, "order.clip_kind_changed")
+        self.assertEqual(orders.get(self.p, "narrator")["attempts"], [])
+        orders.submit(self.p, self.clip_order(self.wav(), key="cloned"))
+        again = self.voice(key="cloned")
+        self.assertEqual(self.code(orders.submit, self.p, again).code, "order.clip_kind_changed")
+        rec = orders.get(self.p, "cloned")
+        self.assertIn("clip", rec)
+        self.assertNotIn("designSheet", rec)
+
+    def test_clip_voice_has_no_design_takes(self):
+        orders.submit(self.p, self.clip_order(self.wav()))
+        self.assertEqual(self.code(orders.attempt_specs, self.p, "narrator").code, "order.clip_no_design")
+
+    def test_design_take_has_origin_and_old_takes_read(self):
+        orders.submit(self.p, self.voice())
+        self.take()
+        rec = orders.get(self.p, "narrator")
+        self.assertEqual(rec["attempts"][0]["origin"], "design")
+        del rec["attempts"][0]["origin"]  # data from before 0.3.0
+        (self.tmp / "data" / "projects" / "world" / "orders" / "narrator" / "@" / "order.json").write_text(
+            json.dumps(rec))
+        orders.submit(self.p, self.voice(testText="Otra frase."))
+        self.assertEqual(len(orders.get(self.p, "narrator")["attempts"]), 1)
 
 
 class SchemaDataTests(Base):

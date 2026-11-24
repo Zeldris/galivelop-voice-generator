@@ -190,8 +190,11 @@ def _order(args, sub, out: _Out) -> None:
         out.line("cli.out.order_head", order=o["key"], type=o["type"])
         out.line("cli.out.order_seed", seed=out.none(o["seed"]))
         if o["type"] == "voice":
-            out.line("cli.out.order_test_text", text=o["testText"])
-            out.line("cli.out.order_instruction", text=sheet.instruction(o["designSheet"], o.get("locale")))
+            if "clip" in o:
+                out.line("cli.out.order_test_text", text=o["clip"]["text"])
+            else:
+                out.line("cli.out.order_test_text", text=o["testText"])
+                out.line("cli.out.order_instruction", text=sheet.instruction(o["designSheet"], o.get("locale")))
         else:
             out.line("cli.out.order_voice", voice=o["voice"], reference=out.none(orders.reference(args.project,
                                                                                                   o["voice"])))
@@ -202,7 +205,7 @@ def _order(args, sub, out: _Out) -> None:
         if not o["attempts"]:
             out.line("cli.out.attempts_none")
         for a in o["attempts"]:
-            out.line("cli.out.attempt_line", id=a["id"], state=a["state"], seed=a["seed"], audio=a["audio"])
+            out.line("cli.out.attempt_line", id=a["id"], state=a["state"], seed=out.none(a["seed"]), audio=a["audio"])
             if o["type"] == "line":
                 out.line("cli.out.attempt_reference", reference=a["reference"])
             else:

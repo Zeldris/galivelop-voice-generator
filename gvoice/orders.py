@@ -12,6 +12,10 @@ key ``a`` (a key segment cannot hold ``@``). Beside ``order.json``, one folder p
 * ``voice``: each attempt is a take with a seed, the test text and the instruction built from the design sheet
   (`sheet.instruction`). Choosing a take makes it the voice's *reference* (it fixes the voice); `submit` also returns
   the `sheet.warnings` (never stored, never blocking).
+  A voice is *designed* (takes with ``origin: "design"``) or *cloned*: its order holds ``clip`` (``audio``, ``text``,
+  ``source``) instead of a sheet, and its takes are clips of a human voice (``origin: "clip"``, ``sourceSha256``,
+  ``seed: None``, no ``instruction``; take 1 is the clip). A voice never changes class (``order.clip_kind_changed``).
+  An attempt without ``origin`` (older data) is a ``design`` one; read it with ``attempt.get("origin", "design")``.
 * ``line``: a voice (a ``voice`` order of the same project with a chosen reference) and a text. Each attempt records
   the voice (``voice``) and the reference take (``reference``) it was made with. A chosen line is *stale*
   (`is_stale`) when its voice changed or that take is not the voice's current reference; it is computed, never stored, and nothing regenerates it by itself.
@@ -26,8 +30,11 @@ Public API: `submit`, `attempt_specs`, `add_attempt`, `attempt_for_entry`, `atte
 from __future__ import annotations
 
 import copy
+import hashlib
+import io
 import os
 import random
+import wave
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -37,6 +44,9 @@ from .errors import GvoiceError
 STATES = ("new", "candidate", "discarded")
 SEED_LIMIT = schema.load_schema("common")["$defs"]["seed"]["maximum"] + 1  # one place: common.schema.json
 TYPES = ("voice", "line")
+CLIP_MIN_SECONDS = 3
+CLIP_MAX_SECONDS = 30
+ORIGINS = ("design", "clip", "print")
 _ORDER_FILE = "order.json"
 _MARK = "@"
 _rng = random.SystemRandom()
@@ -133,6 +143,32 @@ def _fixed_voice(project: str, voice: str) -> tuple:
     return record, record["chosen"]
 
 
+def _read_clip(project: str, clip: dict) -> tuple:
+    """``(wav bytes, sha256 hex, duration ms)`` of ``clip["audio"]``, a path relative to the project root (D25).
+    Raises ``order.clip_missing``, ``order.clip_not_wav`` or ``order.clip_duration``."""
+    root = projects.get(project)["root"]
+    path = paths.inside(root, clip["audio"])
+    if not path.is_file():
+        raise GvoiceError("order.clip_missing", path=clip["audio"])
+    try:
+        data = path.read_bytes()
+    except OSError:
+        raise GvoiceError("order.clip_missing", path=clip["audio"])
+    try:
+        with wave.open(io.BytesIO(data), "rb") as w:
+            frames, rate = w.getnframes(), w.getframerate()
+            w.readframes(min(frames, 1))
+    except (wave.Error, EOFError, ValueError, OSError):
+        raise GvoiceError("order.clip_not_wav", path=clip["audio"])
+    if rate <= 0:
+        raise GvoiceError("order.clip_not_wav", path=clip["audio"])
+    seconds = frames / rate
+    if not CLIP_MIN_SECONDS <= seconds <= CLIP_MAX_SECONDS:
+        raise GvoiceError("order.clip_duration", path=clip["audio"], seconds="%.1f" % seconds,
+                          min=CLIP_MIN_SECONDS, max=CLIP_MAX_SECONDS)
+    return data, hashlib.sha256(data).hexdigest(), int(round(seconds * 1000))
+
+
 def submit(project: str, order: dict) -> dict:
     """Create or update an order; returns the stored record (a copy).
 
@@ -141,6 +177,11 @@ def submit(project: str, order: dict) -> dict:
     clears it), testText and designSheet (voice) or voice and text (line), and keeps attempts, chosen and history;
     its type cannot change (``order.type_changed``). Does not enqueue. A voice resubmitted without ``locale`` keeps
     the one it has (the UI form has no such field, so a resubmit must not wipe it); a new ``locale`` replaces it.
+
+    A ``voice`` carries a ``designSheet`` + ``testText`` or a ``clip`` (``{audio, text, source?}``, ``audio`` relative
+    to the project root: a PCM WAV of 3 to 30 s). A clip becomes take 1 (``origin: "clip"``, the audio copied to
+    ``attempts/<id>/audio.wav``, ``sourceSha256``, ``audioMs``, no seed); resubmitting a clip with the same sha256 as
+    an existing clip take adds nothing, another one adds a take. A voice keeps its class (``order.clip_kind_changed``).
 
     A ``voice`` also gets ``warnings``, a list of ``{"code", "params"}`` from `sheet.warnings` (D11): it is in the
     returned copy only, never stored, and does not block."""
@@ -152,7 +193,14 @@ def submit(project: str, order: dict) -> dict:
     if kind == "line":
         _fixed_voice(project, order["voice"])
         fields = {"voice": order["voice"], "text": order["text"]}
+    elif "clip" in order:
+        clip = copy.deepcopy(order["clip"])
+        clip_data = _read_clip(project, clip)
+        fields = {"clip": clip}
+        if order.get("locale") is not None:
+            fields["locale"] = order["locale"]
     else:
+        clip_data = None
         fields = {"testText": order["testText"], "designSheet": copy.deepcopy(order["designSheet"])}
         if order.get("locale") is not None:
             fields["locale"] = order["locale"]
@@ -169,11 +217,34 @@ def submit(project: str, order: dict) -> dict:
                       "chosenHistory": []}
         if record["type"] != kind:
             raise GvoiceError("order.type_changed", order=key, type=record["type"], new=kind)
+        if kind == "voice":
+            was_clip = "clip" in record or any(a.get("origin") == "clip" for a in record["attempts"])
+            was_design = "designSheet" in record or any(a.get("origin", "design") == "design"
+                                                         for a in record["attempts"])
+            if (was_clip and "clip" not in fields) or (was_design and "clip" in fields):
+                raise GvoiceError("order.clip_kind_changed", order=key, type="clip" if was_clip else "design")
+            for gone in (("designSheet", "testText") if "clip" in fields else ("clip",)):
+                record.pop(gone, None)
         record.update(fields)
+        if kind == "voice" and "clip" in fields:
+            data, sha, ms = clip_data
+            if not any(a.get("origin") == "clip" and a.get("sourceSha256") == sha for a in record["attempts"]):
+                new_id = max((a["id"] for a in record["attempts"]), default=0) + 1
+                folder = _attempt_folder(new_id, None)
+                target = paths.inside(_order_dir(project, key), folder + "/audio.wav")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with fsutil.atomic_output(target) as tmp:
+                    tmp.write_bytes(data)
+                take = {"id": new_id, "origin": "clip", "state": "new", "seed": None, "text": fields["clip"]["text"],
+                        "sourceSha256": sha, "audioMs": ms, "dir": folder, "audio": folder + "/audio.wav",
+                        "note": "", "createdAt": now, "prints": {}}
+                if record.get("locale"):
+                    take["locale"] = record["locale"]
+                record["attempts"].append(take)
         record["updatedAt"] = now
         fsutil.write_json(path, record)
     result = copy.deepcopy(record)
-    if kind == "voice":
+    if kind == "voice" and "designSheet" in order:
         result["warnings"] = [{"code": w.code, "params": dict(w.params)} for w in sheet.warnings(order["designSheet"])]
     return result
 
@@ -201,6 +272,8 @@ def attempt_specs(project: str, key: str, count: int = 1, *, seed=None) -> list:
     base = order.get("seed") if seed is None else seed
     check_count(count, base)
     if order["type"] == "voice":
+        if "clip" in order:
+            raise GvoiceError("order.clip_no_design", order=key)
         locale = order.get("locale")
         extra = {"instruction": sheet.instruction(order["designSheet"], locale), "text": order["testText"]}
         if locale is not None:
@@ -307,6 +380,7 @@ def add_attempt(project: str, key: str, spec: dict, entry_id=None) -> int:
         record = {"id": new_id, "state": "new", "seed": spec["seed"], "text": spec["text"], "dir": folder,
                   "audio": folder + "/audio.wav", "note": "", "createdAt": _now()}
         if kind == "voice":
+            record["origin"] = "design"
             record["instruction"] = spec["instruction"]
             record["prints"] = {}
         else:

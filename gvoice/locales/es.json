@@ -468,6 +468,7 @@
   "error.effects.no_ffmpeg": "no se encuentra ffmpeg en el PATH",
   "error.effects.failed": "ffmpeg ha fallado: {reason}",
   "error.effects.many_loudnorm": "la cadena solo puede llevar un paso loudnorm",
+  "error.effects.same_file": "el archivo de salida es el mismo que el de entrada: {path}",
   "cli.cmd.fx": "efectos de audio",
   "cli.cmd.fx_apply": "aplicar una cadena de efectos (preset o archivo) a un WAV con ffmpeg",
   "cli.arg.fx_chain": "preset (p. ej. lectura) o ruta a un JSON de cadena de efectos",

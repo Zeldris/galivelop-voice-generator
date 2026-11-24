@@ -59,6 +59,12 @@ def lufs(path):
     return float(re.findall(r"I:\s+(-?[\d.]+) LUFS", done.stderr)[-1])
 
 
+def _touch_output(args):
+    """`_run` stand-in: ffmpeg would create the last argument (the temporary output)."""
+    Path(args[-1]).write_bytes(b"")
+    return ""
+
+
 class Compile(unittest.TestCase):
     def test_simple_steps(self):
         cases = [
@@ -106,7 +112,7 @@ class Compile(unittest.TestCase):
             src = Path(tmp) / "a.wav"
             write_wav_header(src, rate=RATE, fmt=1, bits=16)
             with mock.patch.object(effects, "_measure", return_value=silent), \
-                    mock.patch.object(effects, "_run") as run:
+                    mock.patch.object(effects, "_run", side_effect=_touch_output) as run:
                 filters = effects.apply(chain({"type": "loudnorm", "targetLufs": -16}), src, Path(tmp) / "b.wav")
         self.assertNotIn("measured_", filters)
         self.assertNotIn("measured_", " ".join(run.call_args[0][0]))
@@ -165,7 +171,7 @@ class Rate(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             src = Path(tmp) / "a.wav"
             write_wav_header(src, rate=24000, fmt=3, bits=32)  # float: `wave` cannot read it
-            with mock.patch.object(effects, "_run") as run:
+            with mock.patch.object(effects, "_run", side_effect=_touch_output) as run:
                 filters = effects.apply(chain({"type": "gain", "gainDb": 1}), src, Path(tmp) / "b.wav")
         self.assertEqual(filters, "volume=1dB,aresample=24000")
         self.assertIn("volume=1dB,aresample=24000", run.call_args[0][0])
@@ -205,8 +211,46 @@ class Preset(unittest.TestCase):
                 effects.load_chain(str(Path(tmp) / "nope.json"))
             self.assertEqual(caught.exception.code, "effects.unreadable")
 
+    def test_preset_names_are_sanitised_and_explicit_files_win(self):
+        for bad in ("", "../x", "a/b", ".."):
+            with self.assertRaises(GvoiceError) as caught:
+                effects.load_chain(bad)
+            self.assertEqual(caught.exception.code, "effects.unreadable")
+        with tempfile.TemporaryDirectory() as tmp:
+            local = Path(tmp) / "lectura.json"
+            local.write_text(json.dumps(chain({"type": "gain", "gainDb": 3})), encoding="utf-8")
+            self.assertEqual(effects.load_chain(str(local))["steps"][0]["type"], "gain")
+            with mock.patch.object(effects, "PRESETS", Path(tmp) / "none"):
+                with self.assertRaises(GvoiceError):
+                    effects.load_chain("lectura")  # a bare name is a preset, never a file in the folder
+
+    def test_apply_refuses_the_same_file_and_cleans_its_temporary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "a.wav"
+            write_wav_header(src, rate=RATE, fmt=1, bits=16)
+            link = Path(tmp) / "link.wav"
+            link.symlink_to(src)
+            with mock.patch.object(effects, "_run", side_effect=_touch_output) as run:
+                for dst in (src, link):
+                    with self.assertRaises(GvoiceError) as caught:
+                        effects.apply(chain({"type": "gain", "gainDb": 1}), src, dst)
+                    self.assertEqual(caught.exception.code, "effects.same_file")
+                    self.assertIn("same as the input", caught.exception.message("en"))
+                run.assert_not_called()
+            dst = Path(tmp) / "b.wav"
+            with mock.patch.object(effects, "_run", side_effect=GvoiceError("effects.failed", reason="x")):
+                with self.assertRaises(GvoiceError):
+                    effects.apply(chain({"type": "gain", "gainDb": 1}), src, dst)
+            self.assertEqual(sorted(p.name for p in Path(tmp).iterdir()), ["a.wav", "link.wav"])
+            with mock.patch.object(effects, "_run", side_effect=_touch_output) as run:
+                effects.apply(chain({"type": "gain", "gainDb": 1}), src, dst)
+            args = run.call_args[0][0]
+            self.assertEqual(args[args.index("-f") + 1], "wav")
+            self.assertNotEqual(args[-1], str(dst))
+            self.assertEqual(Path(args[-1]).parent, dst.parent)
+
     def test_effect_texts_exist_in_both_languages(self):
-        for code in ("unsupported", "invalid", "unreadable", "no_ffmpeg", "failed", "many_loudnorm"):
+        for code in ("unsupported", "invalid", "unreadable", "no_ffmpeg", "failed", "many_loudnorm", "same_file"):
             for lang in ("es", "en"):
                 self.assertNotEqual(i18n.t("error.effects." + code, lang, type="x", path="x", reason="x"),
                                     "error.effects." + code)

@@ -468,6 +468,7 @@
   "error.effects.no_ffmpeg": "ffmpeg not found in PATH",
   "error.effects.failed": "ffmpeg failed: {reason}",
   "error.effects.many_loudnorm": "the chain can carry only one loudnorm step",
+  "error.effects.same_file": "the output file is the same as the input: {path}",
   "cli.cmd.fx": "audio effects",
   "cli.cmd.fx_apply": "apply an effect chain (preset or file) to a WAV with ffmpeg",
   "cli.arg.fx_chain": "preset (e.g. lectura) or path to an effect chain JSON",

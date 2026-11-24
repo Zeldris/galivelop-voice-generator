@@ -9,9 +9,9 @@
 | Campo | Valor |
 |---|---|
 | **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; `main` fusionado en la rama tras el PR #12, `8a17618`, el 2026-11-24) |
-| **Fase / tarea** | **Actualización del flujo a Galivelop-workflow v0.9.0** (`gw-update`, pedida por la persona el 2026-11-24; `schemaVersion` 1 → 2: `language`/`visibleLanguages` pasan al bloque `languages`). Decisiones de la persona (2026-11-24, «todo ok»): aplicar `--update`; en `AGENTS.md`, `merge-main.py` en el paso 5, `timeout` de 90 min para push y check largo, y el «Siguiente» tras un cierre (reglas del proyecto conservadas); en `CLAUDE.md`, la línea de idioma nueva; en `REVIEW.md`, `languages.ui`; marcadores a v0.9.0. F2.6 sigue esperando a la Deck; 0.3.0 con B1/B2 en `docs/plan.md` |
+| **Fase / tarea** | 0.3.0, B1 hecho (barrido de leves de `gvoice/effects.py`); sigue B2 |
 | **Último punto estable** | Actualización a v0.9.0 aplicada (2026-11-24): 83 archivos del flujo actualizados y 11 nuevos (`front.py`, `merge-main.py`, `profile.py`, `generated-check.py`, `other-repo-read.py`, skill `gw-seo`), `.claude/gw.json` migrado, gancho `PreToolUse` en `.claude/settings.json`, sin `.gw-new`, `apply.py --check` en 0; `doctor.py` sin `FAIL` (avisa de que `workflowClone` no existe en la nube: el clon está en `/home/user/zeldris/galivelop-workflow`) |
-| **Siguiente paso** | v0.9.0 en `main`: PR #12 fusionado el 2026-11-24 (`8a17618`) con confirmación de la persona; CI de GitHub sin arrancar (sin cuota de Actions), **comprobado solo en local** (`docs/records/ci-local.md`). Pendiente de la persona: desconectar Claude Docs (retro 2026-11-24, P1). Siguiente: lo que pida la persona; F2.6 sigue esperando a la Deck |
+| **Siguiente paso** | B2: barrido de leves de `gvoice/ui/js/api.js` (docs/plan.md, 0.3.0) |
 | **Check** | verde (`bash -n` de cada gancho, `unittest` 751 tests y `ci-local.py --validate`) |
 
 ## Para la próxima publicación

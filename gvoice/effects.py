@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import shutil
 import subprocess
@@ -21,12 +22,13 @@ from .errors import GvoiceError
 DEFAULT_TRUE_PEAK = -1.5
 DEFAULT_LRA = 11.0
 PRESETS = Path(__file__).resolve().parent / "effect_presets"
+_PRESET_NAME = re.compile(r"[A-Za-z0-9_-]+")
 _SUPPORTED = ("highpass", "lowpass", "equalizer", "gain", "denoise", "dereverb", "trimSilence", "loudnorm")
 
 
 def _n(value) -> str:
     """A number as ffmpeg wants it: no trailing zeros, no exponent."""
-    return ("%.4f" % value).rstrip("0").rstrip(".") or "0"
+    return ("%.4f" % value).rstrip("0").rstrip(".")
 
 
 def _finite(measured: dict) -> bool:
@@ -41,7 +43,7 @@ def _finite(measured: dict) -> bool:
 def _step(step: dict, measured: dict | None) -> str:
     kind = step["type"]
     if kind not in _SUPPORTED:
-        raise GvoiceError("effects.unsupported", type=kind)
+        raise GvoiceError("effects.unsupported", type=kind)  # the only check: `compile_chain` and `apply` go through here
     if kind in ("highpass", "lowpass"):
         return "%s=f=%s" % (kind, _n(step["freqHz"]))
     if kind == "equalizer":
@@ -86,9 +88,15 @@ def compile_chain(chain: dict, measured: dict | None = None, upto: int | None = 
 
 
 def load_chain(source: str) -> dict:
-    """A preset name (`lectura`) or a path to a chain JSON file."""
+    """A preset name (`lectura`) or a path to a chain JSON file. A bare name made only of `[A-Za-z0-9_-]` is a
+    preset (never a path: no separators, `..` or empty names reach the presets folder); anything else, such as
+    `./lectura`, `lectura.json` or `dir/c.json`, is an explicit file and is never shadowed by a preset."""
+    if not source:
+        raise GvoiceError("effects.unreadable", path=source, reason="empty name")
     path = PRESETS / (source + ".json")
-    if not path.is_file():
+    if _PRESET_NAME.fullmatch(source) and path.is_file():
+        pass
+    else:
         path = Path(source).expanduser()
     try:
         with open(path, encoding="utf-8") as fh:
@@ -153,9 +161,7 @@ def apply(chain: dict, src, dst) -> str:
     passes (measure, then linear) so the result lands on the target loudness."""
     validate(chain)
     src, dst = Path(src), Path(dst)
-    for step in chain["steps"]:
-        if step["type"] not in _SUPPORTED:
-            raise GvoiceError("effects.unsupported", type=step["type"])
+    compile_chain(chain)  # fails with effects.unsupported before anything runs
     if not src.is_file():
         raise GvoiceError("effects.unreadable", path=str(src), reason="not a file")
     kinds = [s["type"] for s in chain["steps"]]
@@ -169,5 +175,15 @@ def apply(chain: dict, src, dst) -> str:
     rate = _rate(src)
     if rate:  # always the source rate: loudnorm resamples to 192 kHz and the output must not depend on it
         filters += ",aresample=%d" % rate
-    _run(["-i", str(src), "-af", filters, "-c:a", "pcm_s16le", str(dst)])
+    try:
+        if dst.exists() and os.path.samefile(src, dst) or src.resolve() == dst.resolve():
+            raise GvoiceError("effects.same_file", path=str(dst))
+    except OSError:
+        pass
+    tmp = dst.with_name(".%s.%d.tmp" % (dst.name, os.getpid()))
+    try:
+        _run(["-i", str(src), "-af", filters, "-c:a", "pcm_s16le", "-f", "wav", str(tmp)])
+        os.replace(tmp, dst)
+    finally:
+        tmp.unlink(missing_ok=True)
     return filters

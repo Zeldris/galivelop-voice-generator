@@ -2,15 +2,13 @@
    GET /api/projects, POST /api/projects {path} y POST /api/projects/{p}/remove. La vista devuelve su nodo y la función
    que la desactiva al cambiar de ruta (una respuesta tardía ya no pinta). */
 
-import { h, replace } from '../dom.js';
+import { h, loading, replace } from '../dom.js';
 import { t } from '../i18n.js';
 import { api, describeError } from '../api.js';
 import { to } from '../router.js';
 import { confirmAction } from './confirm.js';
 import { toastError, toastOk } from './toast.js';
 import { latest, lifetime, STALE } from '../async-guard.js';
-import { loading } from './shortcuts.js';
-
 
 export function projectsView() {
   const life = lifetime();

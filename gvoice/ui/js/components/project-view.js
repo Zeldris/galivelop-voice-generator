@@ -3,7 +3,7 @@
    GET /api/projects/{p} (config: voces) y GET /api/projects/{p}/orders?type=&chosen=. Sin pestañas: las piezas y la marca
    son de imágenes. La lógica pura (filtros, resumen de fila) está en ../order-model.js. */
 
-import { h, replace } from '../dom.js';
+import { h, loading, replace } from '../dom.js';
 import { t } from '../i18n.js';
 import { api, describeError } from '../api.js';
 import { to, replaceHash } from '../router.js';
@@ -11,8 +11,6 @@ import { filtersFromQuery, filtersToQuery, orderSummary, ordersOf } from '../ord
 import { openNewOrder } from './new-order.js';
 import { openSheetDialog } from './sheet-dialog.js';
 import { busy, latest, lifetime, STALE } from '../async-guard.js';
-import { loading } from './shortcuts.js';
-
 
 export function projectView(route) {
   const { project } = route;

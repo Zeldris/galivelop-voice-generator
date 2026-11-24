@@ -11,6 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- UI: error messages without text from the API show `ui.error.code` (also in the queue bar) instead of a fixed
+  English string.
 - `gvoice fx apply` reports a clear error when the output is a directory, has no name or is not a `.wav` file, writes
   through a symlink instead of replacing it, and uses an unguessable, exclusively created temporary file.
 - `gvoice fx apply` refuses the same file as input and output, writes to a temporary file and replaces the output

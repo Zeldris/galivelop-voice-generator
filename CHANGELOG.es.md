@@ -11,6 +11,8 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y e
 
 ### Corregido
 
+- Interfaz: los errores sin texto de la API enseñan `ui.error.code` (también en la barra de cola) en vez de una
+  cadena fija en inglés.
 - `gvoice fx apply` da un error claro si la salida es un directorio, no tiene nombre o no es un `.wav`, escribe a
   través de un enlace simbólico en vez de sustituirlo y usa un temporal no adivinable creado en exclusiva.
 - `gvoice fx apply` rechaza el mismo archivo como entrada y salida, escribe a un temporal y solo sustituye la

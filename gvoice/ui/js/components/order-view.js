@@ -5,7 +5,7 @@
    GET …/orders/{key} y GET /api/queue (las huellas y las tomas pendientes); elegir y deshacer recargan el pedido.
    Devuelve {node, cleanup}: cleanup revoca las URL de audio, quita las escuchas y para el sondeo. */
 
-import { h, replace, closest } from '../dom.js';
+import { h, loading, replace, closest } from '../dom.js';
 import { t } from '../i18n.js';
 import { api, describeError } from '../api.js';
 import { to, navigate } from '../router.js';
@@ -16,7 +16,7 @@ import { pickPair } from '../compare-model.js';
 import { takeCard } from './take-card.js';
 import { icon } from './icons.js';
 import { warningIcon } from './sheet-warnings.js';
-import { bindShortcuts, loading, openHelp } from './shortcuts.js';
+import { bindShortcuts, openHelp } from './shortcuts.js';
 import { toast, toastError, toastOk } from './toast.js';
 
 export const POLL_MS = 3000;

@@ -114,8 +114,6 @@ export function mergeSources(perform, { windowMs = 200, now = () => Date.now() }
 let help = null;
 let viewActions = new Set(); // actions of the view that bound the shortcuts (empty: no view bound, only the global rows), so the help lists only those
 
-export const loading = () => h('p.empty', {}, h('span.spin', { aria: { hidden: true } }), ' ', t('ui.loading'));
-
 /** Wires keyboard and pad to `perform(action)` for one view. `actions` (an iterable) are the actions the view does;
     others are neither blocked nor listed in the help. Returns `stop()`. Keeps the filters in one place: not with the
     queue drawer open, not while typing, not over a dialog; Steam Input and the pad are merged (`mergeSources`). */

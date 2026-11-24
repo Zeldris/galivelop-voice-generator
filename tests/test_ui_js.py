@@ -886,6 +886,45 @@ out(r);
         self.assertEqual(got["seen"][0], ["GET", "/api/projects/w/orders/k/attempts/a1/audio?lang=es"])
         self.assertEqual(got["thrown"], [True, 404, "api.not_found"])
 
+    def test_api_request_returns_a_blob_when_the_response_is_not_json(self):
+        got = self.run_js("""
+globalThis.localStorage = { getItem: () => null, setItem: () => {} };
+const { get, setTransport } = await mod('js/api.js');
+const r = {};
+setTransport(async (m, url) => (url.includes('/a?') ? { status: 200, blob: new Blob(['abc']) } : { status: 200, json: { x: 1 } }));
+const b = await get('/a');
+r.viaTransport = [b instanceof Blob, b.size, await get('/b')];
+setTransport(null);
+globalThis.fetch = async (url) => (url.includes('/a?')
+  ? new Response('abcd', { status: 200, headers: { 'Content-Type': 'audio/wav' } })
+  : new Response('{"y":2}', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+const f = await get('/a');
+r.viaFetch = [f instanceof Blob, f.size, await get('/b')];
+out(r);
+""")
+        self.assertEqual(got["viaTransport"], [True, 3, {"x": 1}])
+        self.assertEqual(got["viaFetch"], [True, 4, {"y": 2}])
+
+    def test_describe_error_uses_the_api_message_or_the_code_key(self):
+        got = self.run_js("""
+globalThis.localStorage = { getItem: () => null, setItem: () => {} };
+const { ApiError, OfflineError, describeError } = await mod('js/api.js');
+const t = (k, p) => k + ':' + JSON.stringify(p || {});
+out([describeError(new ApiError(500, { error: { code: 'x.y', message: 'hola' } }), t),
+     describeError(new ApiError(502, null), t), describeError(new ApiError(404, { error: { code: 'api.not_found' } }), t),
+     describeError(new OfflineError(null), t), describeError(new Error('boom'), t)]);
+""")
+        self.assertEqual(got, ["hola", 'ui.error.code:{"code":"api.unexpected"}', 'ui.error.code:{"code":"api.not_found"}',
+                               "ui.offline.title:{}", 'ui.error.generic:{"message":"boom"}'])
+
+    def test_api_has_no_dead_helpers_and_loading_lives_in_dom(self):
+        api = (UI / "js" / "api.js").read_text(encoding="utf-8")
+        self.assertNotIn("withHeaders", api)
+        self.assertNotIn("export const put", api)
+        self.assertIn("export const loading", (UI / "js" / "dom.js").read_text(encoding="utf-8"))
+        shortcuts = (UI / "js" / "components" / "shortcuts.js").read_text(encoding="utf-8")
+        self.assertNotIn("export const loading", shortcuts)
+
     def test_sheet_from_fields_ignores_empty_fields_and_reports_bad_extra(self):
         got = self.run_js("""
 const m = await mod('js/order-model.js');
@@ -1615,7 +1654,7 @@ out({
   all: m.visible(es, 'all').map((e) => e.id), pending: m.visible(es, 'pending').map((e) => e.id),
   failed: m.visible(es, 'failed').map((e) => e.id), done: m.visible(es, 'done').map((e) => e.id),
   errText: m.errorOf(E(7, 'failed', { errorText: 'ya traducido', error: { code: 'x' } })),
-  errKey: m.errorOf(es[0], (k, p) => k + ':' + p.message), errNone: m.errorOf(E(8, 'failed')), errNoKey: m.errorOf(E(8, 'failed', { error: { code: 'weird.code' } }), () => null), errNotFailed: m.errorOf(E(8, 'done', { errorText: 'x' })),
+  errKey: m.errorOf(es[0], (k, p) => k + ':' + p.message), errNone: m.errorOf(E(8, 'failed')), errNoKey: m.errorOf(E(8, 'failed', { error: { code: 'weird.code' } }), (k, p) => (k === 'ui.error.code' ? 'Error ' + p.code : null)), errNoI18n: m.errorOf(E(8, 'failed', { error: { code: 'weird.code' } }), () => null), errNotFailed: m.errorOf(E(8, 'done', { errorText: 'x' })),
 });
 """)
         self.assertEqual(got["counts"], {"running": 1, "queued": 2, "done": 1, "failed": 1, "cancelled": 1})
@@ -1629,7 +1668,8 @@ out({
         self.assertEqual((got["failed"], got["done"]), ([0], [4]))
         self.assertEqual(got["all"][:3], [1, 2, 3])  # primero lo que corre, luego lo que espera por id
         self.assertEqual(got["all"][3:], [6, 5, 4, 0])  # y el resto, lo más nuevo antes
-        self.assertIn("weird.code", got["errNoKey"])   # a code without text is still a reason
+        self.assertEqual(got["errNoKey"], "Error weird.code")   # a code without text: the ui.error.code text
+        self.assertEqual(got["errNoI18n"], "weird.code")        # without even that key: the code alone
         self.assertEqual((got["errText"], got["errKey"], got["errNone"], got["errNotFailed"]), ("ya traducido", "error.engine.failed:x", None, None))
 
     QUEUE_ENV = ORDER_ENV + """

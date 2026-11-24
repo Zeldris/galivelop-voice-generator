@@ -1,7 +1,7 @@
 # Retro: actualización del flujo a Galivelop-workflow v0.9.0 (2026-11-24)
 
 **Estado:** aprobada por la persona el 2026-11-24: P1 aprobada (la aplica la persona: desconectar Claude Docs y los
-conectores sin uso); P2 aprobada y apuntada abajo para el flujo; P3 aplazada (se quita de pendientes).
+conectores sin uso); P2 aprobada y apuntada abajo para el flujo; P3 aplazada (sale de la lista de leves).
 
 ## Medida
 

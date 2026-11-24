@@ -451,7 +451,16 @@ class QwenTtsTests(unittest.TestCase):
     def test_aborts_when_memory_drops_while_running(self):
         os.environ["FAKE_QT_HANG"] = "1"
         self.fast_watch()
-        seen = self.free_sequence(5000, 5000, 900)
+        seen = []
+        pidfile = self.tmp / "pid"
+
+        def read(*_args):  # memory drops only once the fake runs: a loaded machine starts it late
+            seen.append(1)
+            return 900 if len(seen) >= 3 and pidfile.exists() and pidfile.read_text() else 5000
+
+        patch = mock.patch.object(limits, "available_memory_mb", read)
+        patch.start()
+        self.addCleanup(patch.stop)
         exc = self.error(lambda: self.watched().design(self.design(), NEVER))
         self.assertEqual((exc.code, exc.params["free"]), ("engine.low_memory", 900))
         self.assertGreaterEqual(len(seen), 3)  # sampled while running, not at the start only

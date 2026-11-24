@@ -42,6 +42,26 @@ def write_json(path, data) -> None:
         raise
 
 
+@contextlib.contextmanager
+def atomic_output(path):
+    """For a file that an external process writes: yields the path of an unguessable temp file, created exclusively
+    in the same directory as `path`; on a clean exit it is synced and replaces `path` (os.replace); on any error it is
+    removed and `path` stays as it was. `path` must not be a symlink (resolve it first: os.replace would swap it)."""
+    path = Path(path)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix="." + path.name + ".", suffix=".tmp")
+    try:
+        honour_umask(fd)
+        os.close(fd)
+        yield Path(tmp)
+        with open(tmp, "rb") as fh:
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
 def read_json(path, default=_MISSING):
     """Read JSON; if the file is missing return `default` (or raise FileNotFoundError)."""
     try:

@@ -16,7 +16,7 @@ import subprocess
 import struct
 from pathlib import Path
 
-from . import schema
+from . import fsutil, schema
 from .errors import GvoiceError
 
 DEFAULT_TRUE_PEAK = -1.5
@@ -160,6 +160,11 @@ def apply(chain: dict, src, dst) -> str:
     compile_chain(chain)  # raises effects.unsupported (the only check of the supported types) before any ffmpeg run
     if not src.is_file():
         raise GvoiceError("effects.unreadable", path=str(src), reason="not a file")
+    if dst.name in ("", ".", "..") or dst.is_dir():
+        raise GvoiceError("effects.bad_output", path=str(dst))
+    if dst.suffix.lower() != ".wav":
+        raise GvoiceError("effects.bad_extension", path=str(dst))
+    dst = Path(os.path.realpath(dst))  # a symlink as output: write to its target, so the link and its mode stay
     if src.resolve() == dst.resolve() or (dst.exists() and os.path.samefile(src, dst)):
         raise GvoiceError("effects.same_file", path=str(src))
     kinds = [s["type"] for s in chain["steps"]]
@@ -173,10 +178,6 @@ def apply(chain: dict, src, dst) -> str:
     rate = _rate(src)
     if rate:  # always the source rate: loudnorm resamples to 192 kHz and the output must not depend on it
         filters += ",aresample=%d" % rate
-    tmp = dst.with_name(".%s.%d.tmp" % (dst.name, os.getpid()))
-    try:
+    with fsutil.atomic_output(dst) as tmp:
         _run(["-i", str(src), "-af", filters, "-c:a", "pcm_s16le", "-f", "wav", str(tmp)])
-        os.replace(tmp, dst)
-    finally:
-        tmp.unlink(missing_ok=True)
     return filters

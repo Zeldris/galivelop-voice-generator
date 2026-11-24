@@ -81,13 +81,6 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
   Hacer que escriban el mismo formato (`gvoice/log.py`: perfil, dispositivo, `duration_ms`, `load_ms`, `audio_ms`,
   memoria). Además, rellenar `.claude/gw/gw-opt-ai.md` (banco de pruebas, tiempos aceptables, script de parada):
   el único registro (`portal`, 17-nov) es una prueba de humo y no vale como ronda.
-- Leves de la revisión de bloque de 0.3.0 (B1, `gvoice/effects.py`, 2026-11-18), sin arreglar:
-  (1) `effects.py:179`: salida que es un directorio existente → `IsADirectoryError` sin `GvoiceError` (sale `cli.unexpected`).
-  (2) `effects.py:176`: salida sin nombre (`.`, `/`, `..`) → `ValueError` de `with_name`, no un error `effects.*`.
-  (3) `effects.py:178`: `-f wav` forzado escribe WAV en `out.mp3` sin avisar; rechazar extensiones distintas de `.wav`.
-  (4) `effects.py:176-179`: tercera variante de escritura atómica (temporal adivinable, sin creación exclusiva, sin `fsync`); unificar con `fsutil.write_json`/`engine._write_atomic`.
-  (5) `effects.py:179`: si la salida es un enlace simbólico, `os.replace` lo cambia por un archivo y se pierden sus permisos.
-  (6) `tests/test_effects.py:278`: `import os` local que sobra.
 - Leves de la revisión fase 1 F5.9 (2026-11-17), sin arreglar:
   - `gvoice/ui/js/queue-model.js:41` `errorOf` cae a la cadena fija en inglés `error: <code>` en vez de usar la clave `ui.error.code`.
   - `loading()` vive en `gvoice/ui/js/components/shortcuts.js` y `projects-view.js`/`project-view.js` lo importan solo por eso: su sitio es `dom.js`.

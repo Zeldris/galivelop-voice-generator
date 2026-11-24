@@ -11,6 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- `gvoice fx apply` reports a clear error when the output is a directory, has no name or is not a `.wav` file, writes
+  through a symlink instead of replacing it, and uses an unguessable, exclusively created temporary file.
 - `gvoice fx apply` refuses the same file as input and output, writes to a temporary file and replaces the output
   only when ffmpeg succeeds; a local chain file wins over a preset of the same name, and preset names are
   restricted to `[a-z0-9_-]`.

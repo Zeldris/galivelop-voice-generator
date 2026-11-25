@@ -38,3 +38,17 @@ file (format: header of scripts/questions.py). Answer by number: `questions.py a
 - Recommendation: Sí: los 7 trozos del Portal se generan ya con la lectora-es actual (vía 2, la de los audios aprobados) en la Deck; no esperan a la vía 1
 - Answer: ok
 - Answered: 2026-11-25
+
+## Q-5
+- Refs: 0.3.1
+- Status: open
+- Asked: 2026-11-25
+- Question: ¿Se puede corregir la transcripción de una muestra ya registrada sin cambiar el audio?
+- Recommendation: No: con el mismo audio el texto de la toma no cambia (las huellas casan con su texto); para corregirla se envía otro audio, aunque sea un recorte
+
+## Q-6
+- Refs: 0.3.1
+- Status: open
+- Asked: 2026-11-25
+- Question: ¿Se limita la duración o el formato de la muestra (p. ej. 3-30 s, frecuencia mínima)?
+- Recommendation: No limitar todavía (hoy: cualquier WAV PCM con sonido hasta 64 MB); se decide tras oír en la Deck (0.3.3) qué pide Qwen3 Base

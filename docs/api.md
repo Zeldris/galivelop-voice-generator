@@ -23,7 +23,7 @@ implementa; hasta entonces `gvoice ui` responde 501 (`api.not_implemented`) a to
 | `GET /api/projects/{p}` | One project: root and its galivelop-voices.json config |
 | `POST /api/projects/{p}/remove` | Unregister a project (its files stay) |
 | `GET /api/projects/{p}/orders` | List orders; query: type=voice|line, chosen=true|false |
-| `POST /api/projects/{p}/orders` | Submit an order and queue its takes (body: order, count) |
+| `POST /api/projects/{p}/orders` | Submit an order and queue its takes (body: order, count; a voice from a sample queues none and ignores count) |
 | `GET /api/projects/{p}/orders/{key}` | One order with its takes, chosen take and stale marks |
 | `GET /api/projects/{p}/orders/{key}/sheet` | Design sheet of a voice: instruction text and warnings |
 | `POST /api/sheet/check` | Check a design sheet without storing it (body: designSheet) |

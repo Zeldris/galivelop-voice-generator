@@ -21,7 +21,7 @@ ROUTES = (
     ("POST", "/api/projects/{p}/remove", "Unregister a project (its files stay)"),
     # orders (gvoice order submit|list|show)
     ("GET", "/api/projects/{p}/orders", "List orders; query: type=voice|line, chosen=true|false"),
-    ("POST", "/api/projects/{p}/orders", "Submit an order and queue its takes (body: order, count)"),
+    ("POST", "/api/projects/{p}/orders", "Submit an order and queue its takes (body: order, count; a voice from a sample queues none and ignores count)"),
     ("GET", "/api/projects/{p}/orders/{key}", "One order with its takes, chosen take and stale marks"),
     ("GET", "/api/projects/{p}/orders/{key}/sheet", "Design sheet of a voice: instruction text and warnings"),
     ("POST", "/api/sheet/check", "Check a design sheet without storing it (body: designSheet)"),

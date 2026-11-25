@@ -252,7 +252,7 @@ Decidido con la persona (Q-1-Q-4 de `docs/questions.md`):
 | Paso | Qué | Estado |
 |---|---|---|
 | 0.3.1 | Núcleo: esquema, `orders`, `worker`, `cli`, paquete, ejemplo y tests | hecho |
-| 0.3.2 | Interfaz: modo «muestra» en el diálogo de pedido nuevo y la toma de muestra en la vista | pendiente |
+| 0.3.2 | Interfaz: modo «muestra» en el diálogo de pedido nuevo y la toma de muestra en la vista | hecho |
 | 0.3.3 | En la Deck (persona): voz desde muestra con Qwen3 Base, escucha frente a la `lectora-es` | pendiente |
 
 ## Pendiente

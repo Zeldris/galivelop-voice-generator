@@ -259,7 +259,7 @@ export function compareView(route) {
     const isLine = order.type === 'line';
     replace(head,
       h('div.page-head', {}, h('h1', {}, t('ui.compare.title')), h('span.chip', {}, key), backLink()),
-      isLine ? h('blockquote.order-text', {}, order.text || '') : h('blockquote.order-text', {}, order.testText || ''));
+      isLine ? h('blockquote.order-text', {}, order.text || '') : h('blockquote.order-text', {}, order.testText || (order.sample && order.sample.text) || ''));
   }
 
   async function refresh() {

@@ -9,6 +9,14 @@ export function takeState(order, take) {
   return STATES.includes(take.state) ? take.state : 'new';
 }
 
+/** La toma de una muestra (`source: "sample"`): ni semilla ni instrucción; su origen y licencia son los del pedido. */
+export const isSampleTake = (take) => !!take && take.source === 'sample';
+
+/** Por qué no se piden más tomas (`'sample'`: la voz sale de una muestra y no hace tomas de diseño) o null si se puede. */
+export function noMoreTakesReason(order) {
+  return order && order.type === 'voice' && order.sample ? 'sample' : null;
+}
+
 /** Una toma tiene audio cuando el motor ya midió su duración (`audioMs`); sin él no se puede ni oír ni elegir. */
 export function hasAudio(take) { return typeof take.audioMs === 'number' && take.audioMs > 0; }
 

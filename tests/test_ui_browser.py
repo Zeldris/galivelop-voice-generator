@@ -318,5 +318,41 @@ class QueueDrawer(UiBase):
         self.no_problems()
 
 
+class SampleVoice(UiBase):
+    """0.3.2: a voice from a sample, created in the dialog and seen in its order (on the simulator)."""
+
+    def fill(self, field, value):
+        self.js("(() => { const e = document.getElementById(%s); e.value = %s; e.dispatchEvent(new Event('input')); })()"
+                % (json.dumps(field), json.dumps(value)))
+
+    def test_sample_mode_creates_the_voice_and_its_order_shows_the_sample_take(self):
+        self.open("/p/%s" % PROJECT, "document.querySelector('#main h1') && document.querySelector('a.card')")
+        self.click(".filters .btn-primary")
+        self.page.wait("document.querySelector('dialog.new-order[open]')")
+        self.choose("no-origin", "sample")
+        self.page.wait("document.getElementById('no-sample').offsetParent")
+        self.assertEqual(self.js("[!!document.getElementById('no-design').offsetParent, !!document.getElementById('no-common').offsetParent]"), [False, False])
+        self.assertEqual(self.js("document.getElementById('no-locale').value"), "es-ES")
+        self.assertEqual(self.js(Screens.FIT_PROBE), [])
+        for field, value in (("no-key", "ana"), ("no-sample-audio", "/home/deck/ana.wav"), ("no-sample-text", "Hola, soy Ana."),
+                             ("no-sample-source", "grabación propia"), ("no-sample-license", "CC0-1.0")):
+            self.fill(field, value)
+        self.click("dialog.new-order button[type=submit]")
+        self.page.wait("!document.querySelector('dialog.new-order')")
+        self.page.wait("document.querySelector('a.order-row[aria-label=ana]')")
+        row = self.js("document.querySelector('a.order-row[aria-label=ana]').textContent")
+        self.assertIn("Muestra", row)
+        self.assertIn("Hola, soy Ana.", row)
+        self.open("/p/%s/o/ana" % PROJECT, "document.querySelector('.take-card')")
+        card = self.js("document.querySelector('.take-card').textContent")
+        self.assertIn("Muestra", card)
+        self.assertIn("grabación propia", card)
+        self.assertNotIn("semilla", card)
+        self.assertNotIn("null", card)
+        self.assertTrue(self.js("[...document.querySelectorAll('button')].find(b => b.textContent.includes('Pedir más tomas')).disabled"))
+        self.assertEqual(self.js(Screens.FIT_PROBE), [])
+        self.no_problems()
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -213,12 +213,14 @@ out({
   line: orderSummary({ key: 'narrator/a', type: 'line', voice: 'narrator', text: 'Hi', attempts: [{ id: 1 }], chosen: 1 }),
   count: orderSummary({ key: 'x', type: 'voice', attemptCount: 4 }),
   none: orderSummary({ key: 'y', type: 'line', voice: 'v' }),
+  sample: orderSummary({ key: 'ana', type: 'voice', sample: { text: 'Hola, soy Ana.', source: 'own', license: 'CC0-1.0', sha256: 'x' }, attempts: [{ id: 1 }], chosen: null }),
 });
 """)
-        self.assertEqual(got["voice"], {"key": "orc", "type": "voice", "voice": "", "text": "Blood.", "takes": 2, "chosen": False, "chosenId": None})
-        self.assertEqual(got["line"], {"key": "narrator/a", "type": "line", "voice": "narrator", "text": "Hi", "takes": 1, "chosen": True, "chosenId": 1})
+        self.assertEqual(got["voice"], {"key": "orc", "type": "voice", "voice": "", "text": "Blood.", "takes": 2, "chosen": False, "chosenId": None, "sample": False})
+        self.assertEqual(got["line"], {"key": "narrator/a", "type": "line", "voice": "narrator", "text": "Hi", "takes": 1, "chosen": True, "chosenId": 1, "sample": False})
         self.assertEqual((got["count"]["takes"], got["count"]["chosen"]), (4, False))
         self.assertEqual((got["none"]["takes"], got["none"]["text"]), (0, ""))
+        self.assertEqual((got["sample"]["sample"], got["sample"]["text"]), (True, "Hola, soy Ana."))  # the transcript stands for the test text
 
     def build(self, fields):
         """Run the real buildOrder on ``fields`` (a dict of form values) and return {body, errors}."""
@@ -251,6 +253,42 @@ out({
         self.assertEqual(got["errors"], [])
         self.assertEqual(got["body"], {"order": {"type": "line", "key": "narrator/intro-01", "voice": "narrator", "text": "Long ago.", "seed": 7}, "count": 2})
         self.assert_valid_order(got["body"])
+
+    SAMPLE = {"type": "voice", "origin": "sample", "key": "ana", "locale": "es-ES", "sampleAudio": " /home/deck/ana.wav ",
+              "sampleText": " Hola, soy Ana. ", "sampleSource": "own recording", "sampleLicense": "CC0-1.0",
+              # the sheet, test text, seed and takes of the other mode are ignored in sample mode
+              "testText": "ignored", "seed": "5", "count": "9", "sheet": {"age": "adult"}, "extra": "bad line"}
+
+    def test_build_sample_voice_order_meets_the_schema(self):
+        got = self.build(self.SAMPLE)
+        self.assertEqual(got["errors"], [])
+        self.assertEqual(got["body"], {"order": {"type": "voice", "key": "ana", "locale": "es-ES", "sample": {
+            "audio": "/home/deck/ana.wav", "text": "Hola, soy Ana.", "source": "own recording", "license": "CC0-1.0"}}, "count": 1})
+        self.assert_valid_order(got["body"])
+        self.assertEqual(self.build({**self.SAMPLE, "locale": "en-GB"})["body"]["order"]["locale"], "en-GB")
+
+    def test_build_sample_voice_rejects_missing_locale_and_fields_with_their_reason(self):
+        got = self.build({**self.SAMPLE, "locale": " "})
+        self.assertIsNone(got["body"])
+        self.assertEqual([(e["field"], e["code"]) for e in got["errors"]], [("locale", "required")])
+        bad = self.build({**self.SAMPLE, "locale": "fr-FR"})
+        self.assertEqual([(e["field"], e["code"]) for e in bad["errors"]], [("locale", "locale")])
+        empty = self.build({**self.SAMPLE, "key": "", "sampleAudio": "", "sampleText": " ", "sampleSource": "", "sampleLicense": ""})
+        self.assertEqual([(e["field"], e["code"]) for e in empty["errors"]],
+                         [("key", "required"), ("sampleAudio", "required"), ("sampleText", "required"),
+                          ("sampleSource", "required"), ("sampleLicense", "required")])
+        long = self.build({**self.SAMPLE, "sampleText": "x" * 4001, "sampleSource": "x" * 501, "sampleLicense": "x" * 201})
+        self.assertEqual([(e["field"], e["code"], e["params"]["max"]) for e in long["errors"]],
+                         [("sampleText", "too_long", 4000), ("sampleSource", "too_long", 500), ("sampleLicense", "too_long", 200)])
+        # the schema is the judge: what the model rejects, the schema rejects too
+        order = self.build(self.SAMPLE)["body"]["order"]
+        for broken in ({k: v for k, v in order.items() if k != "locale"}, {**order, "seed": 3}, {**order, "testText": "x"},
+                       {**order, "designSheet": {}}):
+            self.assertNotEqual(schema.validate(broken, schema.load_schema("order")), [], broken)
+
+    def test_build_sample_voice_rejects_an_existing_key(self):
+        got = self.run_js(f"const {{ buildOrder }} = await mod('js/order-model.js'); out(buildOrder({json.dumps(self.SAMPLE)}, new Set(['ana'])));")
+        self.assertEqual([(e["field"], e["code"]) for e in got["errors"]], [("key", "key_exists")])
 
     def test_build_rejects_missing_required_fields_with_their_reason(self):
         voice = self.build({"type": "voice", "key": " ", "testText": "", "count": "1"})
@@ -394,6 +432,134 @@ out({ voice, line, orphan, unchosen: list.json.map((o) => o.key) });
         self.assertEqual((got["orphan"]["status"], got["orphan"]["code"]), (409, "order.voice_not_fixed"))
         self.assertEqual(got["unchosen"], ["narrator/outro", "orc", "wizard"])
 
+    SAMPLE_ORDER = {"key": "ana", "type": "voice", "locale": "es-ES",
+                    "sample": {"audio": "/home/deck/ana.wav", "text": "Hola, soy Ana.", "source": "own recording", "license": "CC0-1.0"}}
+
+    def test_api_mock_sample_voice_makes_the_sample_take_and_no_design_takes(self):
+        got = self.run_js(self.mock_script("""
+const order = %s;
+const url = '/api/projects/example-world/orders';
+const first = await call('POST', url, { order, count: 1 });
+const again = await call('POST', url, { order, count: 1 });
+const view = (await call('GET', url + '/ana')).json;
+const peaks = await call('GET', url + '/ana/attempts/1/peaks?n=16');
+const strip = (r) => ({ status: r.status, code: r.code });
+out({
+  first: { status: first.status, entries: first.json.entries, takes: first.json.order.attempts.length }, again: again.json.order.attempts.length,
+  take: view.attempts[0], sample: view.sample, locale: view.locale, seed: view.seed, hasSheet: 'designSheet' in view, hasText: 'testText' in view,
+  more: strip(await call('POST', url + '/ana/attempts', { count: 1 })),
+  noLocale: strip(await call('POST', url, { order: { ...order, key: 'bob', locale: undefined }, count: 1 })),
+  withSheet: strip(await call('POST', url, { order: { ...order, key: 'bob', designSheet: {} }, count: 1 })),
+  toSheet: strip(await call('POST', url, { order: { key: 'ana', type: 'voice', testText: 'x', designSheet: {} }, count: 1 })),
+  peaks: peaks.status,
+});
+""" % json.dumps(self.SAMPLE_ORDER)))
+        self.assertEqual((got["first"]["status"], got["first"]["entries"], got["first"]["takes"]), (200, [], 1))
+        self.assertEqual(got["again"], 1)  # the same sample does not add a second take
+        take = got["take"]
+        self.assertEqual((take["source"], take["seed"], take["id"]), ("sample", None, 1))
+        self.assertNotIn("instruction", take)
+        self.assertEqual(got["sample"]["source"], "own recording")
+        self.assertEqual((got["locale"], got["seed"], got["hasSheet"], got["hasText"]), ("es-ES", None, False, False))
+        self.assertEqual(got["more"], {"status": 409, "code": "order.sample_no_takes"})
+        self.assertEqual(got["noLocale"], {"status": 400, "code": "api.bad_param"})
+        self.assertEqual(got["withSheet"], {"status": 400, "code": "api.bad_param"})
+        self.assertEqual(got["toSheet"], {"status": 409, "code": "order.origin_changed"})
+        self.assertEqual(got["peaks"], 200)  # a seedless take still has audio
+
+    def test_take_model_marks_the_sample_take_and_a_sample_order_makes_no_more_takes(self):
+        got = self.run_js("""
+const m = await mod('js/take-model.js');
+out({ take: [m.isSampleTake({ source: 'sample' }), m.isSampleTake({ id: 1 }), m.isSampleTake(null)],
+  reason: [m.noMoreTakesReason({ type: 'voice', sample: { text: 'x' } }), m.noMoreTakesReason({ type: 'voice', designSheet: {} }),
+           m.noMoreTakesReason({ type: 'line' }), m.noMoreTakesReason(null)] });
+""")
+        self.assertEqual(got["take"], [True, False, False])
+        self.assertEqual(got["reason"], ["sample", None, None, None])
+
+    def test_order_view_sample_voice_marks_the_take_and_offers_no_more_takes(self):
+        got = self.run_js(self.ORDER_ENV + """
+await mock.transport('POST', '/api/projects/example-world/orders', { order: %s, count: 1 });
+const view = await mount('ana');
+const card = cardOf(view, 1).textContent;
+const more = btn(view.node, 'Pedir más tomas');
+const head = view.node.children[0].textContent;
+const r = { ids: cards(view).map((c) => c.dataset.take), card, head, moreDisabled: more.disabled,
+  reason: view.node.find((e) => e.className.includes('hint') && e.textContent.includes('sale de una muestra')).map((e) => e.hidden),
+  note: view.node.find((e) => e.className.includes('notice-warn')).map((e) => [e.hidden, e.textContent]),
+  sentTakes: 0, whole: view.node.textContent };
+press('g');   // el atajo «otra toma» tampoco la pide
+await sleep(50);
+r.sentTakes = seen.filter((s) => s[1].includes('/attempts') && s[0] === 'POST').length;
+view.cleanup();
+out(r);
+""" % json.dumps(self.SAMPLE_ORDER))
+        self.assertEqual(got["ids"], ["1"])
+        self.assertIn("Muestra", got["card"])
+        self.assertIn("origen: own recording", got["card"])
+        self.assertIn("licencia: CC0-1.0", got["card"])
+        for word in ("semilla", "null", "undefined"):
+            self.assertNotIn(word, got["card"])
+        self.assertIn("Hola, soy Ana.", got["head"])
+        self.assertIn("es-ES", got["head"])
+        self.assertNotIn("Texto de prueba", got["head"])
+        self.assertTrue(got["moreDisabled"])
+        self.assertEqual(got["reason"], [False])  # the reason is visible
+        self.assertEqual(got["sentTakes"], 0)
+        self.assertNotIn("null", got["whole"])
+
+    def test_order_view_design_take_still_shows_its_seed_and_can_ask_for_more(self):
+        got = self.run_js(self.ORDER_ENV + """
+const view = await mount('narrator');
+out({ card: cardOf(view, 2).textContent, more: btn(view.node, 'Pedir más tomas').disabled, sample: cardOf(view, 2).textContent.includes('Muestra') });
+view.cleanup();
+""")
+        self.assertIn("semilla 1235", got["card"])
+        self.assertFalse(got["more"] or got["sample"])
+
+    def test_new_order_sample_mode_hides_the_design_fields_and_sends_a_sample_order(self):
+        got = self.run_js(self.LOAD_LOCALE + self.FAKE_DOM + """
+const { openNewOrder } = await mod('js/components/new-order.js');
+await i18n.load('es');
+const sent = [];
+api.project = async () => ({ config: { voices: {} } });
+api.orders = async () => [];
+api.checkSheet = async () => ({ instruction: '', warnings: [] });
+api.newOrder = async (p, order, count) => { sent.push({ p, order, count }); return { entries: [] }; };
+const doc = globalThis.document;
+doc.body.append(Object.assign(doc.createElement('div'), { attrs: { id: 'toasts' } }));
+const dlg = await openNewOrder('p', {});
+const field = (id) => dlg.find((e) => e.attrs.id === id)[0];
+const hidden = () => ({ design: field('no-design').hidden, sample: field('no-sample').hidden, common: field('no-common').hidden });
+const r = { initial: hidden(), locale: field('no-locale').value, origins: field('no-origin').find((e) => e.tag === 'option').map((o) => o.textContent) };
+field('no-origin').value = 'sample'; field('no-origin').dispatchEvent('change');
+r.sample = hidden();
+const form = dlg.find((e) => e.tag === 'form')[0];
+field('no-key').type('ana');
+form.dispatchEvent('submit'); await flushAll();
+r.emptyError = doc.getElementById('toasts').textContent; r.sentEmpty = sent.length;
+field('no-sample-audio').type('/home/deck/ana.wav'); field('no-sample-text').type('Hola, soy Ana.');
+field('no-sample-source').type('own recording'); field('no-sample-license').type('CC0-1.0');
+field('no-locale').value = 'es-419';
+form.dispatchEvent('submit'); await flushAll();
+r.sent = sent;
+field('no-origin').value = 'sheet'; field('no-origin').dispatchEvent('change');
+r.back = hidden();
+dlg.close();
+out(r);
+process.exit(0);
+""")
+        self.assertEqual(got["initial"], {"design": False, "sample": True, "common": False})
+        self.assertEqual(got["origins"], ["Ficha de diseño", "Muestra"])
+        self.assertEqual(got["locale"], "es-ES")  # the default variant
+        self.assertEqual(got["sample"], {"design": True, "sample": False, "common": True})
+        self.assertEqual(got["sentEmpty"], 0)
+        self.assertIn("Ruta del WAV", got["emptyError"])
+        self.assertIn("Transcripción", got["emptyError"])
+        self.assertEqual(got["sent"], [{"p": "p", "count": 1, "order": {"type": "voice", "key": "ana", "locale": "es-419", "sample": {
+            "audio": "/home/deck/ana.wav", "text": "Hola, soy Ana.", "source": "own recording", "license": "CC0-1.0"}}}])
+        self.assertEqual(got["back"], {"design": False, "sample": True, "common": False})
+
     def test_order_model_constants_match_python_sources(self):
         """The limits copied into order-model.js equal their sources (common/order schemas, orders.py)."""
         from gvoice import orders
@@ -401,7 +567,8 @@ out({ voice, line, orphan, unchosen: list.json.map((o) => o.key) });
 const m = await mod('js/order-model.js');
 const keys = %s, segs = %s;
 out({ MAX_COUNT: m.MAX_COUNT, MAX_SEED: m.MAX_SEED, MAX_KEY: m.MAX_KEY, MAX_TEST_TEXT: m.MAX_TEST_TEXT,
-  MAX_LINE_TEXT: m.MAX_LINE_TEXT, SHEET_FIELDS: m.SHEET_FIELDS,
+  MAX_LINE_TEXT: m.MAX_LINE_TEXT, SHEET_FIELDS: m.SHEET_FIELDS, LOCALES: m.LOCALES, DEFAULT_LOCALE: m.DEFAULT_LOCALE,
+  MAX_SAMPLE_TEXT: m.MAX_SAMPLE_TEXT, MAX_SAMPLE_SOURCE: m.MAX_SAMPLE_SOURCE, MAX_SAMPLE_LICENSE: m.MAX_SAMPLE_LICENSE,
   key: keys.map((k) => m.KEY_PATTERN.test(k)), seg: segs.map((k) => m.SEGMENT_PATTERN.test(k)) });
 """ % (json.dumps(PATTERN_CASES), json.dumps(PATTERN_CASES)))
         common = schema.load_schema("common")["$defs"]
@@ -411,6 +578,11 @@ out({ MAX_COUNT: m.MAX_COUNT, MAX_SEED: m.MAX_SEED, MAX_KEY: m.MAX_KEY, MAX_TEST
         self.assertEqual(got["MAX_KEY"], common["key"]["maxLength"])
         self.assertEqual(got["MAX_TEST_TEXT"], common["testText"]["maxLength"])
         self.assertEqual(got["MAX_LINE_TEXT"], order_props["text"]["maxLength"])
+        sample_props = order_props["sample"]["properties"]
+        self.assertEqual((got["MAX_SAMPLE_TEXT"], got["MAX_SAMPLE_SOURCE"], got["MAX_SAMPLE_LICENSE"]),
+                         (sample_props["text"]["maxLength"], sample_props["source"]["maxLength"], sample_props["license"]["maxLength"]))
+        self.assertEqual(got["LOCALES"], common["locale"]["enum"])
+        self.assertIn(got["DEFAULT_LOCALE"], got["LOCALES"])
         with self.assertRaises(Exception) as cm:  # MAX_COUNT: 1..50 in orders.check_count, no schema
             orders.check_count(got["MAX_COUNT"] + 1)
         self.assertIn("count_invalid", str(getattr(cm.exception, "code", cm.exception)))

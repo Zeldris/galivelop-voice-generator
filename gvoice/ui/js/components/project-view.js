@@ -119,13 +119,14 @@ function row(project, o, openSheet) {
       h('div.key', {}, o.key),
       h('div.meta', {},
         h('span.chip', {}, t(o.type === 'line' ? 'ui.project.type.line' : 'ui.project.type.voice')),
+        o.sample ? h('span.chip', {}, t('ui.order.sample')) : null,
         o.voice ? h('span', {}, t('ui.project.voice', { voice: o.voice })) : null,
         h('span', {}, t('ui.project.takes', { n: o.takes }))),
       text),
     o.chosen
       ? h('span.chip.chip-ok', {}, '✓ ', t('ui.project.chosen'), o.chosenId !== null ? ` · ${t('ui.project.takeN', { id: o.chosenId })}` : '')
       : h('span.chip', {}, t('ui.project.unchosen')));
-  if (o.type !== 'voice') return link;
+  if (o.type !== 'voice' || o.sample) return link;   // una voz de muestra no tiene ficha
   // el botón no puede ir dentro del enlace: va al lado, en su propia línea
   const sheetBtn = h('button.btn', { type: 'button', aria: { label: `${t('ui.sheet.open')}: ${o.key}` }, onclick: () => openSheet(o.key, sheetBtn) }, t('ui.sheet.open'));
   return h('div.order-item', {}, link, h('div.row.order-actions', {}, sheetBtn));

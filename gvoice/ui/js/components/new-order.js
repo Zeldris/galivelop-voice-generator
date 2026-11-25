@@ -2,6 +2,8 @@
    - Tipo `voice`: clave, texto de prueba, ficha de diseño (los campos de design-sheet.schema.json más `extra`), semilla
      (vacía = al azar) y nº de tomas. Bajo la ficha, la instrucción y los avisos
      en vivo (F5.3: POST /api/sheet/check con espera de 300 ms; nunca bloquean «Crear» ni rompen el formulario).
+   - Tipo `voice` con origen «Muestra» (0.3.2): ruta del WAV en la máquina del servidor, transcripción, origen, licencia
+     y variante (`locale`, es-ES por defecto); sin ficha, frase de prueba, semilla ni número de tomas.
    - Tipo `line`: voz (las del `config` del proyecto y los pedidos `voice`), id de la frase (la clave es `<voz>/<id>`),
      texto, semilla y nº de tomas.
    - El cuerpo lo arma y valida ../order-model.js (`buildOrder`, el mismo esquema que el servidor) y se envía con
@@ -11,7 +13,7 @@
 import { h, replace } from '../dom.js';
 import { t } from '../i18n.js';
 import { api, describeError } from '../api.js';
-import { SHEET_FIELDS, MAX_COUNT, MAX_SEED, buildOrder, ordersOf, sheetFromFields } from '../order-model.js';
+import { SHEET_FIELDS, MAX_COUNT, MAX_SEED, MAX_SAMPLE_TEXT, MAX_SAMPLE_SOURCE, MAX_SAMPLE_LICENSE, LOCALES, DEFAULT_LOCALE, buildOrder, ordersOf, sheetFromFields } from '../order-model.js';
 import { createSheetChecker } from '../sheet-check.js';
 import { busy } from '../async-guard.js';
 import { sheetPanel } from './sheet-warnings.js';
@@ -34,12 +36,14 @@ function validationText(e) {
   if (e.code === 'pattern') return t(e.field === 'key' || e.field === 'voice' ? 'ui.newOrder.error.keyPattern' : 'ui.newOrder.error.segmentPattern', { field: fieldName(e.field) });
   if (e.code === 'too_long') return t('ui.newOrder.error.tooLong', { field: fieldName(e.field), max: p.max });
   if (e.code === 'seed') return t('ui.newOrder.error.seed', { max: p.max });
+  if (e.code === 'locale') return t('ui.newOrder.error.locale', { locales: p.locales });
   if (e.code === 'count') return t('ui.newOrder.error.count', { max: p.max });
   return t('ui.newOrder.error.extra', { line: p.line || '' });
 }
 const FIELD_NAMES = {
   key: () => t('ui.newOrder.key'), testText: () => t('ui.newOrder.testText'), voice: () => t('ui.newOrder.voice'),
-  lineId: () => t('ui.newOrder.lineId'), text: () => t('ui.newOrder.text'), type: () => t('ui.newOrder.type'),
+  lineId: () => t('ui.newOrder.lineId'), locale: () => t('ui.newOrder.locale'), sampleAudio: () => t('ui.newOrder.sample.audio'),
+  sampleText: () => t('ui.newOrder.sample.text'), sampleSource: () => t('ui.newOrder.sample.source'), sampleLicense: () => t('ui.newOrder.sample.license'), text: () => t('ui.newOrder.text'), type: () => t('ui.newOrder.type'),
 };
 const fieldName = (f) => (FIELD_NAMES[f] ? FIELD_NAMES[f]() : f);
 
@@ -60,11 +64,20 @@ export async function openNewOrder(project, { opener = null, onCreated = null, o
   const error = h('p.notice.notice-bad', { id: 'no-error', role: 'alert', hidden: true });
   const typeSel = h('select', { id: 'no-type' },
     h('option', { value: 'voice' }, t('ui.project.type.voice')), h('option', { value: 'line' }, t('ui.project.type.line')));
+  const originSel = h('select', { id: 'no-origin' },
+    h('option', { value: 'sheet' }, t('ui.newOrder.originSheet')), h('option', { value: 'sample' }, t('ui.newOrder.originSample')));
   // voice
   const key = h('input', { id: 'no-key', type: 'text', autocomplete: 'off', spellcheck: 'false', maxlength: 100, aria: { describedby: 'no-key-hint' } });
   const testText = h('textarea', { id: 'no-testtext', rows: 2, maxlength: 1000, spellcheck: 'false' });
   const sheet = Object.fromEntries(SHEET_FIELDS.map((name) => [name, h('input', { id: `no-sheet-${name}`, type: 'text', autocomplete: 'off', spellcheck: 'false' })]));
   const extra = h('textarea', { id: 'no-extra', rows: 2, spellcheck: 'false', placeholder: 'breathing: audible between sentences', aria: { describedby: 'no-extra-hint' } });
+  // voice, muestra
+  const sampleAudio = h('input', { id: 'no-sample-audio', type: 'text', autocomplete: 'off', spellcheck: 'false', aria: { describedby: 'no-sample-audio-hint' } });
+  const sampleText = h('textarea', { id: 'no-sample-text', rows: 3, maxlength: MAX_SAMPLE_TEXT, spellcheck: 'false' });
+  const sampleSource = h('input', { id: 'no-sample-source', type: 'text', autocomplete: 'off', maxlength: MAX_SAMPLE_SOURCE });
+  const sampleLicense = h('input', { id: 'no-sample-license', type: 'text', autocomplete: 'off', maxlength: MAX_SAMPLE_LICENSE });
+  const locale = h('select', { id: 'no-locale' }, LOCALES.map((l) => h('option', { value: l }, t(`ui.newOrder.locale.${l}`))));
+  locale.value = DEFAULT_LOCALE;
   // line
   const voiceLabel = (v) => {
     if (!chosenOf.has(v)) return t('ui.newOrder.voiceNoOrder', { voice: v }); // solo en el `config`: el servidor rechaza la frase
@@ -88,18 +101,31 @@ export async function openNewOrder(project, { opener = null, onCreated = null, o
     onError: () => panel.fail(t('ui.sheet.checkFailed')), // aviso discreto: el formulario sigue igual
   });
   function checkSheet() {
+    if (isSample()) return;
     const { sheet: designSheet } = sheetFromFields(fields());
     // «extra» a medias: se comprueba la ficha sin esas líneas (`sheetFromFields` las deja fuera); el panel sigue vivo
     checker.request(designSheet);
   }
-  const voiceBox = h('div.stack', {},
-    h('div.field', {}, h('label', { for: 'no-key' }, t('ui.newOrder.key')), key, h('span.hint', { id: 'no-key-hint' }, t('ui.newOrder.keyHint'))),
+  const originField = h('div.field', {}, h('label', { for: 'no-origin' }, t('ui.newOrder.origin')), originSel);
+  const designBox = h('div.stack', { id: 'no-design' },
     h('div.field', {}, h('label', { for: 'no-testtext' }, t('ui.newOrder.testText')), testText, h('span.hint', {}, t('ui.newOrder.testTextHint'))),
     h('h3', {}, t('ui.newOrder.sheet.title')),
     h('p.hint', {}, t('ui.newOrder.sheet.hint')),
     h('div.cols-2', {}, SHEET_FIELDS.map((name) => h('div.field', {}, h('label', { for: `no-sheet-${name}` }, SHEET_LABELS[name]()), sheet[name]))),
     h('div.field', {}, h('label', { for: 'no-extra' }, t('ui.newOrder.sheet.extra')), extra, h('span.hint', { id: 'no-extra-hint' }, t('ui.newOrder.sheet.extraHint'))),
     panel.node);
+  const sampleBox = h('div.stack', { id: 'no-sample', hidden: true },
+    h('p.hint', {}, t('ui.newOrder.sample.hint')),
+    h('div.field', {}, h('label', { for: 'no-sample-audio' }, t('ui.newOrder.sample.audio')), sampleAudio, h('span.hint', { id: 'no-sample-audio-hint' }, t('ui.newOrder.sample.audioHint'))),
+    h('div.field', {}, h('label', { for: 'no-sample-text' }, t('ui.newOrder.sample.text')), sampleText, h('span.hint', {}, t('ui.newOrder.sample.textHint'))),
+    h('div.cols-2', {},
+      h('div.field', {}, h('label', { for: 'no-sample-source' }, t('ui.newOrder.sample.source')), sampleSource, h('span.hint', {}, t('ui.newOrder.sample.sourceHint'))),
+      h('div.field', {}, h('label', { for: 'no-sample-license' }, t('ui.newOrder.sample.license')), sampleLicense, h('span.hint', {}, t('ui.newOrder.sample.licenseHint')))),
+    h('div.field', {}, h('label', { for: 'no-locale' }, t('ui.newOrder.locale')), locale, h('span.hint', {}, t('ui.newOrder.localeHint'))));
+  const voiceBox = h('div.stack', {},
+    originField,
+    h('div.field', {}, h('label', { for: 'no-key' }, t('ui.newOrder.key')), key, h('span.hint', { id: 'no-key-hint' }, t('ui.newOrder.keyHint'))),
+    designBox, sampleBox);
   const lineBox = h('div.stack', { hidden: true },
     voices.length
       ? h('div.cols-2', {},
@@ -108,12 +134,13 @@ export async function openNewOrder(project, { opener = null, onCreated = null, o
       : h('p.notice.notice-warn', {}, '⚠ ', t('ui.newOrder.noVoices')),
     h('div.field', {}, h('label', { for: 'no-text' }, t('ui.newOrder.text')), lineText));
 
+  const commonBox = h('div.cols-2', { id: 'no-common' },
+    h('div.field', {}, h('label', { for: 'no-seed' }, t('ui.newOrder.seed')), seed, h('span.hint', { id: 'no-seed-hint' }, t('ui.newOrder.seedHint'))),
+    h('div.field', {}, h('label', { for: 'no-count' }, t('ui.newOrder.count')), count));
   const form = h('form.no-form', { novalidate: true, onsubmit: (ev) => { ev.preventDefault(); submit(); } },
     h('div.field', {}, h('label', { for: 'no-type' }, t('ui.newOrder.type')), typeSel),
     voiceBox, lineBox,
-    h('div.cols-2', {},
-      h('div.field', {}, h('label', { for: 'no-seed' }, t('ui.newOrder.seed')), seed, h('span.hint', { id: 'no-seed-hint' }, t('ui.newOrder.seedHint'))),
-      h('div.field', {}, h('label', { for: 'no-count' }, t('ui.newOrder.count')), count)),
+    commonBox,
     error,
     h('div.row', {}, send, cancel));
 
@@ -124,8 +151,16 @@ export async function openNewOrder(project, { opener = null, onCreated = null, o
     const line = typeSel.value === 'line';
     voiceBox.hidden = line;
     lineBox.hidden = !line;
+    onOrigin();
     showKey();
   }
+  const isSample = () => typeSel.value === 'voice' && originSel.value === 'sample';
+  function onOrigin() {   // una voz de muestra no lleva ficha, frase de prueba, semilla ni tomas
+    designBox.hidden = isSample();
+    sampleBox.hidden = !isSample();
+    commonBox.hidden = isSample();
+  }
+  originSel.addEventListener('change', () => { onOrigin(); if (!isSample()) checkSheet(); });
   function showKey() { lineKeyHint.textContent = t('ui.newOrder.lineKey', { key: `${voiceSel.value || '…'}/${lineId.value.trim() || '…'}` }); }
   typeSel.addEventListener('change', onType);
   voiceSel.addEventListener('change', showKey);
@@ -136,13 +171,14 @@ export async function openNewOrder(project, { opener = null, onCreated = null, o
 
   function fields() {
     return {
-      type: typeSel.value, key: key.value, testText: testText.value, extra: extra.value,
+      type: typeSel.value, origin: originSel.value, key: key.value,
+      locale: locale.value, sampleAudio: sampleAudio.value, sampleText: sampleText.value, sampleSource: sampleSource.value, sampleLicense: sampleLicense.value, testText: testText.value, extra: extra.value,
       sheet: Object.fromEntries(SHEET_FIELDS.map((name) => [name, sheet[name].value])),
       voice: voiceSel.value, lineId: lineId.value, text: lineText.value, seed: seed.value, count: count.value,
       seedBad: seed.validity.badInput, countBad: count.validity.badInput, // texto que no es un número: el valor sale ''
     };
   }
-  const focusOf = { key, testText, extra, voice: voiceSel, lineId, text: lineText, seed, count };
+  const focusOf = { key, locale, sampleAudio, sampleText, sampleSource, sampleLicense, testText, extra, voice: voiceSel, lineId, text: lineText, seed, count };
 
   function showError(message, focusOn) {
     toastError(message);
@@ -166,7 +202,7 @@ export async function openNewOrder(project, { opener = null, onCreated = null, o
     let res;
     try { res = await api.newOrder(project, body.order, body.count); } catch (e) { showError(describeError(e, t)); return; }
     const n = res && Array.isArray(res.entries) ? res.entries.length : body.count;
-    toastOk(t('ui.newOrder.created', { key: body.order.key, n }));
+    toastOk(body.order.sample ? t('ui.newOrder.createdSample', { key: body.order.key }) : t('ui.newOrder.created', { key: body.order.key, n }));
     poll.refreshNow();
     dlg.close();
     if (onCreated) onCreated(res);

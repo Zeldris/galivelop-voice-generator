@@ -10,8 +10,8 @@ import { t } from '../i18n.js';
 import { api, describeError } from '../api.js';
 import { to, navigate } from '../router.js';
 import { busy, latest, lifetime, STALE } from '../async-guard.js';
-import { openEntries, pendingTakes, undoTarget } from '../take-model.js';
-import { MAX_COUNT } from '../order-model.js';
+import { noMoreTakesReason, openEntries, pendingTakes, undoTarget } from '../take-model.js';
+import { MAX_COUNT, isSampleOrder } from '../order-model.js';
 import { pickPair } from '../compare-model.js';
 import { takeCard } from './take-card.js';
 import { icon } from './icons.js';
@@ -38,6 +38,7 @@ export function orderView(route) {
   const undoBtn = h('button.btn', { type: 'button', disabled: true, onclick: () => undo() }, icon('undo'), ' ', t('ui.order.undo'));
   const printsNote = h('p.notice.notice-warn', { hidden: true }, t('ui.order.voiceNote'));
   const pending = h('p.hint', { aria: { live: 'polite' } });
+  const noMore = h('p.hint', { hidden: true }, t('ui.order.sampleNoTakes'));
   const count = h('input', { id: 'more-count', type: 'number', min: 1, max: MAX_COUNT, step: 1, value: 1 });
   const moreBtn = h('button.btn', { type: 'button', onclick: () => more() }, icon('plus'), ' ', t('ui.order.more'));
   let compareHash = null;
@@ -48,7 +49,7 @@ export function orderView(route) {
     h('div.card', {}, h('h2', {}, t('ui.order.election')), chosenLine, undoBtn, undoHint),
     printsNote,
     h('div.card', {}, h('h2', {}, t('ui.compare.title')), compareBtn, compareHint),
-    h('div.card', {}, h('h2', {}, t('ui.order.moreTitle')), h('div.field', {}, h('label', { for: 'more-count' }, t('ui.order.moreCount')), count), moreBtn, pending),
+    h('div.card', {}, h('h2', {}, t('ui.order.moreTitle')), h('div.field', {}, h('label', { for: 'more-count' }, t('ui.order.moreCount')), count), moreBtn, noMore, pending),
     helpBtn);
   const list = h('section', {}, h('h2', {}, t('ui.order.takes')), emptyNote, gallery);
   const body = h('div.order-layout', {}, panel, list);
@@ -123,7 +124,10 @@ export function orderView(route) {
         isLine && order.stale ? h('span.chip.chip-warn', {}, t('ui.order.stale')) : null),
       isLine
         ? h('blockquote.order-text', {}, order.text || '')
-        : h('div', {}, h('p.label', {}, t('ui.order.testText')), h('blockquote.order-text', {}, order.testText || '')),
+        : isSampleOrder(order)
+          ? h('div', {}, h('p', {}, h('span.chip', {}, t('ui.order.sample')), ' ', order.locale || '', ' · ', order.sample.source, ' · ', order.sample.license),
+            h('p.label', {}, t('ui.order.sampleTranscript')), h('blockquote.order-text', {}, order.sample.text || ''))
+          : h('div', {}, h('p.label', {}, t('ui.order.testText')), h('blockquote.order-text', {}, order.testText || '')),
       isLine && order.stale ? h('p.notice.notice-warn', { role: 'status' }, warningIcon('default'), h('span', {}, t('ui.order.staleHint'))) : null,
       !isLine && (order.staleLines || []).length
         ? h('div.notice.notice-warn', { role: 'status' }, warningIcon('default'),
@@ -140,6 +144,10 @@ export function orderView(route) {
     undoBtn.disabled = target === undefined;
     undoHint.textContent = target === undefined ? t('ui.order.undoEmpty') : target === null ? t('ui.order.undoToNone') : t('ui.order.undoTo', { id: target });
     printsNote.hidden = order.type !== 'voice';
+    replace(printsNote, t(isSampleOrder(order) ? 'ui.order.sampleNote' : 'ui.order.voiceNote'));
+    // una voz de muestra no hace tomas de diseño: «Pedir más tomas» queda apagado con su motivo
+    const noTakes = noMoreTakesReason(order) !== null;
+    moreBtn.disabled = noTakes; count.disabled = noTakes; noMore.hidden = !noTakes;
     const n = pendingTakes(entries);
     pending.textContent = n ? t('ui.order.pending', { n }) : '';
   }
@@ -194,6 +202,7 @@ export function orderView(route) {
     await refresh();
   });
   const more = () => exclusive(async () => {
+    if (noMoreTakesReason(order) !== null) return;   // la voz de muestra no hace tomas (atajo «otra»): el botón ya lo dice
     const n = Number(count.value);
     if (!Number.isInteger(n) || n < 1 || n > MAX_COUNT) { toastError(t('ui.newOrder.error.count', { max: MAX_COUNT })); count.focus(); return; }
     try {

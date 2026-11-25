@@ -12,6 +12,7 @@ const ago = (s) => new Date(Date.now() - s * 1000).toISOString();
 const PROJECT = 'example-world';
 const PRINT_MODELS = ['0.6b-base', '1.7b-base'];
 const TAKE_MS = 6000;
+const LOCALES = ['es-ES', 'es-419', 'en-US', 'en-GB'];
 
 const projects = {
   [PROJECT]: {
@@ -155,7 +156,7 @@ function samplesOf(p, key, a) {
   const id = `${p}/${key}/${a.id}`;
   if (!samplesCache.has(id)) {
     const n = Math.round(RATE * (a.audioMs || 2000) / 1000);
-    const hz = 110 + (a.seed % 7) * 18 + (key.startsWith('orc') ? -40 : 0);
+    const hz = 110 + ((a.seed || 0) % 7) * 18 + (key.startsWith('orc') ? -40 : 0);
     const out = new Int16Array(n);
     for (let i = 0; i < n; i++) {
       const t = i / RATE;
@@ -247,9 +248,24 @@ route('POST', '/api/projects/{p}/orders', async (c) => {
     if (!voice || voice.type !== 'voice') return fail(c.lang, 404, 'order.voice_unknown', { project: p, voice: spec.voice });
     if (voice.chosen === null) return fail(c.lang, 409, 'order.voice_not_fixed', { voice: spec.voice });
   }
+  const sample = spec.type === 'voice' && spec.sample;
+  if (sample) {   // como orders.submit: locale obligatoria, sin ficha ni semilla ni frase de prueba
+    if (spec.designSheet || spec.testText !== undefined || spec.seed !== undefined || !LOCALES.includes(spec.locale)) return fail(c.lang, 400, 'api.bad_param', { name: 'order' });
+    for (const f of ['audio', 'text', 'source', 'license']) if (typeof sample[f] !== 'string' || !sample[f].trim()) return fail(c.lang, 400, 'api.bad_param', { name: 'order' });
+    if (record && !record.sample) return fail(c.lang, 409, 'order.origin_changed', { order: spec.key, was: 'design sheet', new: 'sample' });
+  } else if (record && record.sample) return fail(c.lang, 409, 'order.origin_changed', { order: spec.key, was: 'sample', new: 'design sheet' });
   if (!record) {
     record = { key: spec.key, type: spec.type, attempts: [], chosen: null, chosenHistory: [], createdAt: now() };
     orders[p].push(record);
+  }
+  if (sample) {   // la muestra entra como toma 1 (source sample: sin semilla ni instrucción) con un audio del simulador
+    record.locale = spec.locale; record.seed = null; record.updatedAt = now();
+    record.sample = { source: sample.source.trim(), license: sample.license.trim(), text: sample.text.trim(), sha256: 'mock'.padEnd(64, '0') };
+    if (!record.attempts.some((a) => a.source === 'sample')) {
+      record.attempts.push(take(Math.max(0, ...record.attempts.map((a) => a.id)) + 1, null, record.sample.text,
+        { source: 'sample', locale: spec.locale, sha256: record.sample.sha256, prints: {}, audioMs: 4800, durationMs: undefined, model: undefined, device: undefined }));
+    }
+    return ok({ order: { ...view(p, record), warnings: [] }, entries: [], warnings: [] });
   }
   Object.assign(record, spec.type === 'voice' ? { testText: spec.testText, designSheet: spec.designSheet } : { voice: spec.voice, text: spec.text }, { seed: spec.seed ?? null, updatedAt: now() });
   const entries = [];
@@ -264,7 +280,7 @@ route('GET', '/api/projects/{p}/orders/{key}', (c) => {
 route('GET', '/api/projects/{p}/orders/{key}/sheet', async (c) => {
   const o = lookup(c);
   if (o.error) return o.error;
-  if (o.type !== 'voice') return fail(c.lang, 409, 'order.wrong_type', { order: o.key, expected: 'voice' });
+  if (o.type !== 'voice' || o.sample) return fail(c.lang, 409, 'order.wrong_type', { order: o.key, expected: 'voice' });
   return ok({ instruction: instructionOf(o.designSheet), warnings: await warnView(c.lang, warningsOf(o.designSheet)) });
 });
 route('POST', '/api/sheet/check', async (c) => {
@@ -298,6 +314,7 @@ route('POST', '/api/projects/{p}/orders/{key}/attempts', (c) => {
   if (o.error) return o.error;
   const count = (c.body && c.body.count) ?? 1;
   if (!Number.isInteger(count) || count < 1 || count > 50) return fail(c.lang, 400, 'api.bad_param', { name: 'count' });
+  if (o.sample) return fail(c.lang, 409, 'order.sample_no_takes', { order: o.key });
   const seed = c.body && Number.isInteger(c.body.seed) ? c.body.seed : null;
   return ok(Array.from({ length: count }, (_, i) => ({ ...enqueueTake(c.params.p, o, seed === null ? null : seed + i) })));
 });

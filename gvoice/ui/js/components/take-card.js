@@ -10,7 +10,7 @@ import { api } from '../api.js';
 import { busy } from '../async-guard.js';
 import { icon } from './icons.js';
 import { createWaveform } from './waveform.js';
-import { bucketsFor, canChoose, hasAudio, printStates, takeState } from '../take-model.js';
+import { bucketsFor, canChoose, hasAudio, isSampleTake, printStates, takeState } from '../take-model.js';
 
 const PRINT_KEY = { done: 'ui.take.print.done', running: 'ui.take.print.running', queued: 'ui.take.print.queued', pending: 'ui.take.print.pending' };
 const PRINT_MARK = { done: '✓', running: '…', queued: '…', pending: '○' };
@@ -137,6 +137,7 @@ export function takeCard({ project, key, type, models = [], actions, onPlay = ()
     entries = view.entries || entries;
     const state = takeState(order, take);
     const chosen = state === 'chosen';
+    const sample = isSampleTake(take);
     node.dataset.take = String(take.id);
     node.setAttribute('aria-label', t('ui.take.title', { id: take.id }));
     node.classList.toggle('is-chosen', chosen);
@@ -144,10 +145,15 @@ export function takeCard({ project, key, type, models = [], actions, onPlay = ()
     wave.node.setAttribute('aria-label', t('ui.take.seek', { id: take.id }));
     replace(title, t('ui.take.title', { id: take.id }));
     replace(badges,
+      sample ? h('span.chip.chip-accent', {}, t('ui.take.sample')) : null,
       chosen ? h('span.chip.chip-fill-ok', {}, h('span', { aria: { hidden: true } }, '✓ '), t('ui.take.chosen')) : null,
       take.state === 'discarded' ? h('span.chip.chip-bad', {}, '✗ ', t('ui.take.state.discarded'))
         : h('span.chip' + (take.state === 'candidate' ? '.chip-accent' : ''), {}, t(take.state === 'candidate' ? 'ui.take.state.candidate' : 'ui.take.state.new')));
-    replace(meta, [take.seed !== undefined && take.seed !== null ? t('ui.take.seed', { seed: take.seed }) : null,
+    // la toma de muestra no tiene semilla ni instrucción: se marca «Muestra» y lleva el origen y la licencia del pedido
+    const origin = (order && order.sample) || {};
+    replace(meta, [sample && origin.source ? t('ui.take.sampleSource', { source: origin.source }) : null,
+      sample && origin.license ? t('ui.take.sampleLicense', { license: origin.license }) : null,
+      !sample && take.seed !== undefined && take.seed !== null ? t('ui.take.seed', { seed: take.seed }) : null,
       hasAudio(take) ? mmss(take.audioMs) : null, take.device || null].filter(Boolean).join(' · '));
     const audible = hasAudio(take);
     play.hidden = !audible; time.hidden = !audible; wave.node.hidden = !audible; noAudio.hidden = audible;

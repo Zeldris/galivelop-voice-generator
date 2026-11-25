@@ -1,13 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Voice",
-  "description": "voice.json of one voice inside a voice pack.",
+  "description": "voice.json of one voice inside a voice pack. A voice made from a design sheet has designSheet and device; one made from a human sample has source and license instead (D13, 0.3.0).",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "key",
-    "designSheet",
-    "device",
     "reference"
   ],
   "properties": {
@@ -20,7 +18,8 @@
       "description": "Voice key."
     },
     "designSheet": {
-      "$ref": "design-sheet.schema.json"
+      "$ref": "design-sheet.schema.json",
+      "description": "Design sheet the voice was made from (absent in a voice made from a sample)."
     },
     "locale": {
       "$ref": "common.schema.json#/$defs/locale",
@@ -85,7 +84,46 @@
     },
     "device": {
       "$ref": "common.schema.json#/$defs/device",
-      "description": "Device the reference was generated on (D16)."
+      "description": "Device the reference was generated on (D16); a sample voice has none."
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "Where the sample the voice was cloned from comes from (a voice made from a sample)."
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "License or permission of that sample (a voice made from a sample)."
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "designSheet"
+        ]
+      },
+      "then": {
+        "required": [
+          "device"
+        ],
+        "properties": {
+          "source": false,
+          "license": false
+        }
+      },
+      "else": {
+        "required": [
+          "source",
+          "license"
+        ],
+        "properties": {
+          "device": false
+        }
+      }
+    }
+  ]
 }

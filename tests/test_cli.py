@@ -88,6 +88,47 @@ class ProjectTests(CliBase):
         self.fails("project", "remove", "nope", message="nope")
 
 
+class SampleOrderTests(CliBase):
+    def sample_file(self, folder="orders", audio="s.wav"):
+        from tests.test_orders import make_wav
+        (self.tmp / folder).mkdir(exist_ok=True)
+        make_wav(self.tmp / folder / "s.wav")
+        order = {"type": "voice", "key": "narrator", "locale": "es-ES", "sample": {
+            "audio": audio, "text": "Amanece en la Hondonada.", "source": "own recording", "license": "CC0-1.0"}}
+        path = self.tmp / folder / "order.json"
+        path.write_text(json.dumps(order))
+        return str(path)
+
+    def test_relative_audio_is_relative_to_the_order_file(self):
+        self.add_project()
+        path = self.sample_file()
+        cwd = os.getcwd()
+        os.chdir(self.tmp)  # not the order file's folder
+        self.addCleanup(os.chdir, cwd)
+        data = self.js("order", "submit", PROJECT, path)
+        self.assertEqual((data["entries"], len(data["order"]["attempts"])), ([], 1))
+        self.assertEqual(data["order"]["attempts"][0]["source"], "sample")
+
+    def test_missing_audio_says_so(self):
+        self.add_project()
+        self.fails("order", "submit", PROJECT, self.sample_file(audio="nope.wav"), message="cannot read the sample audio")
+        self.fails("order", "submit", PROJECT, self.sample_file(audio="nope.wav"), lang="es",
+                   message="no se puede leer el audio de la muestra")
+
+    def test_show_prints_source_and_license_and_no_instruction(self):
+        self.add_project()
+        self.ok("order", "submit", PROJECT, self.sample_file())
+        text = self.ok("order", "show", PROJECT, "narrator")
+        self.assertIn("Sample: own recording (license: CC0-1.0)", text)
+        self.assertIn("Locale: es-ES", text)
+        self.assertNotIn("Instruction:", text)
+        self.assertIn("seed", text)
+        es = self.ok("--lang", "es", "order", "show", PROJECT, "narrator")
+        self.assertIn("Muestra: own recording (licencia: CC0-1.0)", es)
+        self.assertEqual(self.js("order", "show", PROJECT, "narrator")["sample"]["license"], "CC0-1.0")
+        self.fails("attempt", "new", PROJECT, "narrator", message="makes no design takes")
+
+
 class OrderTests(CliBase):
     def test_submit_shows_the_sheet_warnings(self):
         self.add_project()

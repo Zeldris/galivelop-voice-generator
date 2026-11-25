@@ -1,8 +1,10 @@
 import copy
+import hashlib
 import json
 import os
 import tempfile
 import unittest
+import wave
 from pathlib import Path
 from unittest import mock
 
@@ -13,6 +15,16 @@ ROOT = Path(__file__).resolve().parent.parent
 VOICE = json.loads((ROOT / "examples" / "order-voice.json").read_text())
 LINE = json.loads((ROOT / "examples" / "order-line.json").read_text())
 CONFIG = json.loads((ROOT / "examples" / "galivelop-voices.json").read_text())
+
+
+def make_wav(path, ms=500, rate=16000, value=0):
+    """A small PCM WAV (``ms`` of the constant sample ``value``); returns the path as text."""
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(int(value).to_bytes(2, "little", signed=True) * (rate * ms // 1000))
+    return str(path)
 
 
 class Base(unittest.TestCase):
@@ -36,6 +48,14 @@ class Base(unittest.TestCase):
     def voice(self, **changes):
         order = copy.deepcopy(VOICE)
         order.pop("$schema")
+        order.update(changes)
+        return order
+
+    def sample_order(self, key="from-sample", audio=None, **changes):
+        """A voice order from a sample; the audio defaults to a fresh WAV in the temp folder."""
+        order = {"type": "voice", "key": key, "locale": "es-ES", "sample": {
+            "audio": audio or make_wav(self.tmp / "s.wav"), "text": "Amanece en la Hondonada.",
+            "source": "own recording", "license": "CC0-1.0"}}
         order.update(changes)
         return order
 
@@ -130,6 +150,113 @@ class SubmitTests(Base):
         orders.submit(self.p, self.voice())
         (self.tmp / "data/projects/world/orders/narrator/@/order.json").write_text("{not json")
         self.assertEqual(self.code(orders.get, self.p, "narrator").code, "order.corrupt")
+
+
+class SampleTests(Base):
+    def code(self, order):
+        with self.assertRaises(GvoiceError) as cm:
+            orders.submit(self.p, order)
+        return cm.exception.code
+
+    def test_submit_stores_the_sample_and_one_take(self):
+        wav = make_wav(self.tmp / "s.wav", ms=750, value=100)
+        record = orders.submit(self.p, self.sample_order(audio=wav))
+        self.assertEqual(record["warnings"], [])
+        self.assertNotIn("designSheet", record)
+        self.assertNotIn("testText", record)
+        digest = hashlib.sha256(Path(wav).read_bytes()).hexdigest()
+        self.assertEqual(record["sample"], {"source": "own recording", "license": "CC0-1.0",
+                                            "text": "Amanece en la Hondonada.", "sha256": digest})
+        take, = record["attempts"]
+        self.assertEqual((take["id"], take["source"], take["text"], take["locale"], take["audioMs"], take["seed"]),
+                         (1, "sample", "Amanece en la Hondonada.", "es-ES", 750, None))
+        self.assertEqual(take["prints"], {})
+        self.assertNotIn("instruction", take)
+        copied = orders.attempt_audio(self.p, "from-sample", take)
+        self.assertEqual(copied.read_bytes(), Path(wav).read_bytes())
+        self.assertNotIn(wav, json.dumps(orders.get(self.p, "from-sample")))  # the original path is not kept
+        self.assertEqual([p.name for p in copied.parent.iterdir()], ["audio.wav"])  # no temporary left
+
+    def test_same_audio_again_adds_no_take_and_another_one_does(self):
+        orders.submit(self.p, self.sample_order())
+        again = orders.submit(self.p, self.sample_order(sample=dict(self.sample_order()["sample"], license="MIT")))
+        self.assertEqual(len(again["attempts"]), 1)
+        self.assertEqual(again["sample"]["license"], "MIT")
+        other = make_wav(self.tmp / "o.wav", ms=300, value=5)
+        third = orders.submit(self.p, self.sample_order(audio=other))
+        self.assertEqual([a["id"] for a in third["attempts"]], [1, 2])
+        self.assertEqual(third["sample"]["sha256"], third["attempts"][1]["sha256"])
+        self.assertEqual(len(orders.submit(self.p, self.sample_order(audio=other))["attempts"]), 2)
+
+    def test_unreadable_and_not_wav_have_their_own_codes(self):
+        self.assertEqual(self.code(self.sample_order(audio=str(self.tmp / "missing.wav"))), "order.sample_unreadable")
+        self.assertEqual(self.code(self.sample_order(audio=str(self.tmp))), "order.sample_unreadable")
+        junk = self.tmp / "junk.wav"
+        junk.write_bytes(b"this is not a wav file")
+        self.assertEqual(self.code(self.sample_order(audio=str(junk))), "order.sample_not_wav")
+        empty = make_wav(self.tmp / "empty.wav", ms=0)
+        self.assertEqual(self.code(self.sample_order(audio=empty)), "order.sample_empty")
+        self.assertEqual(orders.list_orders(self.p), [])  # nothing was stored
+
+    def test_oversized_sample_is_refused(self):
+        with mock.patch.object(orders, "SAMPLE_MAX_MB", 0):
+            self.assertEqual(self.code(self.sample_order()), "order.sample_too_big")
+
+    def test_schema_rules(self):
+        def codes(order):
+            with self.assertRaises(GvoiceError) as cm:
+                orders.submit(self.p, order)
+            self.assertEqual(cm.exception.code, "order.invalid")
+            return {(e.path, e.code) for e in cm.exception.errors}
+        no_locale = self.sample_order()
+        del no_locale["locale"]
+        self.assertIn(("", "required"), codes(no_locale))
+        both = self.sample_order(designSheet=VOICE["designSheet"], testText="x")
+        self.assertTrue(codes(both))
+        self.assertIn(("/testText", "false"), codes(self.sample_order(testText="x")))
+        self.assertIn(("/seed", "false"), codes(self.sample_order(seed=1)))
+        design_and_sample = self.voice(sample=self.sample_order()["sample"])
+        self.assertIn(("/designSheet", "false"), codes(design_and_sample))
+        self.assertIn(("/sample", "false"), codes(self.line(sample=self.sample_order()["sample"])))
+        missing = self.sample_order()
+        del missing["sample"]["license"]
+        self.assertIn(("/sample", "required"), codes(missing))
+        neither = {"type": "voice", "key": "v"}
+        self.assertTrue(codes(neither))
+
+    def test_origin_cannot_change(self):
+        orders.submit(self.p, self.voice(key="v"))
+        self.assertEqual(self.code(self.sample_order(key="v")), "order.origin_changed")
+        orders.submit(self.p, self.sample_order(key="s"))
+        self.assertEqual(self.code(self.voice(key="s")), "order.origin_changed")
+
+    def test_attempt_specs_refused(self):
+        orders.submit(self.p, self.sample_order())
+        with self.assertRaises(GvoiceError) as cm:
+            orders.attempt_specs(self.p, "from-sample")
+        self.assertEqual(cm.exception.code, "order.sample_no_takes")
+
+    def test_choosing_the_take_fixes_the_voice_and_a_new_sample_makes_lines_stale(self):
+        orders.submit(self.p, self.sample_order(key="narrator"))
+        orders.choose(self.p, "narrator", 1)
+        self.assertEqual(orders.reference(self.p, "narrator"), 1)
+        orders.submit(self.p, self.line())
+        spec, = orders.attempt_specs(self.p, "narrator/intro-01")
+        self.assertEqual((spec["voice"], spec["reference"]), ("narrator", 1))
+        spec["result"] = engine.EngineResult(duration_ms=5, engine_version="fake-1", audio_ms=900)
+        spec["locale"] = "es-ES"
+        attempt = orders.add_attempt(self.p, "narrator/intro-01", spec)
+        orders.choose(self.p, "narrator/intro-01", attempt)
+        self.assertFalse(orders.is_stale(self.p, "narrator/intro-01"))
+        orders.submit(self.p, self.sample_order(key="narrator", audio=make_wav(self.tmp / "n.wav", ms=200, value=9)))
+        self.assertFalse(orders.is_stale(self.p, "narrator/intro-01"))  # a new take alone changes nothing
+        orders.choose(self.p, "narrator", 2)
+        self.assertTrue(orders.is_stale(self.p, "narrator/intro-01"))
+        self.assertEqual(orders.stale_lines(self.p, "narrator"), ["narrator/intro-01"])
+
+    def test_is_sample(self):
+        self.assertTrue(orders.is_sample(orders.submit(self.p, self.sample_order())))
+        self.assertFalse(orders.is_sample(orders.submit(self.p, self.voice())))
 
 
 class LineRuleTests(Base):

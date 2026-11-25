@@ -42,6 +42,24 @@ def write_json(path, data) -> None:
         raise
 
 
+def write_bytes(path, data: bytes) -> None:
+    """Write bytes via temp file + os.replace (the file is whole or absent)."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix="." + path.name + ".", suffix=".tmp")
+    try:
+        honour_umask(fd)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
 def read_json(path, default=_MISSING):
     """Read JSON; if the file is missing return `default` (or raise FileNotFoundError)."""
     try:

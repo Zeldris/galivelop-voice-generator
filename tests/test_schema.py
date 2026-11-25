@@ -303,3 +303,16 @@ class LoadSchemaTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SampleVoiceSchemaTests(unittest.TestCase):
+    def test_voice_json_from_a_sample_has_source_and_license_not_sheet_and_device(self):
+        sch = S.load_schema("voice")
+        voice = {"key": "v", "reference": {"audio": "reference.wav", "text": "reference.txt"},
+                 "source": "own recording", "license": "CC0-1.0", "locale": "es-ES"}
+        self.assertEqual(S.validate(voice, sch), [])
+        for drop in ("source", "license"):
+            partial = {k: v for k, v in voice.items() if k != drop}
+            self.assertTrue(S.validate(partial, sch), drop)
+        self.assertTrue(S.validate(dict(voice, device="cpu"), sch))
+        self.assertTrue(S.validate(dict(voice, designSheet={}), sch))  # a sheet needs a device and has no source

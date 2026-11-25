@@ -7,7 +7,8 @@ trabajos son de tres clases (``kind``).
 (queued|running|done|failed|cancelled), ``pid``, ``enqueuedAt``, ``startedAt``, ``finishedAt``, ``error``,
 ``attemptId``, ``cancelRequested`` and, by kind:
 
-* ``voice``: a take of a voice (``instruction`` from the design sheet; the engine's ``design``);
+* ``voice``: a take of a voice (``instruction`` from the design sheet; the engine's ``design``; never for a voice
+  from a sample, `orders.is_sample`);
 * ``line``: a take of a line (``voice`` and ``reference``: the voice it was made for and the take of it it is made with; the engine's ``line`` with the
   voice print of the production model, `production_model`);
 * ``prints``: the voice prints (one per model that `orders.missing_prints` says the take lacks) of take ``take`` of a
@@ -223,6 +224,8 @@ def enqueue(project: str, key: str, specs: list) -> list:
     ``printModels`` (`production_model`); nothing is queued if anything fails."""
     order = orders.get(project, key)
     kind = order["type"]
+    if orders.is_sample(order):  # a voice from a sample makes no design takes
+        raise GvoiceError("order.sample_no_takes", order=key)
     engine.check_configured()
     if kind == "line":
         production_model(project)
@@ -402,6 +405,8 @@ def submit_order(project: str, order: dict, count: int = 1) -> tuple:
         if order.get("type") == "line":
             production_model(project)
     record = orders.submit(project, order)
+    if orders.is_sample(record):  # nothing to queue: the take is the sample; choosing it queues the prints
+        return record, []
     specs = orders.attempt_specs(project, record["key"], count)
     return record, enqueue(project, record["key"], specs)
 

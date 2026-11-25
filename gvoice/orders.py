@@ -12,6 +12,14 @@ key ``a`` (a key segment cannot hold ``@``). Beside ``order.json``, one folder p
 * ``voice``: each attempt is a take with a seed, the test text and the instruction built from the design sheet
   (`sheet.instruction`). Choosing a take makes it the voice's *reference* (it fixes the voice); `submit` also returns
   the `sheet.warnings` (never stored, never blocking).
+* ``voice`` from a sample (0.3.0): instead of a design sheet the order carries ``sample`` (``audio``, ``text``,
+  ``source``, ``license``) and a required ``locale``; it has no test text and no seed. `submit` validates the WAV,
+  copies it to ``attempts/<id>/audio.wav`` and records one take with ``source: "sample"``, the transcript as
+  ``text``, the ``locale``, ``audioMs``, ``seed: null``, ``sha256`` of the audio and no ``instruction``; the order
+  keeps ``sample`` as ``{source, license, text, sha256}`` (never the original path). The same audio (same sha256)
+  again adds no take; another one adds a take. Choosing a take fixes the voice as for any voice; such a voice makes
+  no design takes (`attempt_specs`: ``order.sample_no_takes``) and an order never changes between design sheet and
+  sample (``order.origin_changed``).
 * ``line``: a voice (a ``voice`` order of the same project with a chosen reference) and a text. Each attempt records
   the voice (``voice``) and the reference take (``reference``) it was made with. A chosen line is *stale*
   (`is_stale`) when its voice changed or that take is not the voice's current reference; it is computed, never stored, and nothing regenerates it by itself.
@@ -20,14 +28,17 @@ This module neither enqueues nor runs the engine (queue and worker, F1.5): `add_
 the worker calls with an `EngineResult`. `choose` and `undo` return the old and new chosen ids.
 Every read-modify-write holds `fsutil.lock` of ``order.json``. All raise `GvoiceError` with codes ``order.*``.
 
-Public API: `submit`, `attempt_specs`, `add_attempt`, `attempt_for_entry`, `attempt_dir`, `attempt_audio`,
+Public API: `submit`, `is_sample`, `attempt_specs`, `add_attempt`, `attempt_for_entry`, `attempt_dir`, `attempt_audio`,
 `pending_audio_path`, `print_paths`, `missing_prints`, `set_prints`, `mark`, `note`, `choose`, `undo`, `reference`,
 `is_stale`, `stale_lines`, `get`, `list_orders`."""
 from __future__ import annotations
 
 import copy
+import hashlib
+import io
 import os
 import random
+import wave
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -37,6 +48,7 @@ from .errors import GvoiceError
 STATES = ("new", "candidate", "discarded")
 SEED_LIMIT = schema.load_schema("common")["$defs"]["seed"]["maximum"] + 1  # one place: common.schema.json
 TYPES = ("voice", "line")
+SAMPLE_MAX_MB = 64
 _ORDER_FILE = "order.json"
 _MARK = "@"
 _rng = random.SystemRandom()
@@ -149,9 +161,15 @@ def submit(project: str, order: dict) -> dict:
     projects.get(project)
     key = order["key"]
     kind = order["type"]
+    sample = None
     if kind == "line":
         _fixed_voice(project, order["voice"])
         fields = {"voice": order["voice"], "text": order["text"]}
+    elif "sample" in order:
+        sample = _read_sample(order["sample"]["audio"])
+        fields = {"locale": order["locale"],
+                  "sample": {"source": order["sample"]["source"], "license": order["sample"]["license"],
+                             "text": order["sample"]["text"], "sha256": sample["sha256"]}}
     else:
         fields = {"testText": order["testText"], "designSheet": copy.deepcopy(order["designSheet"])}
         if order.get("locale") is not None:
@@ -169,13 +187,62 @@ def submit(project: str, order: dict) -> dict:
                       "chosenHistory": []}
         if record["type"] != kind:
             raise GvoiceError("order.type_changed", order=key, type=record["type"], new=kind)
+        if kind == "voice" and ("sample" in record or "designSheet" in record) \
+                and ("sample" in record) != (sample is not None):
+            was, new = ("sample", "design sheet") if "sample" in record else ("design sheet", "sample")
+            raise GvoiceError("order.origin_changed", order=key, was=was, new=new)
         record.update(fields)
         record["updatedAt"] = now
+        if sample is not None:
+            _add_sample_take(project, key, record, sample, order["sample"]["text"], now)
         fsutil.write_json(path, record)
     result = copy.deepcopy(record)
     if kind == "voice":
-        result["warnings"] = [{"code": w.code, "params": dict(w.params)} for w in sheet.warnings(order["designSheet"])]
+        result["warnings"] = ([] if sample is not None else
+                              [{"code": w.code, "params": dict(w.params)} for w in sheet.warnings(order["designSheet"])])
     return result
+
+
+def is_sample(order: dict) -> bool:
+    """Whether a ``voice`` order record comes from a human sample (it has ``sample``) and not from a design sheet."""
+    return order.get("type") == "voice" and "sample" in order
+
+
+def _read_sample(audio: str) -> dict:
+    """The sample file read whole: ``{"data", "sha256", "audioMs"}``. ``order.sample_unreadable`` (cannot be read),
+    ``order.sample_too_big``, ``order.sample_not_wav`` (not a PCM WAV that `wave` reads) or ``order.sample_empty``."""
+    limit = SAMPLE_MAX_MB * 1024 * 1024
+    try:
+        with open(audio, "rb") as fh:
+            data = fh.read(limit + 1)
+    except OSError as exc:
+        raise GvoiceError("order.sample_unreadable", path=audio, reason=exc.strerror or str(exc))
+    if len(data) > limit:
+        raise GvoiceError("order.sample_too_big", path=audio, max=SAMPLE_MAX_MB)
+    try:
+        with wave.open(io.BytesIO(data), "rb") as w:
+            rate, frames = w.getframerate(), w.getnframes()
+            if rate < 1 or w.getnchannels() < 1:
+                raise wave.Error("bad format")
+    except (wave.Error, EOFError) as exc:
+        raise GvoiceError("order.sample_not_wav", path=audio, reason=str(exc))
+    if frames == 0:
+        raise GvoiceError("order.sample_empty", path=audio)
+    return {"data": data, "sha256": hashlib.sha256(data).hexdigest(), "audioMs": frames * 1000 // rate}
+
+
+def _add_sample_take(project: str, key: str, record: dict, sample: dict, text: str, now: str) -> None:
+    """Append the take of a sample to `record` (under the order lock) and write its audio, unless a take with the same
+    sha256 is there already. The audio goes first: a crash leaves a file no take refers to, never the reverse."""
+    if any(a.get("source") == "sample" and a.get("sha256") == sample["sha256"] for a in record["attempts"]):
+        return
+    new_id = max((a["id"] for a in record["attempts"]), default=0) + 1
+    folder = _attempt_folder(new_id, None)
+    take = {"id": new_id, "state": "new", "seed": None, "text": text, "dir": folder, "audio": folder + "/audio.wav",
+            "note": "", "createdAt": now, "source": "sample", "locale": record["locale"], "audioMs": sample["audioMs"],
+            "prints": {}, "sha256": sample["sha256"]}
+    fsutil.write_bytes(paths.inside(_order_dir(project, key), take["audio"]), sample["data"])
+    record["attempts"].append(take)
 
 
 def check_count(count, base=None) -> None:
@@ -198,6 +265,8 @@ def attempt_specs(project: str, key: str, count: int = 1, *, seed=None) -> list:
     if seed is not None:
         _check_fields_of({"key": "x", "type": "line", "voice": "x", "text": "x", "seed": seed})
     order = get(project, key)
+    if is_sample(order):
+        raise GvoiceError("order.sample_no_takes", order=key)
     base = order.get("seed") if seed is None else seed
     check_count(count, base)
     if order["type"] == "voice":

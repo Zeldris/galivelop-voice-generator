@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Order",
-  "description": "A request to design a voice (type voice) or generate a line (type line). Type sound is reserved for F7.",
+  "description": "A request to design a voice (type voice, from a design sheet or from a human audio sample) or generate a line (type line). Type sound is reserved for F7.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -34,7 +34,7 @@
     },
     "locale": {
       "$ref": "common.schema.json#/$defs/locale",
-      "description": "voice: language variant (optional); a line takes the one of its voice."
+      "description": "voice: language variant (optional with a design sheet, required with a sample); a line takes the one of its voice."
     },
     "designSheet": {
       "$ref": "design-sheet.schema.json",
@@ -49,6 +49,42 @@
       "minLength": 1,
       "maxLength": 4000,
       "description": "line: text to speak."
+    },
+    "sample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "audio",
+        "text",
+        "source",
+        "license"
+      ],
+      "description": "voice: a human audio sample to clone (Base models) instead of a design sheet. The audio is copied into the order and becomes one take (source sample); a sample voice makes no design takes, and has no seed or test text.",
+      "properties": {
+        "audio": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path of the WAV file (a relative path is resolved by the caller: the CLI uses the folder of the order file)."
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000,
+          "description": "Transcript of the audio."
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Where the sample comes from (free text)."
+        },
+        "license": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "License or permission of the sample (free text, for example CC0-1.0 or own recording)."
+        }
+      }
     }
   },
   "allOf": [
@@ -71,7 +107,8 @@
         "properties": {
           "designSheet": false,
           "locale": false,
-          "testText": false
+          "testText": false,
+          "sample": false
         }
       }
     },
@@ -87,14 +124,35 @@
         }
       },
       "then": {
-        "required": [
-          "designSheet",
-          "testText"
-        ],
         "properties": {
           "voice": false,
           "text": false
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "sample"
+              ]
+            },
+            "then": {
+              "required": [
+                "locale"
+              ],
+              "properties": {
+                "designSheet": false,
+                "testText": false,
+                "seed": false
+              }
+            },
+            "else": {
+              "required": [
+                "designSheet",
+                "testText"
+              ]
+            }
+          }
+        ]
       }
     }
   ]

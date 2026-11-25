@@ -1,0 +1,12 @@
+{
+  "$schema": "../gvoice/schemas/order.schema.json",
+  "key": "lectora-muestra-es",
+  "type": "voice",
+  "locale": "es-ES",
+  "sample": {
+    "audio": "sample-es.wav",
+    "text": "Amanece en la Hondonada y no se oye nada.",
+    "source": "Grabación de ejemplo (tono de prueba; sustituir por una muestra humana real de 10-15 s)",
+    "license": "CC0-1.0"
+  }
+}

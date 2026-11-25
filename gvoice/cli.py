@@ -133,9 +133,14 @@ def _read_order(source: str) -> dict:
         else:
             with open(source, encoding="utf-8") as fh:
                 text = fh.read()
-        return json.loads(text)
+        order = json.loads(text)
     except (OSError, ValueError) as exc:  # includes UnicodeDecodeError
         raise GvoiceError("cli.order_unreadable", path=source, reason=str(exc))
+    sample = order.get("sample") if isinstance(order, dict) else None
+    if source != "-" and isinstance(sample, dict) and isinstance(sample.get("audio"), str) and sample["audio"]:
+        # a relative audio path is relative to the order file, not to where gvoice was run
+        sample["audio"] = os.path.join(os.path.dirname(os.path.abspath(source)), sample["audio"])
+    return order
 
 
 def _queued(out: _Out, entries: list, **extra) -> None:
@@ -189,7 +194,11 @@ def _order(args, sub, out: _Out) -> None:
             return
         out.line("cli.out.order_head", order=o["key"], type=o["type"])
         out.line("cli.out.order_seed", seed=out.none(o["seed"]))
-        if o["type"] == "voice":
+        if orders.is_sample(o):
+            out.line("cli.out.order_locale", locale=o["locale"])
+            out.line("cli.out.order_sample", source=o["sample"]["source"], license=o["sample"]["license"])
+            out.line("cli.out.order_sample_text", text=o["sample"]["text"])
+        elif o["type"] == "voice":
             out.line("cli.out.order_test_text", text=o["testText"])
             out.line("cli.out.order_instruction", text=sheet.instruction(o["designSheet"], o.get("locale")))
         else:
@@ -202,7 +211,7 @@ def _order(args, sub, out: _Out) -> None:
         if not o["attempts"]:
             out.line("cli.out.attempts_none")
         for a in o["attempts"]:
-            out.line("cli.out.attempt_line", id=a["id"], state=a["state"], seed=a["seed"], audio=a["audio"])
+            out.line("cli.out.attempt_line", id=a["id"], state=a["state"], seed=out.none(a["seed"]), audio=a["audio"])
             if o["type"] == "line":
                 out.line("cli.out.attempt_reference", reference=a["reference"])
             else:

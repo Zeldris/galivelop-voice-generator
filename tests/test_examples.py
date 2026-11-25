@@ -16,7 +16,8 @@ EXAMPLES = {
     "machine-profile": "gvoice/machine_profiles/steam-deck.json",
     "engine-catalog": "gvoice/engines/qwentts.json",
 }
-ORDERS = ("examples/order-voice.json", "examples/order-line.json", "examples/order-voice-lectora-es.json")
+ORDERS = ("examples/order-voice.json", "examples/order-line.json", "examples/order-voice-lectora-es.json",
+          "examples/order-voice-sample-es.json")
 
 
 def read(rel):

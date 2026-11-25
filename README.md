@@ -43,6 +43,8 @@ python3 -m gvoice bench --devices Vulkan0,cpu       # mide diseñar, fijar y pro
 python3 -m gvoice fx apply lectura voz.wav limpia.wav   # limpia una voz de lectura (denoise, dereverb, recorte de silencios, -16 LUFS) con ffmpeg; el primer argumento es un preset o la ruta a una cadena `.json`; `--json` da el filtro usado
 ```
 
+**Voz desde muestra:** un pedido `voice` puede llevar `sample` (`audio`, `text`, `source`, `license`) en vez de `designSheet`, con `locale` obligatorio y sin `testText` ni `seed` (`examples/order-voice-sample-es.json`; una ruta relativa de `audio` es relativa al JSON). El pedido copia el WAV y lo guarda como una toma `source: "sample"`; reenviar el mismo audio no la duplica y otro audio añade una toma. Elegirla fija la voz con las huellas Base y las frases la usan igual; no hay tomas de diseño (`attempt new` se rechaza): para comparar se piden frases. `order show` muestra origen y licencia.
+
 `order list` y `order show` marcan las frases elegidas con una referencia que ya no es la vigente (desfasadas, D10).
 `--json` da la salida legible por máquina y `--lang es|en` el idioma; el resto con `--help`. Variables:
 `GVOICE_CONFIG_HOME`, `GVOICE_DATA_HOME`, `GVOICE_STATE_HOME`, `GVOICE_ENGINE` (por ahora solo `fake`) y `GVOICE_LANG`.

@@ -10,6 +10,7 @@ from unittest import mock
 from gvoice import engine, limits, log, machine_lock, orders, paths, queue, worker
 from gvoice.errors import GvoiceError
 from tests.test_machine_lock import HOLDER, ROOT
+from tests.test_orders import make_wav
 from tests.test_queue import QueueBase
 
 
@@ -596,3 +597,41 @@ class MemoryTests(WorkerBase):
         self.foreign_holder()  # an orphaned engine (or the image generator) holds the machine
         self.assertEqual(self.run_worker(), 0)
         self.assertTrue(stale.is_dir())
+
+
+class SampleVoiceTests(WorkerBase):
+    def sample_order(self, wav, key="narrator"):
+        return {"type": "voice", "key": key, "locale": "es-ES", "sample": {
+            "audio": wav, "text": "Amanece en la Hondonada.", "source": "own recording", "license": "CC0-1.0"}}
+
+    def test_submit_order_queues_nothing_and_new_takes_is_refused(self):
+        record, entries = queue.submit_order(self.p, self.sample_order(make_wav(self.tmp / "a.wav")))
+        self.assertEqual((entries, len(record["attempts"])), ([], 1))
+        for call in (lambda: queue.new_takes(self.p, "narrator"),
+                     lambda: queue.enqueue(self.p, "narrator", [{"seed": 1, "text": "x", "instruction": "i"}])):
+            with self.assertRaises(GvoiceError) as cm:
+                call()
+            self.assertEqual(cm.exception.code, "order.sample_no_takes")
+        self.assertEqual(queue.list_entries(), [])
+
+    def test_choose_makes_prints_from_the_sample_then_line_then_stale(self):
+        queue.submit_order(self.p, self.sample_order(make_wav(self.tmp / "a.wav")))
+        result = queue.choose(self.p, "narrator", 1)
+        self.assertEqual([e["kind"] for e in result["entries"]], ["prints"])
+        self.run_worker()
+        self.assertEqual(queue.get(1)["state"], "done")
+        self.assertEqual(orders.missing_prints(self.p, "narrator", 1), [])
+        lines = [l for l in log_lines() if l["gen_ai.operation.name"] == log.OP_PRINT]
+        self.assertEqual(len(lines), 2)
+        queue.submit_order(self.p, self.line())
+        queue.new_takes(self.p, "narrator/intro-01")
+        self.run_worker()
+        take = self.attempt("narrator/intro-01", 1)
+        self.assertEqual((take["locale"], take["reference"], take["voice"]), ("es-ES", 1, "narrator"))
+        queue.choose(self.p, "narrator/intro-01", 1)
+        self.assertFalse(orders.is_stale(self.p, "narrator/intro-01"))
+        queue.submit_order(self.p, self.sample_order(make_wav(self.tmp / "b.wav", ms=300, value=7)))
+        queue.choose(self.p, "narrator", 2)
+        self.assertTrue(orders.is_stale(self.p, "narrator/intro-01"))
+        self.run_worker()
+        self.assertEqual(orders.missing_prints(self.p, "narrator", 2), [])

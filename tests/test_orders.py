@@ -188,6 +188,16 @@ class SampleTests(Base):
         self.assertEqual(third["sample"]["sha256"], third["attempts"][1]["sha256"])
         self.assertEqual(len(orders.submit(self.p, self.sample_order(audio=other))["attempts"]), 2)
 
+    def test_same_audio_with_another_transcript_or_locale_is_refused_and_changes_nothing(self):
+        base = self.sample_order()
+        orders.submit(self.p, base)
+        before = orders.get(self.p, "from-sample")
+        for changed in (self.sample_order(sample=dict(base["sample"], text="Otro texto.")),
+                        self.sample_order(locale="es-419"),
+                        self.sample_order(locale="es-419", sample=dict(base["sample"], text="Otro texto."))):
+            self.assertEqual(self.code(changed), "order.sample_changed")
+            self.assertEqual(orders.get(self.p, "from-sample"), before)
+
     def test_unreadable_and_not_wav_have_their_own_codes(self):
         self.assertEqual(self.code(self.sample_order(audio=str(self.tmp / "missing.wav"))), "order.sample_unreadable")
         self.assertEqual(self.code(self.sample_order(audio=str(self.tmp))), "order.sample_unreadable")

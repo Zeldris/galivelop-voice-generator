@@ -253,6 +253,8 @@ route('POST', '/api/projects/{p}/orders', async (c) => {
     if (spec.designSheet || spec.testText !== undefined || spec.seed !== undefined || !LOCALES.includes(spec.locale)) return fail(c.lang, 400, 'api.bad_param', { name: 'order' });
     for (const f of ['audio', 'text', 'source', 'license']) if (typeof sample[f] !== 'string' || !sample[f].trim()) return fail(c.lang, 400, 'api.bad_param', { name: 'order' });
     if (record && !record.sample) return fail(c.lang, 409, 'order.origin_changed', { order: spec.key, was: 'design sheet', new: 'sample' });
+    // el audio del simulador es siempre el mismo: como orders.submit, otra transcripción o variante exige otro audio
+    if (record && record.attempts.some((a) => a.source === 'sample' && (a.text !== sample.text.trim() || a.locale !== spec.locale))) return fail(c.lang, 409, 'order.sample_changed', { order: spec.key });
   } else if (record && record.sample) return fail(c.lang, 409, 'order.origin_changed', { order: spec.key, was: 'sample', new: 'design sheet' });
   if (!record) {
     record = { key: spec.key, type: spec.type, attempts: [], chosen: null, chosenHistory: [], createdAt: now() };

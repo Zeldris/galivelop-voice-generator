@@ -191,6 +191,8 @@ def submit(project: str, order: dict) -> dict:
                 and ("sample" in record) != (sample is not None):
             was, new = ("sample", "design sheet") if "sample" in record else ("design sheet", "sample")
             raise GvoiceError("order.origin_changed", order=key, was=was, new=new)
+        if sample is not None:
+            _check_sample_unchanged(key, record, sample, order["sample"]["text"], order["locale"])
         record.update(fields)
         record["updatedAt"] = now
         if sample is not None:
@@ -229,6 +231,15 @@ def _read_sample(audio: str) -> dict:
     if frames == 0:
         raise GvoiceError("order.sample_empty", path=audio)
     return {"data": data, "sha256": hashlib.sha256(data).hexdigest(), "audioMs": frames * 1000 // rate}
+
+
+def _check_sample_unchanged(key: str, record: dict, sample: dict, text: str, locale: str) -> None:
+    """``order.sample_changed`` when `record` has the take of this audio (same sha256) with another transcript or
+    locale: those are not corrected without changing the audio. Runs before anything is written."""
+    for a in record["attempts"]:
+        if a.get("source") == "sample" and a.get("sha256") == sample["sha256"] \
+                and (a.get("text") != text or a.get("locale") != locale):
+            raise GvoiceError("order.sample_changed", order=key)
 
 
 def _add_sample_take(project: str, key: str, record: dict, sample: dict, text: str, now: str) -> None:

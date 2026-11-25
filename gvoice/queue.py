@@ -401,7 +401,8 @@ def submit_order(project: str, order: dict, count: int = 1) -> tuple:
     the `sheet` warnings. A line whose machine cannot make it (`production_model`) is refused before it is stored."""
     engine.check_configured()
     if isinstance(order, dict):
-        orders.check_count(count, order.get("seed"))
+        if not (order.get("type") == "voice" and "sample" in order):  # a sample voice ignores `count`
+            orders.check_count(count, order.get("seed"))
         if order.get("type") == "line":
             production_model(project)
     record = orders.submit(project, order)

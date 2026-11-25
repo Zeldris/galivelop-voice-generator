@@ -325,6 +325,14 @@ class ServiceTests(QueueBase):
         self.assertEqual([e["seed"] for e in entries], [1234, 1235])
         self.assertIn("warnings", record)
 
+    def test_sample_voice_ignores_count(self):
+        from tests.test_orders import make_wav
+        order = {"type": "voice", "key": "ana", "locale": "es-ES", "sample": {
+            "audio": make_wav(self.tmp / "a.wav"), "text": "Hola.", "source": "own", "license": "CC0-1.0"}}
+        for count in (0, 51):
+            record, entries = queue.submit_order(self.p, order, count)
+            self.assertEqual((entries, len(record["attempts"])), ([], 1))
+
     def test_invalid_count_leaves_the_stored_order_unchanged(self):
         orders.submit(self.p, self.voice())
         before = orders.get(self.p, "narrator")

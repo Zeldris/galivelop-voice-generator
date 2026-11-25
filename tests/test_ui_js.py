@@ -1632,6 +1632,25 @@ out({
         self.assertIn("weird.code", got["errNoKey"])   # a code without text is still a reason
         self.assertEqual((got["errText"], got["errKey"], got["errNone"], got["errNotFailed"]), ("ya traducido", "error.engine.failed:x", None, None))
 
+    def test_queue_model_error_falls_back_to_ui_error_code(self):
+        got = self.run_js("""
+const m = await mod('js/queue-model.js');
+const e = { id: 1, state: 'failed', error: { code: 'weird.code' } };
+out({ viaCode: m.errorOf(e, (k, p) => (k === 'ui.error.code' ? 'Error ' + p.code : null)), bare: m.errorOf(e, () => null) });
+""")
+        self.assertEqual(got["viaCode"], "Error weird.code")
+        self.assertEqual(got["bare"], "error: weird.code")
+
+    def test_describe_error_uses_api_message_or_ui_error_code(self):
+        got = self.run_js("""
+const { ApiError, OfflineError, describeError } = await mod('js/api.js');
+const t = (k, p) => (k === 'ui.error.code' ? 'Error ' + p.code : k);
+out({ bare: describeError(new ApiError(500, { error: { code: 'x.y' } }), t), said: describeError(new ApiError(400, { error: { code: 'x.y', message: 'dicho' } }), t), noBody: describeError(new ApiError(502, null), t) });
+""")
+        self.assertEqual(got["bare"], "Error x.y")
+        self.assertEqual(got["said"], "dicho")
+        self.assertEqual(got["noBody"], "Error api.unexpected")
+
     QUEUE_ENV = ORDER_ENV + """
 const { initQueueBar, toggleQueue } = await mod('js/components/queue-bar.js');
 const poll = await mod('js/queue-poll.js');

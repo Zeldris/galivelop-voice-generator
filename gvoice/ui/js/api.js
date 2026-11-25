@@ -9,6 +9,7 @@ export class ApiError extends Error {
     const err = (body && body.error) || {};
     super(err.message || `HTTP ${status}`);
     this.name = 'ApiError';
+    this.apiMessage = err.message || null;   // only what the API said (`message` falls back to `HTTP <status>`)
     this.status = status;
     this.code = err.code || 'api.unexpected';
     this.params = err.params || {};
@@ -43,16 +44,13 @@ function withLang(path) {
   return `${path}${sep}lang=${encodeURIComponent(state.lang)}`;
 }
 
-/** Con `withHeaders` devuelve {json, header(nombre)} en vez del cuerpo; `header` ignora mayúsculas y da null si falta. */
-async function request(method, path, body, withHeaders = false) {
+async function request(method, path, body) {
   const url = withLang(path);
   if (state.transport) {
     const res = await state.transport(method, url, body);
     if (res.status >= 400) throw new ApiError(res.status, res.json);
     setOffline(false);
-    if (!withHeaders) return res.json;
-    const low = Object.fromEntries(Object.entries(res.headers || {}).map(([k, v]) => [k.toLowerCase(), String(v)]));
-    return { json: res.json, header: (name) => low[name.toLowerCase()] ?? null };
+    return res.json;
   }
   let res;
   try {
@@ -71,7 +69,7 @@ async function request(method, path, body, withHeaders = false) {
   let json = null;
   try { json = await res.json(); } catch { json = null; }
   if (!res.ok) throw new ApiError(res.status, json);
-  return withHeaders ? { json, header: (name) => res.headers.get(name) } : json;
+  return json;
 }
 
 /** URL to give an `<audio src>`. Without a transport the browser asks the server itself (no fetch of the WAV); with
@@ -90,7 +88,6 @@ function revokeAudioUrl(url) {
 
 export const get = (path) => request('GET', path);
 export const post = (path, body = {}) => request('POST', path, body);
-export const put = (path, body = {}) => request('PUT', path, body);
 
 /* ---- rutas: la clave de un pedido va codificada en un solo segmento (`narrator%2Fintro-01`) ---- */
 const enc = encodeURIComponent;
@@ -157,6 +154,6 @@ export const api = {
 /** Texto legible de cualquier fallo, para los avisos (el mensaje de la API ya viene en el idioma pedido). */
 export function describeError(e, t) {
   if (e instanceof OfflineError) return t('ui.offline.title');
-  if (e instanceof ApiError) return e.message || t('ui.error.code', { code: e.code });
+  if (e instanceof ApiError) return e.apiMessage || t('ui.error.code', { code: e.code });
   return t('ui.error.generic', { message: e && e.message ? e.message : String(e) });
 }

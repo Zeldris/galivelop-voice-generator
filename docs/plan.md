@@ -234,6 +234,27 @@ de `changeSize.block`; el comportamiento del JS se prueba con `node` en `tests/t
   la 3 (texto sobre el vivo).
 - **Audio de ejemplo para el simulador:** no hace falta pedirlo. Se genera con `wave` en los tests.
 
+## 0.3.0 en detalle: voz desde muestra (2026-11-25)
+
+Decidido con la persona (Q-1-Q-4 de `docs/questions.md`):
+
+- **Muestra en el pedido `voice`:** campo opcional `sample` (`audio`, `text`, `source`, `license`), excluyente con
+  `designSheet` y con `locale` obligatorio. Al registrar el pedido, el audio se copia a la carpeta del pedido y entra
+  como una **toma** más (`source: "sample"`, sin `instruction`); elegirla fija la voz (huellas Base) y desde ahí
+  frases, desfasadas, deshacer y paquete funcionan igual. Una voz de muestra no genera tomas de diseño: para comparar
+  se piden frases.
+- **Origen:** muestra limpia de 10-15 s grabada por la persona o con permiso escrito; Common Voice es-ES (CC0) de
+  reserva. El pedido guarda origen y licencia.
+- **Motor:** solo Qwen3 Base en 0.3.0; Chatterbox entra como motor enchufable (D18) solo si en la Deck suena
+  claramente más peninsular.
+- **Portal:** los 7 trozos del pedido del 2026-11-24 se generan ya con la `lectora-es` actual (vía 2), en la Deck.
+
+| Paso | Qué | Estado |
+|---|---|---|
+| 0.3.1 | Núcleo: esquema, `orders`, `worker`, `cli`, paquete, ejemplo y tests | en curso |
+| 0.3.2 | Interfaz: modo «muestra» en el diálogo de pedido nuevo y la toma de muestra en la vista | pendiente |
+| 0.3.3 | En la Deck (persona): voz desde muestra con Qwen3 Base, escucha frente a la `lectora-es` | pendiente |
+
 ## Pendiente
 
 - **Correr `gvoice bench` en la Deck** (la persona, F2.6): `gvoice bench --devices Vulkan0,cpu` con el motor real; su tabla (`bench.md`) va a `docs/investigacion/`. Los tests solo prueban la matriz y la tabla con el motor falso (`tests/fake_qwentts.py`). Las frases corta y larga son las de `gvoice/bench.py` (las del banco no se guardaron como texto).

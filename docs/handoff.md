@@ -11,7 +11,7 @@
 | **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; `main` fusionado en la rama tras el PR #12, `8a17618`, el 2026-11-24) |
 | **Fase / tarea** | 0.3.0, B2 hecho (barrido de leves de `gvoice/ui/js/api.js`) |
 | **Último punto estable** | Actualización a v0.9.0 aplicada (2026-11-24): 83 archivos del flujo actualizados y 11 nuevos (`front.py`, `merge-main.py`, `profile.py`, `generated-check.py`, `other-repo-read.py`, skill `gw-seo`), `.claude/gw.json` migrado, gancho `PreToolUse` en `.claude/settings.json`, sin `.gw-new`, `apply.py --check` en 0; `doctor.py` sin `FAIL` (avisa de que `workflowClone` no existe en la nube: el clon está en `/home/user/zeldris/galivelop-workflow`) |
-| **Siguiente paso** | clonado desde referencia peninsular (D19 vía 1, capa 1): **esperando las respuestas a Q-1-Q-4** de `docs/questions.md` (cómo entra la muestra en el pedido, de dónde sale, qué motor, entrega del Portal) antes de escribir código. Anotado el pedido del Portal del 2026-11-24 (`docs/records/pedido-portal-2026-11-24.md`): 7 trozos con `lectora-es`, se generan en la Deck |
+| **Siguiente paso** | 0.3.1 (núcleo de la voz desde muestra, `docs/plan.md` § «0.3.0 en detalle»), encargado a un subagente; luego 0.3.2 (interfaz). Q-1-Q-4 respondidas: se aceptan las recomendaciones. Pedido del Portal (`docs/records/pedido-portal-2026-11-24.md`): 7 trozos con la `lectora-es` actual, en la Deck |
 | **Check** | verde (`bash -n` de cada gancho, `unittest` 755 tests y `ci-local.py --validate`) |
 
 ## Para la próxima publicación

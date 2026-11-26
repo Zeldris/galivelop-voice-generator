@@ -10,7 +10,7 @@
 |---|---|
 | **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; `main` fusionado en la rama tras el PR #12, `8a17618`, el 2026-11-24) |
 | **Fase / tarea** | 0.3.0, 0.3.1 y 0.3.2 hechos y revisados (voz desde muestra: núcleo e interfaz) |
-| **Último punto estable** | Revisión de bloque 0.3.1-0.3.2 hecha con 2 arreglos (2026-11-25): `order.sample_changed` (mismo audio con otra transcripción o variante, también en el simulador) y `submit_order` de muestra sin `check_count`; leves en `docs/records/pending.md`; check verde |
+| **Último punto estable** | Revisión de bloque 0.3.1-0.3.2 hecha con 2 arreglos (2026-11-25): `order.sample_changed` (mismo audio con otra transcripción o variante, también en el simulador) y `submit_order` de muestra sin `check_count`; leves en `docs/records/pending.md`; el trailer `Findings: 2` de esos arreglos (`b493122`) faltaba y va en el commit siguiente; check verde |
 | **Siguiente paso** | 0.3.3 en la Deck (persona): voz desde muestra con Qwen3 Base y escucha. Pedido del Portal (`docs/records/pedido-portal-2026-11-24.md`): 7 trozos con la `lectora-es` actual, en la Deck |
 | **Check** | verde (`bash -n` de cada gancho, `unittest` 781 tests y `ci-local.py --validate`) |
 

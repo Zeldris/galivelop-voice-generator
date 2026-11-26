@@ -25,10 +25,11 @@ ROUTES = (
     ("GET", "/api/projects/{p}/orders/{key}", "One order with its takes, chosen take and stale marks"),
     ("GET", "/api/projects/{p}/orders/{key}/sheet", "Design sheet of a voice: instruction text and warnings"),
     ("POST", "/api/sheet/check", "Check a design sheet without storing it (body: designSheet)"),
-    # takes (gvoice attempt new|mark|note, choose, undo)
+    # takes (gvoice attempt new|mark|note, take rate, choose, undo)
     ("POST", "/api/projects/{p}/orders/{key}/attempts", "Queue more takes (body: count, seed)"),
     ("POST", "/api/projects/{p}/orders/{key}/attempts/{id}/mark", "Mark a take new|candidate|discarded (body: state)"),
     ("POST", "/api/projects/{p}/orders/{key}/attempts/{id}/note", "Set the note of a take (body: text)"),
+    ("POST", "/api/projects/{p}/orders/{key}/attempts/{id}/rate", "Set the listening sheet of a take (body: marks {criterion: yes|no|null}, note)"),
     ("GET", "/api/projects/{p}/orders/{key}/attempts/{id}/audio", "The WAV audio of a take"),
     ("GET", "/api/projects/{p}/orders/{key}/attempts/{id}/peaks", "Waveform peaks of a take; query: n=<points>"),
     ("POST", "/api/projects/{p}/orders/{key}/choose", "Choose a take (a voice also queues its prints) (body: attempt)"),

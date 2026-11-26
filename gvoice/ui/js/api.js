@@ -110,6 +110,7 @@ export const paths = {
   attempt: (p, key, id) => `${paths.order(p, key)}/attempts/${enc(id)}`,
   mark: (p, key, id) => `${paths.attempt(p, key, id)}/mark`,
   note: (p, key, id) => `${paths.attempt(p, key, id)}/note`,
+  rate: (p, key, id) => `${paths.attempt(p, key, id)}/rate`,
   audio: (p, key, id) => `${paths.attempt(p, key, id)}/audio`,
   peaks: (p, key, id, n = 0) => `${paths.attempt(p, key, id)}/peaks${n ? '?n=' + enc(n) : ''}`,
   choose: (p, key) => `${paths.order(p, key)}/choose`,
@@ -140,6 +141,8 @@ export const api = {
   newTakes: (p, key, spec = {}) => post(paths.attempts(p, key), spec),
   mark: (p, key, id, state) => post(paths.mark(p, key, id), { state }),
   note: (p, key, id, text) => post(paths.note(p, key, id), { text }),
+  /** Ficha de escucha: `sheet` = {marks: {criterio: 'yes'|'no'|null}, note}; sin `note` no se toca ("" la borra). */
+  rate: (p, key, id, sheet) => post(paths.rate(p, key, id), sheet),
   peaks: (p, key, id, n) => get(paths.peaks(p, key, id, n)),
   choose: (p, key, attempt) => post(paths.choose(p, key), { attempt }),
   undo: (p, key) => post(paths.undo(p, key), {}),

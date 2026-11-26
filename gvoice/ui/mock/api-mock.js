@@ -78,13 +78,25 @@ const take = (id, seed, text, extra = {}) => ({
   device: 'Vulkan0', engineVersion: '0.1.0', engineCommit: '5916bf7', model: '1.7b-voicedesign', durationMs: 5200 + id * 300, audioMs: 2600 + id * 450, loadMs: 900, ...extra,
 });
 const printed = (models) => Object.fromEntries(models.map((m) => [m, { madeAt: ago(3000), device: 'Vulkan0', durationMs: 1800 }]));
+/* La ficha de escucha (0.4.3): los criterios por defecto de gvoice/listening.py (id, eliminatorio); el texto sale de
+   `listening.criterion.<id>`. Una toma guarda `listening: {marks: {id: 'yes'|'no'}, note, at}`; el detalle de un pedido
+   da en cada toma `listening` (una fila por criterio) y `listeningSummary`, como lo hará el servidor (docs/api.md). */
+export const CRITERIA = [['theta', true], ['accent', true], ['clean', true], ['tone', false], ['stable', false]]
+  .map(([id, eliminatory]) => ({ id, eliminatory }));
+/* Las pruebas sin oído (0.4.2) de una toma: `checks` con las métricas de gvoice/checks.py y `warnings` [{code, params}]. */
+const checksOf = (extra = {}) => ({ audioMs: 4300, chars: 46, msPerChar: 93.5, peakDbfs: -3.2, rmsDbfs: -21.4, clippedRatio: 0,
+  leadingSilenceMs: 120, longestInnerSilenceMs: 240, trailingSilenceMs: 180, warnings: [], ...extra });
 const orders = {
   [PROJECT]: [
     { key: 'narrator', type: 'voice', seed: 1234, testText: 'The law of the obelisks admits no exceptions.', designSheet: NARRATOR_SHEET,
       attempts: [
-        take(1, 1234, 'The law of the obelisks admits no exceptions.', { state: 'discarded', note: 'demasiado agudo', instruction: instructionOf(NARRATOR_SHEET), prints: {} }),
-        take(2, 1235, 'The law of the obelisks admits no exceptions.', { state: 'candidate', note: 'la mejor', instruction: instructionOf(NARRATOR_SHEET), prints: printed(PRINT_MODELS) }),
-        take(3, 1236, 'The law of the obelisks admits no exceptions.', { instruction: instructionOf(NARRATOR_SHEET), prints: {} }),
+        take(1, 1234, 'The law of the obelisks admits no exceptions.', { state: 'discarded', note: 'demasiado agudo', instruction: instructionOf(NARRATOR_SHEET), prints: {},
+          checks: checksOf({ msPerChar: 41.2, warnings: [{ code: 'take.too_fast', params: { value: 41.2, limit: 50 } }, { code: 'take.clipping', params: { value: 1.4, limit: 0.5 } }], clippedRatio: 0.014 }) }),
+        take(2, 1235, 'The law of the obelisks admits no exceptions.', { state: 'candidate', note: 'la mejor', instruction: instructionOf(NARRATOR_SHEET), prints: printed(PRINT_MODELS), checks: checksOf(),
+          listening: { marks: { theta: 'yes', accent: 'yes', clean: 'yes', tone: 'no' }, note: 'tono algo seco', at: ago(1300) } }),
+        take(3, 1236, 'The law of the obelisks admits no exceptions.', { instruction: instructionOf(NARRATOR_SHEET), prints: {},
+          checks: checksOf({ longestInnerSilenceMs: 1900, warnings: [{ code: 'take.long_silence', params: { value: 1900, limit: 1500 } }] }),
+          listening: { marks: { accent: 'no' }, note: '', at: ago(1250) } }),
       ],
       chosen: 2, chosenHistory: [null], createdAt: ago(9000), updatedAt: ago(1200) },
     { key: 'orc', type: 'voice', seed: null, testText: 'Blood for the war chief.', designSheet: ORC_SHEET,
@@ -148,6 +160,28 @@ function view(p, order) {
   if (order.type === 'line') copy.stale = isStale(p, order); else copy.staleLines = staleLines(p, order.key);
   return copy;
 }
+/* Como `listening.view` y `listening.summary` (gvoice/listening.py): una fila por criterio y el resumen (null sin nada). */
+const marksOf = (a) => (a.listening && a.listening.marks) || {};
+const listeningRows = async (lang, a) => Promise.all(CRITERIA.map(async (c) => ({ id: c.id, label: await text(lang, 'listening.criterion.' + c.id), eliminatory: c.eliminatory, mark: marksOf(a)[c.id] || null })));
+function listeningSummary(a) {
+  const card = a.listening;
+  if (!card || !(Object.keys(card.marks || {}).length || card.note)) return null;
+  const marks = marksOf(a);
+  return { yes: CRITERIA.filter((c) => marks[c.id] === 'yes').length, no: CRITERIA.filter((c) => marks[c.id] === 'no').length, total: CRITERIA.length,
+    noIds: CRITERIA.filter((c) => marks[c.id] === 'no').map((c) => c.id) };
+}
+/** La toma como la da el detalle de un pedido: la guardada, con `listening` (filas), `listeningNote` y `listeningSummary`. */
+async function takeView(lang, a) {
+  const { listening, ...rest } = JSON.parse(JSON.stringify(a));
+  return { ...rest, listening: await listeningRows(lang, a), listeningNote: (listening && listening.note) || '', listeningSummary: listeningSummary(a) };
+}
+async function detail(lang, p, order) {
+  const copy = view(p, order);
+  copy.attempts = await Promise.all(order.attempts.map((a) => takeView(lang, a)));
+  return copy;
+}
+/** Los avisos de elegir (`listening.warnings`): un «no» en un criterio eliminatorio. Nunca impide elegir. */
+const eliminatoryFailed = (a) => CRITERIA.filter((c) => c.eliminatory && marksOf(a)[c.id] === 'no').map((c) => c.id);
 
 /* ---- audio: un WAV de 16 bits a 24 kHz con un tono por toma; los picos salen de las mismas muestras ---- */
 const RATE = 24000;
@@ -277,9 +311,9 @@ route('POST', '/api/projects/{p}/orders', async (c) => {
   const warnings = record.type === 'voice' ? await warnView(c.lang, warningsOf(record.designSheet)) : [];
   return ok({ order: { ...view(p, record), warnings }, entries: entries.map((e) => ({ ...e })), warnings });
 });
-route('GET', '/api/projects/{p}/orders/{key}', (c) => {
+route('GET', '/api/projects/{p}/orders/{key}', async (c) => {
   const o = lookup(c);
-  return o.error || ok(view(c.params.p, o));
+  return o.error || ok(await detail(c.lang, c.params.p, o));
 });
 route('GET', '/api/projects/{p}/orders/{key}/sheet', async (c) => {
   const o = lookup(c);
@@ -335,6 +369,28 @@ route('POST', '/api/projects/{p}/orders/{key}/attempts/{id}/note', (c) => {
   r.take.note = String((c.body && c.body.text) || '');
   return ok({ ...r.take });
 });
+/* como `orders.rate`: `marks` {criterio: 'yes'|'no'|null} (null borra la marca), `note` ausente no la toca y "" la borra */
+route('POST', '/api/projects/{p}/orders/{key}/attempts/{id}/rate', async (c) => {
+  const r = lookupTake(c);
+  if (r.error) return r.error;
+  const body = c.body || {};
+  const marks = body.marks === undefined ? {} : body.marks;
+  if (!marks || typeof marks !== 'object' || Array.isArray(marks)) return fail(c.lang, 400, 'api.bad_param', { name: 'marks' });
+  if (body.note !== undefined && typeof body.note !== 'string') return fail(c.lang, 400, 'order.note_invalid');
+  const known = CRITERIA.map((x) => x.id);
+  const card = r.take.listening || {};
+  const old = card.marks || {};
+  for (const [id, mark] of Object.entries(marks)) {
+    if (mark !== null && mark !== 'yes' && mark !== 'no') return fail(c.lang, 400, 'api.bad_param', { name: 'marks' });
+    // un id sin criterio solo se puede borrar si la toma tiene marca suya
+    if (!known.includes(id) && !(mark === null && id in old)) return fail(c.lang, 400, 'listening.criterion_unknown', { criterion: id, known: known.join(', ') });
+  }
+  const next = { ...old };
+  for (const [id, mark] of Object.entries(marks)) { if (mark === null) delete next[id]; else next[id] = mark; }
+  const noteText = body.note === undefined ? card.note || '' : body.note;
+  if (Object.keys(next).length || noteText) r.take.listening = { marks: next, note: noteText, at: now() }; else delete r.take.listening;
+  return ok(await takeView(c.lang, r.take));
+});
 route('GET', '/api/projects/{p}/orders/{key}/attempts/{id}/audio', (c) => {
   const r = lookupTake(c);
   if (r.error) return r.error;
@@ -359,7 +415,10 @@ route('POST', '/api/projects/{p}/orders/{key}/choose', async (c) => {
   if (!('audioMs' in a)) return fail(c.lang, 409, 'order.choose_no_audio', { attempt: id });
   const old = o.chosen;
   if (old !== id) { o.chosenHistory.push(old); o.chosen = id; }
-  return ok({ old, new: id, entries: printsJob(c.params.p, o, id) });
+  const failed = eliminatoryFailed(a);   // como orders.choose: `warnings` solo si hay un «no» eliminatorio; elige igual
+  const res = { old, new: id, entries: printsJob(c.params.p, o, id) };
+  if (failed.length) res.warnings = await warnView(c.lang, [{ code: 'listening.eliminatory_failed', params: { ids: failed.join(', ') } }]);
+  return ok(res);
 });
 route('POST', '/api/projects/{p}/orders/{key}/undo', async (c) => {
   const o = lookup(c);

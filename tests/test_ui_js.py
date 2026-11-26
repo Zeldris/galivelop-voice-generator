@@ -613,6 +613,101 @@ out({ MAX_COUNT: m.MAX_COUNT, MAX_SEED: m.MAX_SEED, MAX_KEY: m.MAX_KEY, MAX_TEST
             rx = re.compile(common["key" if name == "key" else "name"]["pattern"])
             self.assertEqual(rx_js, [bool(rx.search(c)) for c in PATTERN_CASES], name)
 
+    LOCALE_FETCH = """
+import { readFileSync } from 'node:fs';
+globalThis.fetch = async (u) => ({ json: async () => JSON.parse(readFileSync(new URL(UI + '/../locales/' + String(u).split('/').pop() + '.json').pathname, 'utf8')) });
+"""
+    ORDER = "/api/projects/example-world/orders/narrator"
+
+    def test_api_mock_order_detail_gives_the_listening_view_and_summary_per_take(self):
+        got = self.run_js(self.mock_script(self.LOCALE_FETCH + """
+const d = (await call('GET', '/api/projects/example-world/orders/narrator')).json;
+const en = (await call('GET', '/api/projects/example-world/orders/narrator?lang=en')).json;
+out({ takes: d.attempts.map((a) => [a.id, a.listening.map((r) => [r.id, r.eliminatory, r.mark]), a.listeningSummary, a.listeningNote]),
+  labels: d.attempts[0].listening.map((r) => r.label), en: en.attempts[0].listening[0].label, rawKept: 'marks' in d.attempts[1], checks: d.attempts.map((a) => a.checks && a.checks.warnings.map((w) => w.code)) });
+"""))
+        crit = [["theta", True], ["accent", True], ["clean", True], ["tone", False], ["stable", False]]
+        by_id = {t[0]: t for t in got["takes"]}
+        self.assertEqual([[r[0], r[1]] for r in by_id[1][1]], crit)
+        self.assertEqual([r[2] for r in by_id[1][1]], [None] * 5)
+        self.assertIsNone(by_id[1][2])  # nothing marked: no summary
+        self.assertEqual([r[2] for r in by_id[2][1]], ["yes", "yes", "yes", "no", None])
+        self.assertEqual(by_id[2][2], {"yes": 3, "no": 1, "total": 5, "noIds": ["tone"]})
+        self.assertEqual(by_id[2][3], "tono algo seco")
+        self.assertEqual(by_id[3][2]["noIds"], ["accent"])
+        self.assertTrue(got["labels"][0].startswith("Distingue la"), got["labels"])  # translated, not the id
+        self.assertTrue(got["en"].lower().startswith("distinguishes") or "θ" in got["en"] or "theta" in got["en"].lower(), got["en"])
+        self.assertEqual(got["checks"], [["take.too_fast", "take.clipping"], [], ["take.long_silence"]])
+
+    def test_api_mock_rate_marks_clears_and_keeps_or_drops_the_note_like_orders_rate(self):
+        got = self.run_js(self.mock_script(self.LOCALE_FETCH + """
+const url = '/api/projects/example-world/orders/narrator/attempts/1/rate';
+const read = async () => (await call('GET', '/api/projects/example-world/orders/narrator')).json.attempts[0];
+const marks = (a) => a.listening.map((r) => r.mark);
+const r = {};
+const first = await call('POST', url, { marks: { theta: 'yes', clean: 'no' }, note: 'suena bien' });
+r.first = { status: first.status, marks: marks(first.json), note: first.json.listeningNote, summary: first.json.listeningSummary, id: first.json.id };
+await call('POST', url, { marks: { accent: 'yes' } });   // sin note: la deja como estaba
+r.keptNote = { marks: marks(await read()), note: (await read()).listeningNote };
+await call('POST', url, { marks: { theta: null } });     // null borra la marca
+r.cleared = marks(await read());
+await call('POST', url, { note: '' });                   // "" borra la nota
+r.noNote = (await read()).listeningNote;
+await call('POST', url, { marks: { accent: null, clean: null } });   // ficha vacía: se borra y no hay resumen
+const last = await read();
+r.empty = { marks: marks(last), summary: last.listeningSummary, note: last.listeningNote };
+out(r);
+"""))
+        self.assertEqual(got["first"], {"status": 200, "marks": ["yes", None, "no", None, None], "note": "suena bien",
+                                         "summary": {"yes": 1, "no": 1, "total": 5, "noIds": ["clean"]}, "id": 1})
+        self.assertEqual(got["keptNote"], {"marks": ["yes", "yes", "no", None, None], "note": "suena bien"})
+        self.assertEqual(got["cleared"], [None, "yes", "no", None, None])
+        self.assertEqual(got["noNote"], "")
+        self.assertEqual(got["empty"], {"marks": [None] * 5, "summary": None, "note": ""})
+
+    def test_api_mock_rate_rejects_with_the_reason(self):
+        got = self.run_js(self.mock_script(self.LOCALE_FETCH + """
+const url = '/api/projects/example-world/orders/narrator/attempts/1/rate';
+const e = (r) => ({ status: r.status, code: r.code, message: r.json.error && r.json.error.message });
+out({ unknown: e(await call('POST', url, { marks: { zzz: 'yes' } })), unknownClear: e(await call('POST', url, { marks: { zzz: null } })),
+  badMark: e(await call('POST', url, { marks: { theta: 'maybe' } })), badNote: e(await call('POST', url, { note: 5 })),
+  noTake: e(await call('POST', '/api/projects/example-world/orders/narrator/attempts/99/rate', { marks: {} })) });
+"""))
+        self.assertEqual((got["unknown"]["status"], got["unknown"]["code"]), (400, "listening.criterion_unknown"))
+        self.assertIn("zzz", got["unknown"]["message"])
+        self.assertIn("theta", got["unknown"]["message"])  # the known ids
+        self.assertEqual(got["unknownClear"]["code"], "listening.criterion_unknown")  # no mark of its own to clear
+        self.assertEqual((got["badMark"]["status"], got["badMark"]["code"]), (400, "api.bad_param"))
+        self.assertEqual(got["badNote"]["code"], "order.note_invalid")
+        self.assertEqual((got["noTake"]["status"], got["noTake"]["code"]), (404, "order.attempt_unknown"))
+
+    def test_api_mock_choose_warns_on_a_failed_eliminatory_criterion_but_still_chooses(self):
+        got = self.run_js(self.mock_script(self.LOCALE_FETCH + """
+const choose = (id) => call('POST', '/api/projects/example-world/orders/narrator/choose', { attempt: id });
+const chosen = async () => (await call('GET', '/api/projects/example-world/orders/narrator')).json.chosen;
+const r = {};
+const bad = await choose(3);       // the sheet of take 3 has «no» in accent (eliminatory)
+r.bad = { status: bad.status, warnings: bad.json.warnings.map((w) => [w.code, w.params, w.message]), chosen: await chosen() };
+const soft = await choose(2);      // take 2 only has «no» in tone (not eliminatory)
+r.soft = { status: soft.status, hasWarnings: 'warnings' in soft.json, chosen: await chosen() };
+const clean = await choose(1);     // discarded: the usual 409, no warning
+r.discarded = clean.code;
+out(r);
+"""))
+        self.assertEqual(got["bad"]["status"], 200)
+        code, params, message = got["bad"]["warnings"][0]
+        self.assertEqual((code, params), ("listening.eliminatory_failed", {"ids": "accent"}))
+        self.assertIn("accent", message)
+        self.assertIn("eliminatorios", message)  # the translated text, not the key
+        self.assertEqual(got["bad"]["chosen"], 3)
+        self.assertEqual(got["soft"], {"status": 200, "hasWarnings": False, "chosen": 2})
+        self.assertEqual(got["discarded"], "order.choose_discarded")
+
+    def test_mock_listening_criteria_match_listening_py(self):
+        from gvoice import listening
+        got = self.run_js(self.mock_script("const m = await mod('mock/api-mock.js'); out(m.CRITERIA.map((c) => [c.id, c.eliminatory]));"))
+        self.assertEqual(got, [[i, e] for i, e in listening.DEFAULTS])
+
     def test_mock_limits_match_python(self):
         """api-mock.js hard-codes count 1..50 (twice); it has no seed limit of its own (no source to compare)."""
         src = (UI / "mock" / "api-mock.js").read_text(encoding="utf-8")

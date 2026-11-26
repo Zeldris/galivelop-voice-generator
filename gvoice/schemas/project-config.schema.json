@@ -116,6 +116,43 @@
           "minimum": -120
         }
       }
+    },
+    "listening": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The listening sheet (0.4.3): replaces the default criteria (gvoice/listening.py). Ids must be unique.",
+      "properties": {
+        "criteria": {
+          "type": "array",
+          "minItems": 1,
+          "description": "The criteria, in the order they are shown.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "eliminatory"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,31}$",
+                "description": "Stable id of the criterion (unique)."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Free text shown as is; without it, a default id uses its translated text."
+              },
+              "eliminatory": {
+                "type": "boolean",
+                "description": "A \"no\" warns when the take is chosen (never blocks)."
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

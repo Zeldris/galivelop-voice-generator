@@ -64,6 +64,11 @@ def load_config(root) -> dict:
         raise GvoiceError(
             "project.version_too_new", required=data["minVersion"], current=__version__
         )
+    seen = set()
+    for c in (data.get("listening") or {}).get("criteria", []):
+        if c["id"] in seen:
+            raise GvoiceError("project.listening_duplicate", id=c["id"])
+        seen.add(c["id"])
     config = copy.deepcopy(data)
     config.setdefault("printModels", list(DEFAULT_PRINT_MODELS))
     _forbidden(root, "delivery.dir", config["delivery"]["dir"])

@@ -42,7 +42,7 @@ import wave
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import checks, fsutil, paths, projects, sampling, schema, sheet
+from . import checks, fsutil, listening, paths, projects, sampling, schema, sheet
 from .errors import GvoiceError
 
 STATES = ("new", "candidate", "discarded")
@@ -456,6 +456,34 @@ def set_replay(project: str, key: str, attempt_id: int, replay: dict) -> dict:
     return _modify(project, key, change)
 
 
+def rate(project: str, key: str, attempt_id: int, *, yes=(), no=(), clear=(), note=None, clear_note=False) -> dict:
+    """Fill the listening sheet of take `attempt_id` (a sample take too): mark criteria ``yes``/``no``, ``clear``
+    marks (back to "not heard"), set the ``note`` or drop it (`clear_note`). Every id must be an effective criterion
+    of the project (``listening.criterion_unknown``). An emptied sheet is removed. Returns the take (a copy)."""
+    yes, no, clear = list(yes), list(no), list(clear)
+    listening.check_ids(project, yes + no + clear)
+    if note is not None and not isinstance(note, str):
+        raise GvoiceError("order.note_invalid")
+
+    def change(order):
+        item = _attempt(order, attempt_id)
+        card = item.get("listening") or {}
+        marks = dict(card.get("marks") or {})
+        for ids, value in ((yes, "yes"), (no, "no")):
+            for i in ids:
+                marks[i] = value
+        for i in clear:
+            marks.pop(i, None)
+        text = "" if clear_note else card.get("note", "") if note is None else note
+        if marks or text:
+            item["listening"] = {"marks": marks, "note": text, "at": _now()}
+        else:
+            item.pop("listening", None)
+        return copy.deepcopy(item)
+
+    return _modify(project, key, change)
+
+
 def mark(project: str, key: str, attempt_id: int, state: str) -> dict:
     """Set an attempt's state (new|candidate|discarded); the chosen one cannot be discarded."""
     if state not in STATES:
@@ -495,7 +523,8 @@ def check_choosable(attempt: dict) -> None:
 
 def choose(project: str, key: str, attempt_id: int) -> dict:
     """Choose an attempt; returns ``{"old": id|None, "new": id}``. For a voice it makes the take the reference
-    (the worker then makes its prints: F1.5).
+    (the worker then makes its prints: F1.5). When the take has a "no" on an eliminatory criterion of its listening
+    sheet, the result also has ``warnings`` (``[{code: "listening.eliminatory_failed", params: {ids}}]``; absent else).
 
     The previous chosen (even ``None``) is pushed to ``chosenHistory``. A discarded attempt and one without audio
     cannot be chosen. Choosing the already chosen attempt changes nothing (``old == new``, no push)."""
@@ -506,7 +535,11 @@ def choose(project: str, key: str, attempt_id: int) -> dict:
         if old != attempt_id:
             order["chosenHistory"].append(old)
             order["chosen"] = attempt_id
-        return {"old": old, "new": attempt_id}
+        result = {"old": old, "new": attempt_id}
+        warned = listening.warnings(project, item)  # a "no" on an eliminatory criterion warns, never blocks
+        if warned:
+            result["warnings"] = warned
+        return result
 
     return _modify(project, key, change)
 

@@ -169,4 +169,4 @@ class ErrorMessageTests(unittest.TestCase):
             for lang in ("es", "en"):
                 self.assertNotEqual(i18n.t("error." + code, lang, path="p", name="n", field="f", reason="r",
                                           required="1", current="0", root="r", limit=1, segment="s",
-                                          project="p"), "error." + code, (lang, code))
+                                          project="p", id="i"), "error." + code, (lang, code))

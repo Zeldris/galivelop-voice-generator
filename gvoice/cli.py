@@ -14,7 +14,7 @@ import sys
 import traceback
 from pathlib import Path
 
-from . import __version__, bench, checks, effects, engine, i18n, limits, models, orders, projects, queue, replay, server, sheet, worker
+from . import __version__, bench, checks, effects, engine, i18n, limits, listening, models, orders, projects, queue, replay, server, sheet, worker
 from .errors import GvoiceError
 
 LANGS = ("es", "en")
@@ -84,6 +84,13 @@ def _build(lang: str) -> argparse.ArgumentParser:
 
     g = group(top, "take", "cli.cmd.take")
     leaf(g, "replay", "cli.cmd.take_replay", project, okey, arg("take", "cli.arg.attempt", type=int))
+    rate = leaf(g, "rate", "cli.cmd.take_rate", project, okey, arg("take", "cli.arg.attempt", type=int),
+                opt("--yes", "cli.arg.rate_yes", action="append", default=[], metavar="ID"),
+                opt("--no", "cli.arg.rate_no", action="append", default=[], metavar="ID"),
+                opt("--clear", "cli.arg.rate_clear", action="append", default=[], metavar="ID"))
+    note = rate.add_mutually_exclusive_group()
+    note.add_argument("--note", metavar="TEXT", help=t("cli.arg.rate_note"))
+    note.add_argument("--clear-note", action="store_true", help=t("cli.arg.rate_clear_note"))
 
     leaf(top, "choose", "cli.cmd.choose", project, okey, attempt)
     leaf(top, "undo", "cli.cmd.undo", project, okey)
@@ -177,6 +184,46 @@ def _show_checks(out: _Out, a: dict) -> None:
                  result=out.t("cli.out.replay_same_short" if r["same"] else "cli.out.replay_different_short"))
 
 
+MARK_TEXTS = {"yes": "cli.out.listening_yes", "no": "cli.out.listening_no", None: "cli.out.listening_unheard"}
+
+
+def _show_listening_summary(out: _Out, project: str, a: dict) -> None:
+    found = listening.summary(project, a)
+    if found:
+        ids = out.t("cli.out.attempt_listening_ids", ids=", ".join(found["noIds"])) if found["noIds"] else ""
+        out.line("cli.out.attempt_listening", yes=found["yes"], total=found["total"], no=found["no"], ids=ids)
+
+
+def _rate(args, out: _Out) -> None:
+    """`take rate`: change the listening sheet when options are given, then show it (or the saved confirmation)."""
+    changes = bool(args.yes or args.no or args.clear or args.note is not None or args.clear_note)
+    if changes:
+        take = orders.rate(args.project, args.key, args.take, yes=args.yes, no=args.no, clear=args.clear,
+                           note=args.note, clear_note=args.clear_note)
+    else:
+        order = orders.get(args.project, args.key)
+        take = next((a for a in order["attempts"] if a["id"] == args.take), None)
+        if take is None:
+            raise GvoiceError("order.attempt_unknown", attempt=args.take, order=args.key)
+    rows = listening.view(args.project, take, out.lang)
+    card = take.get("listening") or {"marks": {}, "note": ""}
+    if out.as_json:
+        out.data({"take": take["id"], "criteria": rows, "note": card.get("note", ""), "at": card.get("at"),
+                  "warnings": listening.warnings(args.project, take)})
+        return
+    if changes:
+        out.line("cli.out.rated", id=take["id"])
+    out.line("cli.out.listening_head", id=take["id"])
+    for r in rows:
+        out.line("cli.out.listening_criterion", id=r["id"], label=r["label"],
+                 mark=out.t(MARK_TEXTS[r["mark"]]),
+                 eliminatory=out.t("cli.out.listening_eliminatory") if r["eliminatory"] else "")
+    if card.get("note"):
+        out.line("cli.out.listening_note", note=card["note"])
+    if card.get("at"):
+        out.line("cli.out.listening_at", at=card["at"])
+
+
 def _stale_view(project: str, record: dict) -> dict:
     """The record plus what is stale (D10): ``stale`` for a line, ``staleLines`` for a voice."""
     item = dict(record)
@@ -249,6 +296,7 @@ def _order(args, sub, out: _Out) -> None:
             if a.get("sampling"):
                 out.line("cli.out.attempt_sampling", sampling=_sampling_text(a["sampling"]))
             _show_checks(out, a)
+            _show_listening_summary(out, args.project, a)
             if a.get("note"):
                 out.line("cli.out.attempt_note", note=a["note"])
 
@@ -274,6 +322,8 @@ def _choose_undo(args, out: _Out) -> None:
         return
     out.line("cli.out.chosen" if args.cmd == "choose" else "cli.out.undone",
              new=out.none(result["new"]), old=out.none(result["old"]))
+    for w in result.get("warnings", []):
+        out.line("cli.out.warning_chosen", text=sheet.Warning(w["code"], w["params"]).message(out.lang))
     if result["entries"]:
         _queued(out, result["entries"])
 
@@ -382,6 +432,8 @@ def _run(args, out: _Out) -> int:
         _attempt(args, sub, out)
     elif cmd in ("choose", "undo"):
         _choose_undo(args, out)
+    elif cmd == "take" and sub == "rate":
+        _rate(args, out)
     elif cmd == "take":
         try:
             found = replay.replay(args.project, args.key, args.take, lang=out.lang)

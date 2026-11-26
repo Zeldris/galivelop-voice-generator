@@ -104,6 +104,16 @@ Un audio generado para un pedido con una semilla concreta; en un pedido de voz, 
 _Evitar_: prueba, variante, toma (solo como palabra visible)
 _En código_: attempt
 
+**Ficha de escucha**:
+Lo que una persona marca de una toma tras oírla: por criterio, sí, no o sin oír, y una nota. Los criterios salen del
+proyecto (por defecto cinco: θ, acento, limpieza, tono, estabilidad). No es la ficha de diseño.
+_Evitar_: valoración, puntuación
+_En código_: listening sheet (`listening`)
+
+**Criterio eliminatorio**:
+Un criterio de la ficha de escucha cuyo «no» avisa al elegir la toma (`listening.eliminatory_failed`); avisa, no lo impide.
+_En código_: eliminatory criterion
+
 **Muestreo**:
 Los parámetros con los que el motor elige los sonidos de una toma (`temperature`, `topK`, `topP`, `repetitionPenalty`,
 `greedy` y los del subtalker). Cada campo sale del pedido, si no de la configuración del proyecto y si no del

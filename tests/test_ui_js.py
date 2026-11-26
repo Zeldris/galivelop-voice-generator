@@ -460,6 +460,7 @@ out({
   more: strip(await call('POST', url + '/ana/attempts', { count: 1 })),
   noLocale: strip(await call('POST', url, { order: { ...order, key: 'bob', locale: undefined }, count: 1 })),
   withSheet: strip(await call('POST', url, { order: { ...order, key: 'bob', designSheet: {} }, count: 1 })),
+  withSampling: strip(await call('POST', url, { order: { ...order, key: 'bob', sampling: { topK: 5 } }, count: 1 })),
   newText: strip(await call('POST', url, { order: { ...order, sample: { ...order.sample, text: 'Otro.' } }, count: 1 })),
   newLocale: strip(await call('POST', url, { order: { ...order, locale: 'en-US' }, count: 1 })),
   toSheet: strip(await call('POST', url, { order: { key: 'ana', type: 'voice', testText: 'x', designSheet: {} }, count: 1 })),
@@ -478,6 +479,7 @@ out({
         self.assertEqual(got["more"], {"status": 409, "code": "order.sample_no_takes"})
         self.assertEqual(got["noLocale"], {"status": 400, "code": "api.bad_param"})
         self.assertEqual(got["withSheet"], {"status": 400, "code": "api.bad_param"})
+        self.assertEqual(got["withSampling"], {"status": 400, "code": "api.bad_param"})
         self.assertEqual(got["newText"], {"status": 409, "code": "order.sample_changed"})
         self.assertEqual(got["newLocale"], {"status": 409, "code": "order.sample_changed"})
         self.assertEqual(got["toSheet"], {"status": 409, "code": "order.origin_changed"})

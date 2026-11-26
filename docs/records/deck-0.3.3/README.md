@@ -12,7 +12,7 @@ Flatpak, antepón `flatpak-spawn --host` a cada orden del anfitrión (ver
 - Sitio silencioso, sin eco, sin música ni ruido de fondo; micrófono a unos 15-20 cm.
 - Formato: **WAV** (PCM, lo que lee el módulo `wave` de Python), mono recomendado, 24 o 44,1 kHz. Máximo **64 MB** y
   no vacío; si no, `order.sample_not_wav`, `order.sample_too_big` u `order.sample_empty`.
-- Guárdalo como `muestra.wav` **en esta carpeta** (la ruta de `sample.audio` es relativa al JSON).
+- Guárdalo como `muestra.wav` **en esta carpeta** (`docs/records/deck-0.3.3/`) (la ruta de `sample.audio` es relativa al JSON, no al directorio desde el que corres `gvoice`).
 - Si lees otra frase, **edita `sample.text`** con lo que dices de verdad (es la transcripción; si no coincide, la
   voz sale peor), y rellena `source` y `license`. No se puede corregir la transcripción de un audio ya enviado
   (`order.sample_changed`): hay que grabar otro audio o usar otra clave.
@@ -20,9 +20,9 @@ Flatpak, antepón `flatpak-spawn --host` a cada orden del anfitrión (ver
 ## 2. Pedir la voz y elegir la toma 1
 
 ```sh
-cd docs/records/deck-0.3.3
+# desde la raíz del repo (`python3 -m gvoice` solo se encuentra ahí)
 python3 -m gvoice project list                       # el proyecto tiene que estar registrado
-python3 -m gvoice order submit portal order-voice-lectora-muestra-es.json
+python3 -m gvoice order submit portal docs/records/deck-0.3.3/order-voice-lectora-muestra-es.json
 python3 -m gvoice order show portal lectora-muestra-es
 python3 -m gvoice choose portal lectora-muestra-es 1
 ```
@@ -33,7 +33,7 @@ voz.
 ## 3. Las mismas frases con las dos voces
 
 ```sh
-for f in order-line-lectora-muestra-es-escucha-0*.json order-line-lectora-es-escucha-0*.json; do
+for f in docs/records/deck-0.3.3/order-line-lectora-muestra-es-escucha-0*.json docs/records/deck-0.3.3/order-line-lectora-es-escucha-0*.json; do
   python3 -m gvoice order submit portal "$f"
 done
 python3 -m gvoice work

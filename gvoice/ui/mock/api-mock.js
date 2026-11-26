@@ -252,7 +252,7 @@ route('POST', '/api/projects/{p}/orders', async (c) => {
   }
   const sample = spec.type === 'voice' && spec.sample;
   if (sample) {   // como orders.submit: locale obligatoria, sin ficha ni semilla ni frase de prueba
-    if (spec.designSheet || spec.testText !== undefined || spec.seed !== undefined || !LOCALES.includes(spec.locale)) return fail(c.lang, 400, 'api.bad_param', { name: 'order' });
+    if (spec.designSheet || spec.testText !== undefined || spec.seed !== undefined || spec.sampling !== undefined || !LOCALES.includes(spec.locale)) return fail(c.lang, 400, 'api.bad_param', { name: 'order' });
     for (const f of ['audio', 'text', 'source', 'license']) if (typeof sample[f] !== 'string' || !sample[f].trim()) return fail(c.lang, 400, 'api.bad_param', { name: 'order' });
     if (record && !record.sample) return fail(c.lang, 409, 'order.origin_changed', { order: spec.key, was: 'sheet', new: 'sample' });
     // el audio del simulador es siempre el mismo: como orders.submit, otra transcripción o variante exige otro audio

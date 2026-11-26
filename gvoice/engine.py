@@ -196,7 +196,8 @@ def _write_atomic(path, data: bytes) -> None:
 
 def _sampling_key(job) -> str:
     """The sampling as a stable string for the digest: another sampling, another audio (like a real engine)."""
-    return json.dumps(job.sampling, sort_keys=True) if job.sampling else ""
+    from . import sampling  # here: sampling imports models and projects
+    return json.dumps(sampling.merge(job.sampling, sampling.defaults()), sort_keys=True)
 
 
 def _device(job) -> str:

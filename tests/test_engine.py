@@ -56,6 +56,15 @@ class FakeEngineTests(unittest.TestCase):
         self.assertNotEqual(read(a), read(c))
         self.assertNotEqual(read(a), read(d))
 
+    def test_no_sampling_and_the_catalog_sampling_give_the_same_audio(self):
+        from gvoice import sampling
+        none, _ = self.design("n.wav")
+        full, _ = self.design("f.wav", sampling=sampling.defaults())
+        other, _ = self.design("o.wav", sampling={"topK": 5})
+        read = lambda j: Path(j.output).read_bytes()
+        self.assertEqual(read(none), read(full))
+        self.assertNotEqual(read(none), read(other))
+
     def test_duration_proportional_to_text(self):
         short, _ = self.design("s.wav", text="x" * 10)
         long, _ = self.design("l.wav", text="x" * 100)

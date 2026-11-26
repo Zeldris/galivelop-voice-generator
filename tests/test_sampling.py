@@ -165,6 +165,18 @@ class TakeSamplingTests(WorkerBase):
         self.run_worker()
         self.assertEqual(self.attempt("narrator", 1)["sampling"], CATALOG)
 
+    def test_a_partial_entry_sampling_is_completed_in_the_take(self):
+        orders.submit(self.p, self.voice())
+        queue.enqueue(self.p, "narrator", orders.attempt_specs(self.p, "narrator"))
+
+        def partial(data):
+            for entry in data["entries"]:
+                entry["sampling"] = {"topK": 5}
+
+        queue._txn(partial)
+        self.run_worker()
+        self.assertEqual(self.attempt("narrator", 1)["sampling"], dict(CATALOG, topK=5))
+
     def test_line_take_stores_its_own_effective_sampling(self):
         self.voice_done()
         orders.submit(self.p, self.line(sampling={"topK": 11}))

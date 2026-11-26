@@ -174,8 +174,8 @@ def _take(entry: dict, eng, machine: dict, state: dict, should_cancel):
     tmp = orders.pending_audio_path(project, key, entry_id)
     state["tmp"] = tmp
     tmp.parent.mkdir(parents=True, exist_ok=True)
-    # the effective sampling the entry was queued with (an entry from before 0.4.1 has none: resolved now)
-    take_sampling = entry.get("sampling") or sampling.effective(project, orders.get(project, key))
+    # the effective sampling the entry was queued with (an entry from before 0.4.1 has none, a partial one is completed: resolved now)
+    take_sampling = sampling.merge(entry.get("sampling"), sampling.effective(project, orders.get(project, key)))
     spec = {"seed": entry["seed"], "text": entry["text"], "sampling": take_sampling}
     if entry["kind"] == "voice":
         model = _model_of(machine, "design")

@@ -59,28 +59,36 @@ file (format: header of scripts/questions.py). Answer by number: `questions.py a
 
 ## Q-7
 - Refs: 0.4.0
-- Status: open
+- Status: answered
 - Asked: 2026-11-26
 - Question: ¿Dónde se fijan los parámetros de muestreo y qué se guarda en cada toma?
 - Recommendation: Objeto opcional `sampling` (temperature, topK, topP, repetitionPenalty, greedy y los sub-* del sub-talker) en el pedido voice y line, con valores por defecto en la configuración del proyecto y, si faltan, los del checkpoint (0,9 / 50 / 1,0 / 1,05) en el catálogo del motor; al motor se le pasan siempre explícitos y la toma guarda los efectivos
+- Answer: ok
+- Answered: 2026-11-26
 
 ## Q-8
 - Refs: 0.4.0
-- Status: open
+- Status: answered
 - Asked: 2026-11-26
 - Question: ¿Qué «pruebas sin oído» automáticas lleva cada toma?
 - Recommendation: Sí, cada toma, al generarse, con la biblioteca estándar: segundos por carácter fuera de rango (bucles o cortes), silencio interno más largo que X, recorte (clipping), nivel muy bajo y silencio final largo; son avisos en la toma, no bloquean; umbrales en la configuración del proyecto. Más una orden `gvoice take replay` que regenera con los mismos parámetros y compara el sha256 (reproducibilidad, E8)
+- Answer: ok
+- Answered: 2026-11-26
 
 ## Q-9
 - Refs: 0.4.0
-- Status: open
+- Status: answered
 - Asked: 2026-11-26
 - Question: ¿Cómo es la ficha de escucha?
 - Recommendation: Lista de criterios por proyecto con los 5 de la investigación por defecto ((a) θ en hace/cinco/zona, (b) sin acento inglés ni seseo, (c) sin ruido, eco, siseo ni deriva infantil, (d) tono y entonación, (e) estabilidad); cada uno sí/no/sin oír y una nota por toma; marcar «no» en uno eliminatorio avisa al elegir la toma, no lo impide; se rellena en la interfaz y con `gvoice take rate`
+- Answer: ok
+- Answered: 2026-11-26
 
 ## Q-10
 - Refs: 0.4.0
-- Status: open
+- Status: answered
 - Asked: 2026-11-26
 - Question: ¿Se parte 0.4.0 en estos pasos?
 - Recommendation: 0.4.1 muestreo (esquema, motor, toma), 0.4.2 pruebas sin oído, 0.4.3 ficha de escucha (núcleo y CLI), 0.4.4 interfaz (muestreo en el diálogo, avisos y ficha en la toma), 0.4.5 en la Deck (persona): E1-E8 y cierre de F2.6
+- Answer: ok
+- Answered: 2026-11-26

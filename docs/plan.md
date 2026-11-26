@@ -255,6 +255,33 @@ Decidido con la persona (Q-1-Q-4 de `docs/questions.md`):
 | 0.3.2 | Interfaz: modo «muestra» en el diálogo de pedido nuevo y la toma de muestra en la vista | hecho |
 | 0.3.3 | En la Deck (persona): voz desde muestra con Qwen3 Base, escucha frente a la `lectora-es` ([kit y pasos](records/deck-0.3.3/README.md)) | pendiente |
 
+## 0.4.0 en detalle: vía 2 determinista (2026-11-26)
+
+Decidido con la persona (Q-7-Q-10 de `docs/questions.md`); base: `docs/investigacion/2026-11-17-qwen3tts-voicedesign-prompts.md`
+(«Parámetros que guardar con cada toma» y «Proceso determinista propuesto»).
+
+- **Muestreo:** objeto opcional `sampling` en los pedidos `voice` (no con `sample`) y `line`: `temperature`, `topK`,
+  `topP`, `repetitionPenalty`, `greedy` y `subTalker` (`temperature`, `topK`, `topP`). Cada campo sale del pedido, si
+  no de `sampling` de la configuración del proyecto y si no de los valores del checkpoint en el catálogo del motor
+  (0,9 / 50 / 1,0 / 1,05). Al motor se le pasan siempre explícitos (`--temp`, `--top-k`, `--top-p`, `--rep-pen`,
+  `--sub-temp`, `--sub-top-k`, `--sub-top-p`, `--greedy`) y la toma guarda los efectivos. Un `line` no hereda el
+  muestreo de su voz (otro modelo).
+- **Pruebas sin oído:** al generar cada toma, con la biblioteca estándar: segundos por carácter fuera de rango,
+  silencio interno largo, recorte, nivel muy bajo y silencio final largo. Avisos en la toma, no bloquean; umbrales
+  en la configuración del proyecto. `gvoice take replay` regenera con los mismos parámetros y compara el sha256 (E8).
+- **Ficha de escucha:** criterios por proyecto, por defecto los cinco de la investigación ((a) θ en «hace», «cinco»,
+  «zona»; (b) sin acento inglés ni seseo; (c) sin ruido, eco, siseo ni deriva infantil; (d) tono y entonación;
+  (e) estabilidad), cada uno sí/no/sin oír, y una nota por toma. Un «no» en uno eliminatorio avisa al elegir la toma,
+  no lo impide. Se rellena en la interfaz y con `gvoice take rate`.
+
+| Paso | Qué | Estado |
+|---|---|---|
+| 0.4.1 | Muestreo: esquemas, configuración, catálogo, motor real y falso, worker y toma | hecho |
+| 0.4.2 | Pruebas sin oído y `gvoice take replay` | — |
+| 0.4.3 | Ficha de escucha: núcleo y CLI (`gvoice take rate`) | — |
+| 0.4.4 | Interfaz: muestreo en el diálogo, avisos y ficha en la toma (también en el simulador) | — |
+| 0.4.5 | En la Deck (persona): E1-E8 de la investigación y cierre de F2.6 | — |
+
 ## Pendiente
 
 - **Correr `gvoice bench` en la Deck** (la persona, F2.6): `gvoice bench --devices Vulkan0,cpu` con el motor real; su tabla (`bench.md`) va a `docs/investigacion/`. Los tests solo prueban la matriz y la tabla con el motor falso (`tests/fake_qwentts.py`). Las frases corta y larga son las de `gvoice/bench.py` (las del banco no se guardaron como texto).

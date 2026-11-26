@@ -42,7 +42,7 @@ import wave
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import fsutil, paths, projects, schema, sheet
+from . import fsutil, paths, projects, sampling, schema, sheet
 from .errors import GvoiceError
 
 STATES = ("new", "candidate", "discarded")
@@ -175,6 +175,7 @@ def submit(project: str, order: dict) -> dict:
         if order.get("locale") is not None:
             fields["locale"] = order["locale"]
     fields["seed"] = order.get("seed")
+    fields["sampling"] = copy.deepcopy(order["sampling"]) if "sampling" in order else None  # None: none stored
     path = _order_file(project, key)
     with fsutil.lock(path):
         now = _now()
@@ -194,6 +195,8 @@ def submit(project: str, order: dict) -> dict:
         if sample is not None:
             _check_sample_unchanged(key, record, sample, order["sample"]["text"], order["locale"])
         record.update(fields)
+        if record["sampling"] is None:
+            del record["sampling"]
         record["updatedAt"] = now
         if sample is not None:
             _add_sample_take(project, key, record, sample, order["sample"]["text"], now)
@@ -272,7 +275,9 @@ def attempt_specs(project: str, key: str, count: int = 1, *, seed=None) -> list:
     ``line``, ``"voice"`` (the line's current voice) and ``"reference"`` (that voice's current reference attempt id;
     ``order.voice_not_fixed`` without one).
     Seed: `seed` if given, else the order's, then ``seed + i`` for attempt i (0-based); with neither, a random
-    integer in ``[0, 2**32)`` per attempt."""
+    integer in ``[0, 2**32)`` per attempt.
+    Every spec also has ``"sampling"``: the effective values (`sampling.effective`: the order's over the project's
+    over the catalog's; a line never takes its voice's), a copy per spec."""
     if seed is not None:
         _check_fields_of({"key": "x", "type": "line", "voice": "x", "text": "x", "seed": seed})
     order = get(project, key)
@@ -288,7 +293,9 @@ def attempt_specs(project: str, key: str, count: int = 1, *, seed=None) -> list:
     else:
         extra = {"voice": order["voice"], "reference": _fixed_voice(project, order["voice"])[1],
                  "text": order["text"]}
-    return [dict(extra, seed=_rng.randrange(SEED_LIMIT) if base is None else base + i) for i in range(count)]
+    effective = sampling.effective(project, order)
+    return [dict(extra, seed=_rng.randrange(SEED_LIMIT) if base is None else base + i,
+                 sampling=copy.deepcopy(effective)) for i in range(count)]
 
 
 def attempt_for_entry(project: str, key: str, entry_id: int):
@@ -354,7 +361,7 @@ def add_attempt(project: str, key: str, spec: dict, entry_id=None) -> int:
     the attempt records ``queueEntry`` and the call is idempotent per entry (an existing one's id is returned).
     ``result``, an `EngineResult` (or its dict), is stored as the D16 metadata: ``device``, ``engineVersion``,
     ``engineCommit``, ``model``, ``durationMs``, ``audioMs``, ``loadMs`` and ``command``; the seed stored is the
-    spec's. Nothing is read or written on disk: the audio is the caller's job."""
+    spec's, and so is ``sampling`` (the effective values, when the spec has them). Nothing is read or written on disk: the audio is the caller's job."""
     if entry_id is not None and (type(entry_id) is not int or entry_id < 1):
         raise GvoiceError("order.spec_invalid", missing="entry_id")
     current = get(project, key)
@@ -392,6 +399,8 @@ def add_attempt(project: str, key: str, spec: dict, entry_id=None) -> int:
         else:
             record["voice"] = line_voice
             record["reference"] = spec["reference"]
+        if isinstance(spec.get("sampling"), dict):  # the effective values (a sample take has none)
+            record["sampling"] = copy.deepcopy(spec["sampling"])
         if spec.get("locale"):  # the language the take was spoken in (a line: its reference take's)
             record["locale"] = spec["locale"]
         if entry_id is not None:

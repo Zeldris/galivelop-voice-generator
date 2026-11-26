@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 import math
 import os
 import struct
@@ -47,6 +48,7 @@ class DesignJob:
     timeout_s: Optional[float] = None
     language: Optional[str] = None  # the engine's language name (``Spanish``); the real engine defaults to Spanish
     no_fallback: bool = False  # True: run on `device` only, never on the profile's ``fallbackDevice`` (the bench)
+    sampling: Optional[dict] = None  # effective sampling (``sampling.resolve``); None: the engine's catalog values
 
 
 @dataclass
@@ -63,6 +65,7 @@ class LineJob:
     language: Optional[str] = None
     reference_text: Optional[str] = None  # what the reference take says (the real engine needs it for ``--ref-text``)
     no_fallback: bool = False
+    sampling: Optional[dict] = None  # as in `DesignJob`
 
 
 @dataclass
@@ -191,6 +194,11 @@ def _write_atomic(path, data: bytes) -> None:
         raise
 
 
+def _sampling_key(job) -> str:
+    """The sampling as a stable string for the digest: another sampling, another audio (like a real engine)."""
+    return json.dumps(job.sampling, sort_keys=True) if job.sampling else ""
+
+
 def _device(job) -> str:
     return job.device or (job.machine.get("engine") or {}).get("device") or "cpu"
 
@@ -230,7 +238,8 @@ class FakeEngine(Engine):
     def design(self, job: DesignJob, should_cancel) -> EngineResult:
         start = self._wait(job, should_cancel)
         model = job.model or "1.7b-voicedesign"
-        data = wav_bytes(_digest("design", model, _device(job), job.seed, job.instruction, job.text), job.text)
+        data = wav_bytes(_digest("design", model, _device(job), job.seed, job.instruction, job.text,
+                                    _sampling_key(job)), job.text)
         _write_atomic(job.output, data)
         return self._result(start, job, job.seed, model, _audio_ms(job.text))
 
@@ -242,7 +251,8 @@ class FakeEngine(Engine):
             missing = job.spk if not Path(job.spk).is_file() else job.rvq
             raise EngineError("voice print missing: %s" % missing, "engine.print_missing", path=missing)
         model = job.model or "0.6b-base"
-        data = wav_bytes(_digest("line", model, _device(job), job.seed, spk, rvq, job.text), job.text)
+        data = wav_bytes(_digest("line", model, _device(job), job.seed, spk, rvq, job.text,
+                                  _sampling_key(job)), job.text)
         _write_atomic(job.output, data)
         return self._result(start, job, job.seed, model, _audio_ms(job.text))
 

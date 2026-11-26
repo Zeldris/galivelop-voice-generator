@@ -26,14 +26,14 @@ VALIDATING = frozenset(
     [
         "type", "properties", "required", "additionalProperties", "propertyNames",
         "minProperties", "items", "minItems", "maxItems", "enum", "const", "pattern",
-        "minLength", "maxLength", "minimum", "maximum", "$ref", "$defs",
+        "minLength", "maxLength", "minimum", "maximum", "exclusiveMinimum", "$ref", "$defs",
         "allOf", "if", "then", "else",
     ]
 )
 # Every code format_error may be asked to render.
 CODES = (
     "required", "type", "enum", "const", "pattern", "minimum", "maximum",
-    "minLength", "maxLength", "minItems", "maxItems", "minProperties",
+    "exclusiveMinimum", "minLength", "maxLength", "minItems", "maxItems", "minProperties",
     "additionalProperties", "propertyNames", "false",
 )
 TYPES = ("object", "array", "string", "integer", "number", "boolean", "null")
@@ -290,6 +290,8 @@ def _validate(value, schema, root, path, errors, seen=frozenset()):
             add("minimum", limit=schema["minimum"])
         if "maximum" in schema and value > schema["maximum"]:
             add("maximum", limit=schema["maximum"])
+        if "exclusiveMinimum" in schema and value <= schema["exclusiveMinimum"]:
+            add("exclusiveMinimum", limit=schema["exclusiveMinimum"])
 
     if isinstance(value, list):
         if "minItems" in schema and len(value) < schema["minItems"]:

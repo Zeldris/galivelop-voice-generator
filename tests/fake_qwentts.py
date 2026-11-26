@@ -28,6 +28,10 @@ def main(argv):
     opts = {}
     i = 0
     while i < len(args):
+        if args[i] == "--greedy":  # the only flag without a value
+            opts[args[i]] = True
+            i += 1
+            continue
         opts[args[i]] = args[i + 1] if i + 1 < len(args) else None
         i += 2
     stdin = sys.stdin.read()

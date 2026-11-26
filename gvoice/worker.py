@@ -50,7 +50,7 @@ import threading
 import time
 
 from . import engine as engine_mod
-from . import i18n, limits, log, machine_lock, orders, paths, queue, speech_locale
+from . import i18n, limits, log, machine_lock, orders, paths, queue, sampling, speech_locale
 from .errors import GvoiceError
 
 MEMORY_POLL_S = 0.5  # how often a job waiting for memory looks again
@@ -174,13 +174,15 @@ def _take(entry: dict, eng, machine: dict, state: dict, should_cancel):
     tmp = orders.pending_audio_path(project, key, entry_id)
     state["tmp"] = tmp
     tmp.parent.mkdir(parents=True, exist_ok=True)
-    spec = {"seed": entry["seed"], "text": entry["text"]}
+    # the effective sampling the entry was queued with (an entry from before 0.4.1 has none: resolved now)
+    take_sampling = entry.get("sampling") or sampling.effective(project, orders.get(project, key))
+    spec = {"seed": entry["seed"], "text": entry["text"], "sampling": take_sampling}
     if entry["kind"] == "voice":
         model = _model_of(machine, "design")
         job = engine_mod.DesignJob(
             instruction=entry["instruction"], text=entry["text"], seed=entry["seed"], output=str(tmp), model=model,
             machine=machine, timeout_s=limits.timeout_s(machine),
-            language=speech_locale.language(entry.get("locale")))
+            language=speech_locale.language(entry.get("locale")), sampling=take_sampling)
         spec["instruction"] = entry["instruction"]
         if entry.get("locale"):
             spec["locale"] = entry["locale"]
@@ -200,7 +202,8 @@ def _take(entry: dict, eng, machine: dict, state: dict, should_cancel):
         job = engine_mod.LineJob(
             spk=str(spk), rvq=str(rvq), text=entry["text"], seed=entry["seed"], output=str(tmp), model=model,
             machine=machine, timeout_s=limits.timeout_s(machine), reference_text=reference.get("text"),
-            language=speech_locale.language(reference.get("locale")))  # the take's, not the voice's now
+            language=speech_locale.language(reference.get("locale")),  # the take's, not the voice's now
+            sampling=take_sampling)
         if reference.get("locale"):
             spec["locale"] = reference["locale"]
         spec["voice"] = voice

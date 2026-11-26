@@ -49,6 +49,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from . import fsutil, limits, machine_lock, models, paths
+from . import sampling as sampling_mod
 from .engine import (Cancelled, DesignJob, Engine, EngineError, EngineResult, EngineTimeout, LineJob, PrintJob,
                      _device)
 from .errors import GvoiceError
@@ -340,16 +341,27 @@ class QwenTtsEngine(Engine):
 
     # -- the operations ----------------------------------------------------------------------------------------
 
+    def _sampling_args(self, job) -> list:
+        """Every sampling flag, always explicit (the job's values over the catalog's, so an old job still gets all);
+        ``--greedy`` only when true."""
+        s = sampling_mod.merge(job.sampling, self.catalog["sampling"])
+        sub = s[sampling_mod.SUB]
+        args = ["--temp", str(s["temperature"]), "--top-k", str(s["topK"]), "--top-p", str(s["topP"]),
+                "--rep-pen", str(s["repetitionPenalty"]), "--sub-temp", str(sub["temperature"]),
+                "--sub-top-k", str(sub["topK"]), "--sub-top-p", str(sub["topP"])]
+        return args + ["--greedy"] if s["greedy"] else args
+
     def _tts(self, job, model_id, extra_args, text, should_cancel, seed) -> EngineResult:
         """The part design and line share: run `qwen-tts` into a temporary wav, read it, move it onto the output."""
         started = time.monotonic()
         model, codec = self._model(model_id), self._model(_codec_id(self.catalog))
         language = job.language or DEFAULT_LANGUAGE
+        sampling = self._sampling_args(job)
         with self._stamped(), self._workdir(job.output) as work:
             wav = work / "out.wav"
 
             def build(dev):
-                return [str(binary(TTS_BIN, dev)), "--model", model, "--codec", codec] + extra_args(work) + [
+                return [str(binary(TTS_BIN, dev)), "--model", model, "--codec", codec] + extra_args(work) + sampling + [
                     "--lang", language, "--seed", str(seed), "--device", dev, "-o", str(wav)]
 
             run, device = self._attempts(job, build, text, wav.is_file, should_cancel, work)

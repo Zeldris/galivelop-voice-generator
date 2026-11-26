@@ -151,6 +151,14 @@ def _queued(out: _Out, entries: list, **extra) -> None:
         out.line("cli.out.queued", count=len(entries), ids=", ".join(str(e["id"]) for e in entries) or "-")
 
 
+def _sampling_text(s: dict) -> str:
+    """One line with the effective sampling of a take (`greedy` only when true)."""
+    sub = s["subTalker"]
+    text = "temp %s, top-k %s, top-p %s, rep-pen %s; sub: temp %s, top-k %s, top-p %s" % (
+        s["temperature"], s["topK"], s["topP"], s["repetitionPenalty"], sub["temperature"], sub["topK"], sub["topP"])
+    return text + ", greedy" if s["greedy"] else text
+
+
 def _stale_view(project: str, record: dict) -> dict:
     """The record plus what is stale (D10): ``stale`` for a line, ``staleLines`` for a voice."""
     item = dict(record)
@@ -220,6 +228,8 @@ def _order(args, sub, out: _Out) -> None:
                 out.line("cli.out.attempt_reference", reference=a["reference"])
             else:
                 out.line("cli.out.attempt_prints", models=", ".join(a.get("prints") or {}) or out.t("cli.out.none"))
+            if a.get("sampling"):
+                out.line("cli.out.attempt_sampling", sampling=_sampling_text(a["sampling"]))
             if a.get("note"):
                 out.line("cli.out.attempt_note", note=a["note"])
 

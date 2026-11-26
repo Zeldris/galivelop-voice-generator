@@ -36,5 +36,17 @@
       "sha256": "1883beeed99348fc35e23dd225e9082f93f6f8c109330a33d935baa8acdbfd94",
       "use": "codec"
     }
-  ]
+  ],
+  "sampling": {
+    "temperature": 0.9,
+    "topK": 50,
+    "topP": 1.0,
+    "repetitionPenalty": 1.05,
+    "greedy": false,
+    "subTalker": {
+      "temperature": 0.9,
+      "topK": 50,
+      "topP": 1.0
+    }
+  }
 }

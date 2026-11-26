@@ -4,5 +4,9 @@
   "type": "line",
   "voice": "narrator",
   "text": "Long ago, the valley was silent.",
-  "seed": 7
+  "seed": 7,
+  "sampling": {
+    "temperature": 0.7,
+    "topK": 40
+  }
 }

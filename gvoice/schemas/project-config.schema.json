@@ -67,6 +67,10 @@
           "description": "Delivery directory, relative to the project root."
         }
       }
+    },
+    "sampling": {
+      "$ref": "common.schema.json#/$defs/sampling",
+      "description": "Default sampling of the project's takes; overridden by an order, over the engine catalog."
     }
   }
 }

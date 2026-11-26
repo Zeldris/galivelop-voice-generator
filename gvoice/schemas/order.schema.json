@@ -79,6 +79,10 @@
           "$ref": "common.schema.json#/$defs/sampleLicense"
         }
       }
+    },
+    "sampling": {
+      "$ref": "common.schema.json#/$defs/sampling",
+      "description": "voice (design sheet) or line: sampling parameters of its takes; missing fields come from the project configuration and then the engine catalog. A line does not inherit the sampling of its voice. Not allowed with a sample."
     }
   },
   "allOf": [
@@ -136,7 +140,8 @@
               "properties": {
                 "designSheet": false,
                 "testText": false,
-                "seed": false
+                "seed": false,
+                "sampling": false
               }
             },
             "else": {

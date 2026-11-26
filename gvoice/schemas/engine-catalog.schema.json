@@ -8,7 +8,8 @@
     "engine",
     "repo",
     "commit",
-    "models"
+    "models",
+    "sampling"
   ],
   "properties": {
     "$schema": {
@@ -81,6 +82,10 @@
           }
         }
       }
+    },
+    "sampling": {
+      "$ref": "common.schema.json#/$defs/sampling",
+      "description": "Sampling values of the checkpoint: the last layer of the resolution."
     }
   }
 }

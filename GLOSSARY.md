@@ -104,6 +104,13 @@ Un audio generado para un pedido con una semilla concreta; en un pedido de voz, 
 _Evitar_: prueba, variante, toma (solo como palabra visible)
 _En código_: attempt
 
+**Muestreo**:
+Los parámetros con los que el motor elige los sonidos de una toma (`temperature`, `topK`, `topP`, `repetitionPenalty`,
+`greedy` y los del subtalker). Cada campo sale del pedido, si no de la configuración del proyecto y si no del
+catálogo del motor; la toma guarda los efectivos junto a la semilla. Una línea no hereda el de su voz.
+_Evitar_: parámetros, ajustes
+_En código_: sampling
+
 **Candidata**:
 Un intento que la persona marca como bueno sin elegirlo todavía.
 _En código_: candidate

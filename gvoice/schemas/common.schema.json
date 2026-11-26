@@ -66,6 +66,66 @@
       "minLength": 1,
       "maxLength": 200,
       "description": "License or permission of a human audio sample (free text, for example CC0-1.0 or own recording)."
+    },
+    "sampling": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Sampling parameters of the speech engine; every field is optional. An order field wins over the project configuration, which wins over the engine catalog (field by field, also inside subTalker). A take stores the effective values, all filled.",
+      "properties": {
+        "temperature": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 2,
+          "description": "Sampling temperature: greater than 0, at most 2."
+        },
+        "topK": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "Top-k: keep the k likeliest tokens (1-1000)."
+        },
+        "topP": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "description": "Top-p (nucleus): greater than 0, at most 1."
+        },
+        "repetitionPenalty": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 2,
+          "description": "Repetition penalty: 1 to 2."
+        },
+        "greedy": {
+          "type": "boolean",
+          "description": "True: pick always the likeliest token (no randomness from the sampler)."
+        },
+        "subTalker": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Sampling of the sub-talker (the codebook predictor).",
+          "properties": {
+            "temperature": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 2,
+              "description": "Sampling temperature: greater than 0, at most 2."
+            },
+            "topK": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "description": "Top-k: keep the k likeliest tokens (1-1000)."
+            },
+            "topP": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "description": "Top-p (nucleus): greater than 0, at most 1."
+            }
+          }
+        }
+      }
     }
   }
 }

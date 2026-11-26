@@ -91,6 +91,10 @@
     },
     "license": {
       "$ref": "common.schema.json#/$defs/sampleLicense"
+    },
+    "sampling": {
+      "$ref": "common.schema.json#/$defs/sampling",
+      "description": "Effective sampling of the chosen take (all fields filled); absent in a voice made from a sample."
     }
   },
   "allOf": [

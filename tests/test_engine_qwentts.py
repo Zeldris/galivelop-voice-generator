@@ -26,6 +26,10 @@ def wav_ms(path):
         return round(w.getnframes() * 1000 / w.getframerate())
 
 
+CATALOG_SAMPLING_ARGV = ["--temp", "0.9", "--top-k", "50", "--top-p", "1.0", "--rep-pen", "1.05",
+                         "--sub-temp", "0.9", "--sub-top-k", "50", "--sub-top-p", "1.0"]
+
+
 class QwenTtsTests(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -103,7 +107,8 @@ class QwenTtsTests(unittest.TestCase):
         argv = call["argv"]
         wav = argv[argv.index("-o") + 1]
         self.assertEqual(argv, ["--model", self.mp("1.7b-voicedesign"), "--codec", self.mp("tokenizer-12hz"),
-                                "--instruct", "Gender: male.", "--lang", "Spanish", "--seed", "11",
+                                "--instruct", "Gender: male."] + CATALOG_SAMPLING_ARGV + [
+                                "--lang", "Spanish", "--seed", "11",
                                 "--device", "Vulkan0", "-o", wav])
         self.assertEqual((call["mode"], call["stdin"]), ("tts", "hello"))
         self.assertEqual(Path(wav).parent.parent, Path(job.output).parent)  # next to the output: same filesystem
@@ -113,6 +118,25 @@ class QwenTtsTests(unittest.TestCase):
         self.assertEqual((result.engine_commit, result.backend), (self.catalog["commit"], "qwentts"))
         self.assertEqual(result.command[1:3], ["--model", self.mp("1.7b-voicedesign")])
         self.assertEqual(self.leftovers(), ["a.wav"])
+
+    def sampling_argv(self, job):
+        self.eng.design(job, NEVER)
+        argv = self.calls()[-1]["argv"]
+        return argv[argv.index("--temp"):argv.index("--lang")]
+
+    def test_sampling_flags_come_from_the_job_and_are_always_explicit(self):
+        job = self.design(sampling={"temperature": 0.5, "topK": 7, "topP": 0.8, "repetitionPenalty": 1.2,
+                                    "greedy": True, "subTalker": {"temperature": 0.3, "topK": 9, "topP": 0.7}})
+        self.assertEqual(self.sampling_argv(job), ["--temp", "0.5", "--top-k", "7", "--top-p", "0.8", "--rep-pen",
+                                                   "1.2", "--sub-temp", "0.3", "--sub-top-k", "9", "--sub-top-p",
+                                                   "0.7", "--greedy"])
+
+    def test_sampling_without_a_job_value_takes_the_catalog_one_and_no_greedy(self):
+        self.assertEqual(self.sampling_argv(self.design()), CATALOG_SAMPLING_ARGV)
+        partial = self.design(sampling={"topK": 3, "subTalker": {"topP": 0.5}})
+        self.assertEqual(self.sampling_argv(partial), ["--temp", "0.9", "--top-k", "3", "--top-p", "1.0", "--rep-pen",
+                                                       "1.05", "--sub-temp", "0.9", "--sub-top-k", "50",
+                                                       "--sub-top-p", "0.5"])
 
     def test_language_of_the_job(self):
         self.eng.design(self.design(language="English"), NEVER)
@@ -138,8 +162,8 @@ class QwenTtsTests(unittest.TestCase):
         argv = call["argv"]
         ref_text, wav = argv[argv.index("--ref-text") + 1], argv[argv.index("-o") + 1]
         self.assertEqual(argv, ["--model", self.mp("0.6b-base"), "--codec", self.mp("tokenizer-12hz"),
-                                "--ref-spk", pj.spk, "--ref-rvq", pj.rvq, "--ref-text", ref_text, "--lang", "Spanish",
-                                "--seed", "7", "--device", "Vulkan0", "-o", wav])
+                                "--ref-spk", pj.spk, "--ref-rvq", pj.rvq, "--ref-text", ref_text]
+                         + CATALOG_SAMPLING_ARGV + ["--lang", "Spanish", "--seed", "7", "--device", "Vulkan0", "-o", wav])
         self.assertEqual(call["stdin"], "a line")
         self.assertEqual(seen["ref_text"], "Reference words.")  # a PATH to the transcription, not the text
         self.assertNotEqual(ref_text, "Reference words.")

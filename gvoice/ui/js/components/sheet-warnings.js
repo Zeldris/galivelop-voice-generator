@@ -44,6 +44,15 @@ export function warningItems(warnings) {
   });
 }
 
+/** Una fila de aviso: icono y texto. */
+const warningRow = (it) => h('li.sheet-warning', { data: { code: it.code } }, warningIcon(it.icon), h('span.warn-text', {}, it.text));
+
+/** Lista de avisos ya pintada (los de una toma, 0.4.4: `{code, params}` de `checks.warnings`; los textos son
+    `warning.<código>`). Sin avisos, una lista vacía. */
+export function warningList(warnings) {
+  return h('ul.sheet-warnings.take-warnings', {}, warningItems(warnings).map(warningRow));
+}
+
 /** Panel con la instrucción y los avisos. `update(res)` lo repinta (la lista es una región `aria-live` que persiste, para
     que el lector anuncie los cambios); `fail(text)` deja un aviso discreto de que no se pudo comprobar. */
 export function sheetPanel() {
@@ -64,7 +73,7 @@ export function sheetPanel() {
       shown = sig;
       preview.textContent = instruction;
       replace(list, items.length
-        ? items.map((it) => h('li.sheet-warning', { data: { code: it.code } }, warningIcon(it.icon), h('span.warn-text', {}, it.text)))
+        ? items.map(warningRow)
         : h('li.sheet-ok', {}, t('ui.sheet.noWarnings')));
     },
     fail(text) {

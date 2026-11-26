@@ -1363,6 +1363,69 @@ view.cleanup();
         self.assertTrue(got["panel"] and got["voiceNote"])
         self.assertFalse(got["undoDisabled"])
 
+    def test_take_checks_helper_rounds_metrics_and_keeps_warnings_or_the_error(self):
+        got = self.run_js("""
+const { takeChecks } = await mod('js/take-model.js');
+const w = [{ code: 'take.too_fast', params: { value: 41.2, limit: 50 } }];
+out({ none: takeChecks({}), nullTake: takeChecks(null), notObject: takeChecks({ checks: 'x' }),
+  ok: takeChecks({ checks: { msPerChar: 93.46, peakDbfs: -3.24, rmsDbfs: -21.44, clippedRatio: 0.01234, warnings: w } }),
+  noWarnings: takeChecks({ checks: { msPerChar: 90, peakDbfs: -3, rmsDbfs: -20, clippedRatio: 0 } }),
+  partial: takeChecks({ checks: { msPerChar: 90, warnings: w } }), error: takeChecks({ checks: { error: 'take.analysis_unreadable', warnings: w } }) });
+""")
+        self.assertIsNone(got["none"])
+        self.assertIsNone(got["nullTake"])
+        self.assertIsNone(got["notObject"])
+        self.assertEqual(got["ok"], {"error": None, "metrics": {"msPerChar": 93.5, "peakDbfs": -3.2, "rmsDbfs": -21.4, "clippedPercent": 1.23},
+                                     "warnings": [{"code": "take.too_fast", "params": {"value": 41.2, "limit": 50}}]})
+        self.assertEqual(got["noWarnings"]["warnings"], [])
+        self.assertIsNone(got["partial"]["metrics"])  # a missing metric: no half line
+        self.assertEqual(got["partial"]["warnings"][0]["code"], "take.too_fast")
+        self.assertEqual(got["error"], {"error": "take.analysis_unreadable", "metrics": None, "warnings": []})
+
+    def test_take_card_shows_the_checks_metrics_and_warnings_like_the_sheet_warnings(self):
+        got = self.run_js(self.ORDER_ENV + """
+setTransport(async (method, url, body) => {
+  const r = await mock.transport(method, url, body);
+  if (method === 'GET' && url.includes('/orders/narrator?')) {
+    delete r.json.attempts[0].checks;                                      // una toma vieja: sin pruebas
+    r.json.attempts[2].checks = { error: 'take.analysis_unreadable' };      // un audio que no se pudo analizar
+  }
+  return r;
+});
+const view = await mount('narrator');
+const box = (id) => cardOf(view, id).find((e) => e.className.includes('take-checks'))[0];
+const codes = (id) => box(id).find((e) => e.tag === 'li' && e.dataset.code).map((li) => li.dataset.code);
+out({ old: box(1).hidden, oldText: box(1).textContent,
+  take2: { hidden: box(2).hidden, text: box(2).textContent, codes: codes(2), icons: box(2).find((e) => e.tag === 'svg').length },
+  take3: { text: box(3).textContent, codes: codes(3) } });
+view.cleanup();
+""")
+        self.assertTrue(got["old"])
+        self.assertEqual(got["oldText"], "")
+        self.assertFalse(got["take2"]["hidden"])
+        self.assertIn("Pruebas sin oído", got["take2"]["text"])
+        self.assertIn("93.5 ms por carácter", got["take2"]["text"])
+        self.assertIn("pico -3.2 dBFS", got["take2"]["text"])
+        self.assertIn("Sin avisos", got["take2"]["text"])
+        self.assertEqual(got["take2"]["codes"], [])
+        self.assertIn("No se pudo analizar el audio (take.analysis_unreadable)", got["take3"]["text"])
+        self.assertNotIn("Sin avisos", got["take3"]["text"])  # an error is not "all fine"
+
+    def test_take_card_lists_each_warning_of_the_take_with_icon_and_translated_text(self):
+        got = self.run_js(self.ORDER_ENV + """
+const view = await mount('narrator');
+const box = (id) => cardOf(view, id).find((e) => e.className.includes('take-checks'))[0];
+const items = (id) => box(id).find((e) => e.tag === 'li' && e.dataset.code).map((li) => [li.dataset.code, li.textContent, li.find((e) => e.tag === 'svg').length]);
+out({ t1: items(1), t3: items(3), ok2: box(2).textContent.includes('Sin avisos') });
+view.cleanup();
+""")
+        self.assertEqual([c for c, _, _ in got["t1"]], ["take.too_fast", "take.clipping"])
+        self.assertIn("La toma es muy rápida (41.2 ms por carácter, por debajo de 50)", got["t1"][0][1])
+        self.assertIn("recortado", got["t1"][1][1])
+        self.assertEqual([n for _, _, n in got["t1"]], [1, 1])  # an icon beside the text, never colour alone
+        self.assertIn("silencio de 1900 ms", got["t3"][0][1])
+        self.assertTrue(got["ok2"])
+
     def test_order_view_line_shows_voice_and_stale_without_prints(self):
         got = self.run_js(self.ORDER_ENV + """
 const view = await mount('narrator/intro-02');

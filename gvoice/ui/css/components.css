@@ -119,3 +119,6 @@ dialog.shortcuts .row { margin-top: 12px; }
 /* 0.4.4: muestreo del nuevo pedido y avisos / ficha de escucha de la toma */
 .sampling > summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .sampling > .stack { margin-top: 8px; }
+.take-checks { display: grid; gap: 6px; }
+.take-checks .hint, .take-checks-ok { margin: 0; }
+.take-checks-ok { color: var(--ok); font-size: 14px; }

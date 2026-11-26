@@ -2,7 +2,8 @@
    reproductor (`<audio>` nativo, sin controles propios del navegador: el botón y la forma de onda lo manejan), forma de
    onda, estado (nueva, candidata, descartada), nota, huellas (solo en `voice`) y «Elegir». La toma elegida lleva visto y
    texto («✓ Elegida») y un subrayado, nunca solo color. La tarjeta se crea una vez y `update()` repinta lo que cambia sin
-   tocar el audio ni la nota que se está escribiendo. Las acciones (`mark`, `note`, `choose`) las pone la vista. */
+   tocar el audio ni la nota que se está escribiendo. Las pruebas sin oído de la toma (0.4.2: métricas y avisos de
+   `checks`) salen bajo la forma de onda, con los mismos avisos que la ficha de diseño. Las acciones (`mark`, `note`, `choose`) las pone la vista. */
 
 import { h, mmss, replace } from '../dom.js';
 import { t } from '../i18n.js';
@@ -10,7 +11,8 @@ import { api } from '../api.js';
 import { busy } from '../async-guard.js';
 import { icon } from './icons.js';
 import { createWaveform } from './waveform.js';
-import { bucketsFor, canChoose, hasAudio, isSampleTake, printStates, takeState } from '../take-model.js';
+import { bucketsFor, canChoose, hasAudio, isSampleTake, printStates, takeChecks, takeState } from '../take-model.js';
+import { warningList } from './sheet-warnings.js';
 
 const PRINT_KEY = { done: 'ui.take.print.done', running: 'ui.take.print.running', queued: 'ui.take.print.queued', pending: 'ui.take.print.pending' };
 const PRINT_MARK = { done: '✓', running: '…', queued: '…', pending: '○' };
@@ -36,6 +38,7 @@ export function takeCard({ project, key, type, models = [], actions, onPlay = ()
     valueText: (f) => `${mmss(f * totalMs())} / ${mmss(totalMs())}`,
   });
   const noAudio = h('p.hint.take-noaudio', {}, t('ui.take.noAudio'));
+  const checksBox = h('div.take-checks', { hidden: true });
   const prints = type === 'voice' ? h('div.take-prints') : null;
   const candidateBtn = h('button.btn.btn-toggle', { type: 'button', onclick: () => toggleState('candidate') }, t('ui.take.markCandidate'));
   const discardBtn = h('button.btn.btn-toggle.btn-danger-toggle', { type: 'button', onclick: () => toggleState('discarded') }, h('span', { aria: { hidden: true } }, '✗ '), t('ui.take.markDiscard'));
@@ -47,7 +50,7 @@ export function takeCard({ project, key, type, models = [], actions, onPlay = ()
   noteBox.addEventListener('change', () => { if (dirty) saveNote(); });
   const node = h('article.take-card', { tabindex: -1, data: { take: '' } },
     h('div.row-between', {}, title, badges), meta,
-    h('div.take-player', {}, play, time), wave.node, noAudio, audio, status, prints,
+    h('div.take-player', {}, play, time), wave.node, noAudio, audio, status, checksBox, prints,
     h('div.row.take-actions', {}, chooseBtn, candidateBtn, discardBtn), why,
     h('div.field.take-note', {}, h('label', { for: noteId }, t('ui.take.note')), noteBox, h('div.row', {}, saveBtn)));
 
@@ -166,6 +169,12 @@ export function takeCard({ project, key, type, models = [], actions, onPlay = ()
     chooseBtn.disabled = !canChoose(order, take);
     replace(why, chosen ? null : state === 'discarded' ? t('ui.take.chooseDiscarded') : !audible ? t('ui.take.chooseNoAudio') : null);
     why.hidden = !why.firstChild;
+    const checks = takeChecks(take);
+    checksBox.hidden = !checks;
+    replace(checksBox, ...(!checks ? [] : [h('b.label', {}, t('ui.take.checks')),
+      checks.error ? h('p.hint', {}, t('ui.take.checksError', { code: checks.error }))
+        : h('p.hint.take-metrics', {}, checks.metrics ? t('ui.take.checksMetrics', checks.metrics) : ''),
+      checks.warnings.length ? warningList(checks.warnings) : (checks.error ? null : h('p.take-checks-ok', {}, h('span', { aria: { hidden: true } }, '✓ '), t('ui.take.checksOk')))]));
     if (prints) {
       replace(prints, h('b.label', {}, t('ui.take.prints')),
         h('ul.take-print-list', {}, printStates(take, models, entries).map((p) => h('li.print.print-' + p.status, {}, h('span', { aria: { hidden: true } }, PRINT_MARK[p.status] + ' '), t(PRINT_KEY[p.status], { model: p.model })))),

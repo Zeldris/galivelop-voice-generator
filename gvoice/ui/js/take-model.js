@@ -14,6 +14,21 @@ export function takeState(order, take) {
 /** La toma de una muestra (`source: "sample"`): ni semilla ni instrucción; su origen y licencia son los del pedido. */
 export const isSampleTake = (take) => !!take && take.source === 'sample';
 
+/** Las pruebas sin oído de una toma (0.4.2) listas para pintar, o `null` si no las tiene (una toma vieja):
+    `{error, metrics, warnings}`. `error`: el código con que falló el análisis (sin métricas ni avisos); `metrics`:
+    {msPerChar, peakDbfs, rmsDbfs, clippedPercent} redondeados a una cifra (el recorte, a dos), o null si faltan;
+    `warnings`: los `{code, params}` tal cual. Puro. */
+export function takeChecks(take) {
+  const c = take && take.checks;
+  if (!c || typeof c !== 'object') return null;
+  if (c.error) return { error: String(c.error), metrics: null, warnings: [] };
+  const num = (k) => typeof c[k] === 'number' && Number.isFinite(c[k]);
+  const r = (v, d) => Math.round(v * d) / d;
+  const metrics = ['msPerChar', 'peakDbfs', 'rmsDbfs', 'clippedRatio'].every(num)
+    ? { msPerChar: r(c.msPerChar, 10), peakDbfs: r(c.peakDbfs, 10), rmsDbfs: r(c.rmsDbfs, 10), clippedPercent: r(c.clippedRatio * 100, 100) } : null;
+  return { error: null, metrics, warnings: Array.isArray(c.warnings) ? c.warnings : [] };
+}
+
 /** Por qué no se piden más tomas (`'sample'`: la voz sale de una muestra y no hace tomas de diseño) o null si se puede. */
 export function noMoreTakesReason(order) {
   return isSampleOrder(order) ? 'sample' : null;

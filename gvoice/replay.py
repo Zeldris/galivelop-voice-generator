@@ -47,9 +47,9 @@ def replay(project: str, key: str, take_id: int, engine=None, lang=None) -> dict
             raise GvoiceError("take.replay_no_audio", take=take_id, order=key)
         expected = checks.sha256_of(audio)
     eng = engine or engine_mod.get_engine()
-    folder = tempfile.mkdtemp(prefix=REPLAY_PREFIX, dir=str(orders.attempt_dir(project, key, take)))
-    try:
-        with machine_lock.hold():
+    with machine_lock.hold():  # the folder only exists under the lock: `worker.clean_workdirs` skips a busy machine
+        folder = tempfile.mkdtemp(prefix=REPLAY_PREFIX, dir=str(orders.attempt_dir(project, key, take)))
+        try:
             machine = limits.load_machine()
             worker._wait_for_memory({"id": "replay"}, eng, machine, lambda: False, lang)
             model = take.get("model") or (queue.production_model(project, machine) if order["type"] == "line" else None)
@@ -59,9 +59,9 @@ def replay(project: str, key: str, take_id: int, engine=None, lang=None) -> dict
             job, _extra = worker.build_job(project, _params(project, order, take), output, machine, model,
                                            device=take.get("device"), no_fallback=True)
             result = worker.run_job(eng, job, lambda: False)
-        found = checks.sha256_of(output)
-    finally:
-        shutil.rmtree(folder, ignore_errors=True)
+            found = checks.sha256_of(output)
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
     stored = {"at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "device": result.device,
               "sha256": found, "same": found == expected}
     orders.set_replay(project, key, take_id, stored)

@@ -18,6 +18,16 @@ export const KEY_PATTERN = /^[a-z0-9][a-z0-9-]*(\/[a-z0-9][a-z0-9-]*)*$/;
 export const SEGMENT_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 /** Los campos de la ficha de diseño, en el orden de design-sheet.schema.json (el orden del instruct). */
 export const SHEET_FIELDS = ['gender', 'age', 'pitch', 'speed', 'volume', 'clarity', 'fluency', 'accent', 'texture', 'emotion', 'tone', 'personality'];
+/** Muestreo (0.4.1): los rangos de `common.schema.json#/$defs/sampling` (los mismos dentro de `subTalker`).
+    `exclusive`: el mínimo no vale (mayor que). */
+export const SAMPLING_RANGES = {
+  temperature: { min: 0, max: 2, exclusive: true },
+  topK: { min: 1, max: 1000, integer: true },
+  topP: { min: 0, max: 1, exclusive: true },
+  repetitionPenalty: { min: 1, max: 2 },
+};
+export const SAMPLING_FIELDS = ['temperature', 'topK', 'topP', 'repetitionPenalty'];
+export const SUB_TALKER_FIELDS = ['temperature', 'topK', 'topP'];   // el sub-talker no tiene `repetitionPenalty`
 
 /* ---- filtros ---- */
 
@@ -111,12 +121,13 @@ export const lineKey = (voice, id) => `${String(voice || '').trim()}/${String(id
  *   voice con muestra (origin 'sample'): {type, key, origin, locale, sampleAudio, sampleText, sampleSource,
  *     sampleLicense}; sin ficha, texto de prueba, semilla ni tomas (se ignoran): pide `count` 1, que el servidor no usa
  *   line:  {type, voice, lineId, text, seed, count}
+ *   voice de ficha y line: `sampling` (opcional; ver `samplingFromFields`), solo con los campos rellenados
  * `seedBad` / `countBad` (opcionales): el input numérico tenía texto que no es un número (`validity.badInput`, su valor
  * sale ''), y se informa como error en vez de tomarlo por «aleatoria» / 1.
  * `existingKeys` (opcional): las claves de los pedidos ya cargados; reenviar una clave existente sobrescribe el pedido
  * (`orders.submit`), así que se rechaza con `key_exists`.
  * Devuelve {body, errors}: `body` es {order, count} (null si hay errores) y cada error {field, code, params?}, con los
- * códigos `required`, `locale`, `pattern`, `too_long`, `key_exists`, `seed`, `seed_range`, `count` y `extra`; la interfaz los traduce.
+ * códigos `required`, `locale`, `pattern`, `too_long`, `key_exists`, `seed`, `seed_range`, `count`, `extra` y, del muestreo, `number`, `integer` y `range`; la interfaz los traduce.
  */
 export function buildOrder(f, existingKeys = null) {
   const errors = [];
@@ -170,6 +181,8 @@ export function buildOrder(f, existingKeys = null) {
     else if (text.length > MAX_LINE_TEXT) bad('text', 'too_long', { max: MAX_LINE_TEXT });
     order.text = text;
   }
+  const sampling = samplingFromFields(f.sampling, bad);   // solo en voz de ficha y frase (la muestra salió antes)
+  if (sampling) order.sampling = sampling;
 
   const seedRaw = String(f.seed ?? '').trim();
   const countRaw = String(f.count ?? '').trim();
@@ -186,6 +199,37 @@ export function buildOrder(f, existingKeys = null) {
 
   if (errors.length) return { body: null, errors };
   return { body: { order, count }, errors };
+}
+
+/**
+ * El objeto `sampling` de los campos del formulario ({temperature, topK, topP, repetitionPenalty, greedy: ''|'true'|'false',
+ * sub: {temperature, topK, topP}}, todo texto): solo los campos con valor, así que vacío = no se envía (el núcleo rellena
+ * por proyecto y checkpoint). Acepta coma decimal. Devuelve `undefined` si no hay ninguno. Cada fallo va a `bad` con el
+ * campo `sampling.<campo>` o `sampling.subTalker.<campo>` y el código `number` (no es un número), `integer` o `range`
+ * (con {min, max, exclusive}); mismos rangos que el esquema.
+ */
+function samplingFromFields(raw, bad) {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const read = (values, names, prefix) => {
+    const out = {};
+    for (const name of names) {
+      const text = String(values[name] ?? '').trim();
+      if (!text) continue;
+      const field = `${prefix}${name}`;
+      const range = SAMPLING_RANGES[name];
+      if (!/^-?\d+([.,]\d+)?$/.test(text)) { bad(field, 'number'); continue; }
+      const n = Number(text.replace(',', '.'));
+      if (range.integer && !Number.isInteger(n)) bad(field, 'integer');
+      else if (n > range.max || (range.exclusive ? n <= range.min : n < range.min)) bad(field, 'range', { min: range.min, max: range.max, exclusive: !!range.exclusive });
+      else out[name] = n;
+    }
+    return out;
+  };
+  const sampling = read(raw, SAMPLING_FIELDS, 'sampling.');
+  const sub = read(raw.sub || {}, SUB_TALKER_FIELDS, 'sampling.subTalker.');
+  if (Object.keys(sub).length) sampling.subTalker = sub;
+  if (raw.greedy === 'true' || raw.greedy === 'false') sampling.greedy = raw.greedy === 'true';
+  return Object.keys(sampling).length ? sampling : undefined;
 }
 
 function voiceKey(f, order, existingKeys, bad) {

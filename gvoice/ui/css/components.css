@@ -115,3 +115,7 @@ dialog.shortcuts .row { margin-top: 12px; }
 .compare-title { margin: 0; display: flex; align-items: baseline; gap: 10px; font-size: 20px; }
 .compare-letter { font: 700 56px/1 var(--font-title); color: var(--accent-text); }
 .compare-audio { display: none; }
+
+/* 0.4.4: muestreo del nuevo pedido y avisos / ficha de escucha de la toma */
+.sampling > summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.sampling > .stack { margin-top: 8px; }

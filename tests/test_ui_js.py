@@ -580,6 +580,106 @@ process.exit(0);
             "audio": "/home/deck/ana.wav", "text": "Hola, soy Ana.", "source": "own recording", "license": "CC0-1.0"}}}])
         self.assertEqual(got["back"], {"design": False, "sample": True, "common": False})
 
+    SAMPLING = {"temperature": "0,7", "topK": " 40 ", "topP": "0.95", "repetitionPenalty": "1.1", "greedy": "false",
+                "sub": {"temperature": "0.5", "topK": "", "topP": "1"}}
+
+    def test_build_sends_the_filled_sampling_fields_and_meets_the_schema(self):
+        full = {"type": "line", "voice": "narrator", "lineId": "intro-01", "text": "Hola.", "sampling": self.SAMPLING}
+        got = self.build(full)
+        self.assertEqual(got["errors"], [])
+        self.assertEqual(got["body"]["order"]["sampling"], {
+            "temperature": 0.7, "topK": 40, "topP": 0.95, "repetitionPenalty": 1.1, "greedy": False,
+            "subTalker": {"temperature": 0.5, "topP": 1}})  # comma decimal read; the empty sub-field is not sent
+        self.assert_valid_order(got["body"])
+        voice = self.build({**self.VOICE, "sampling": {"greedy": "true", "sub": {}}})
+        self.assertEqual(voice["body"]["order"]["sampling"], {"greedy": True})
+        self.assert_valid_order(voice["body"])
+
+    def test_build_without_sampling_values_sends_no_sampling_and_a_sample_never_does(self):
+        empty = {"temperature": "", "topK": "  ", "topP": "", "repetitionPenalty": "", "greedy": "", "sub": {"temperature": "", "topK": "", "topP": ""}}
+        for f in (self.VOICE, {**self.VOICE, "sampling": empty}, {**self.VOICE, "sampling": {}}):
+            self.assertNotIn("sampling", self.build(f)["body"]["order"])
+        sample = self.build({**self.SAMPLE, "sampling": self.SAMPLING})  # filled, but a sample is not synthesized
+        self.assertEqual(sample["errors"], [])
+        self.assertNotIn("sampling", sample["body"]["order"])
+        self.assert_valid_order(sample["body"])
+
+    def test_build_rejects_bad_sampling_with_its_reason_and_the_schema_ranges(self):
+        line = {"type": "line", "voice": "narrator", "lineId": "intro-01", "text": "Hola."}
+        errors = lambda sampling: self.build({**line, "sampling": sampling})["errors"]  # noqa: E731
+        self.assertEqual(errors({"temperature": "0"}), [{"field": "sampling.temperature", "code": "range", "params": {"min": 0, "max": 2, "exclusive": True}}])
+        self.assertEqual(errors({"temperature": "2,1"})[0]["code"], "range")
+        self.assertEqual(errors({"temperature": "2"}), [])
+        self.assertEqual(errors({"topK": "0"})[0]["params"], {"min": 1, "max": 1000, "exclusive": False})
+        self.assertEqual(errors({"topK": "1001"})[0]["code"], "range")
+        self.assertEqual(errors({"topK": "1.5"}), [{"field": "sampling.topK", "code": "integer"}])
+        self.assertEqual(errors({"topP": "1.01"})[0]["field"], "sampling.topP")
+        self.assertEqual(errors({"topP": "0"})[0]["code"], "range")
+        self.assertEqual(errors({"repetitionPenalty": "0.99"})[0]["params"], {"min": 1, "max": 2, "exclusive": False})
+        self.assertEqual(errors({"repetitionPenalty": "1"}), [])
+        self.assertEqual(errors({"temperature": "abc"}), [{"field": "sampling.temperature", "code": "number"}])
+        self.assertEqual(errors({"sub": {"topK": "x1"}}), [{"field": "sampling.subTalker.topK", "code": "number"}])
+        self.assertEqual(errors({"sub": {"topP": "2"}})[0]["field"], "sampling.subTalker.topP")
+        self.assertIsNone(self.build({**line, "sampling": {"topK": "0"}})["body"])  # an error: nothing is sent
+
+    def test_sampling_ranges_match_the_schema(self):
+        got = self.run_js("const m = await mod('js/order-model.js'); out({ r: m.SAMPLING_RANGES, f: m.SAMPLING_FIELDS, s: m.SUB_TALKER_FIELDS });")
+        props = schema.load_schema("common")["$defs"]["sampling"]["properties"]
+        self.assertEqual(got["f"], [k for k in props if k not in ("greedy", "subTalker")])
+        self.assertEqual(got["s"], list(props["subTalker"]["properties"]))
+        for name, rng in got["r"].items():
+            for where in (props, props["subTalker"]["properties"]):
+                if name not in where:
+                    continue
+                spec = where[name]
+                self.assertEqual(rng["max"], spec["maximum"], name)
+                self.assertEqual(rng["min"], spec.get("exclusiveMinimum", spec.get("minimum")), name)
+                self.assertEqual(bool(rng.get("exclusive")), "exclusiveMinimum" in spec, name)
+                self.assertEqual(bool(rng.get("integer")), spec["type"] == "integer", name)
+
+    def test_new_order_sampling_fields_are_sent_only_when_filled_and_shown_for_voice_and_line_not_sample(self):
+        got = self.run_js(self.LOAD_LOCALE + self.FAKE_DOM + """
+const { openNewOrder } = await mod('js/components/new-order.js');
+await i18n.load('es');
+const sent = [];
+api.project = async () => ({ config: { voices: { narrator: {} } } });
+api.orders = async () => [{ key: 'narrator', type: 'voice', chosen: 1 }];
+api.checkSheet = async () => ({ instruction: '', warnings: [] });
+api.newOrder = async (p, order, count) => { sent.push({ order, count }); return { entries: [] }; };
+const doc = globalThis.document;
+doc.body.append(Object.assign(doc.createElement('div'), { attrs: { id: 'toasts' } }));
+const dlg = await openNewOrder('p', {});
+const field = (id) => dlg.find((e) => e.attrs.id === id)[0];
+const form = dlg.find((e) => e.tag === 'form')[0];
+const box = field('no-sampling');
+const change = (id, v) => { field(id).value = v; field(id).dispatchEvent('change'); };
+const r = { voice: box.hidden, ids: ['temperature', 'topK', 'topP', 'repetitionPenalty', 'sub-temperature', 'sub-topK', 'sub-topP', 'greedy'].map((n) => !!field('no-sampling-' + n)) };
+change('no-origin', 'sample'); r.sample = box.hidden;
+change('no-origin', 'sheet'); r.backToSheet = box.hidden;
+change('no-type', 'line'); r.line = box.hidden;
+field('no-lineid').type('intro-01'); field('no-text').type('Hola.');
+form.dispatchEvent('submit'); await flushAll();
+r.noSampling = sent.map((s) => 'sampling' in s.order);
+field('no-sampling-temperature').type('0,7'); field('no-sampling-sub-topK').type('30'); change('no-sampling-greedy', 'true');
+form.dispatchEvent('submit'); await flushAll();
+r.sent = sent[1].order.sampling;
+field('no-sampling-topK').type('0'); field('no-sampling-topP').type('2');
+box.open = false;
+form.dispatchEvent('submit'); await flushAll();
+r.badSent = sent.length; r.opened = box.open; r.error = doc.getElementById('toasts').textContent;
+dlg.close();
+out(r);
+process.exit(0);
+""")
+        self.assertEqual((got["voice"], got["sample"], got["backToSheet"], got["line"]), (False, True, False, False))
+        self.assertTrue(all(got["ids"]))
+        self.assertEqual(got["noSampling"], [False])  # all empty: nothing sent, the core fills in
+        self.assertEqual(got["sent"], {"temperature": 0.7, "greedy": True, "subTalker": {"topK": 30}})
+        self.assertEqual(got["badSent"], 2)  # the invalid one was not sent
+        self.assertTrue(got["opened"], "a bad sampling field opens the folded section")
+        self.assertIn("Top-k: tiene que estar entre 1 y 1000", got["error"])
+        self.assertIn("Top-p: tiene que ser mayor que 0 y como mucho 1", got["error"])
+
     def test_order_model_constants_match_python_sources(self):
         """The limits copied into order-model.js equal their sources (common/order schemas, orders.py)."""
         from gvoice import orders

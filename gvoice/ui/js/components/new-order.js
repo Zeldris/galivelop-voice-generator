@@ -6,6 +6,9 @@
      y variante (`locale`, es-ES por defecto); sin ficha, frase de prueba, semilla ni número de tomas.
    - Tipo `line`: voz (las del `config` del proyecto y los pedidos `voice`), id de la frase (la clave es `<voz>/<id>`),
      texto, semilla y nº de tomas.
+   - Muestreo (0.4.4, solo `voice` de ficha y `line`): campos opcionales de `sampling` (temperatura, top-k, top-p,
+     penalización, voraz y los tres del sub-talker) en un `details`; vacío = no se envía (el núcleo rellena por proyecto y
+     checkpoint).
    - El cuerpo lo arma y valida ../order-model.js (`buildOrder`, el mismo esquema que el servidor) y se envía con
      POST /api/projects/{p}/orders {order, count}. Un error de la API se muestra dentro del diálogo y en un aviso
      (un `dialog` modal tapa los avisos). */
@@ -13,7 +16,7 @@
 import { h, replace } from '../dom.js';
 import { t } from '../i18n.js';
 import { api, describeError } from '../api.js';
-import { SHEET_FIELDS, MAX_COUNT, MAX_SEED, MAX_SAMPLE_TEXT, MAX_SAMPLE_SOURCE, MAX_SAMPLE_LICENSE, LOCALES, DEFAULT_LOCALE, buildOrder, ordersOf, sheetFromFields } from '../order-model.js';
+import { SHEET_FIELDS, SAMPLING_FIELDS, SAMPLING_RANGES, SUB_TALKER_FIELDS, MAX_COUNT, MAX_SEED, MAX_SAMPLE_TEXT, MAX_SAMPLE_SOURCE, MAX_SAMPLE_LICENSE, LOCALES, DEFAULT_LOCALE, buildOrder, ordersOf, sheetFromFields } from '../order-model.js';
 import { createSheetChecker } from '../sheet-check.js';
 import { busy } from '../async-guard.js';
 import { sheetPanel } from './sheet-warnings.js';
@@ -38,6 +41,9 @@ function validationText(e) {
   if (e.code === 'seed') return t('ui.newOrder.error.seed', { max: p.max });
   if (e.code === 'locale') return t('ui.newOrder.error.locale', { locales: p.locales });
   if (e.code === 'absolute') return t('ui.newOrder.error.absolute', { field: fieldName(e.field) });
+  if (e.code === 'number') return t('ui.newOrder.error.samplingNumber', { field: fieldName(e.field) });
+  if (e.code === 'integer') return t('ui.newOrder.error.samplingInteger', { field: fieldName(e.field) });
+  if (e.code === 'range') return t(p.exclusive ? 'ui.newOrder.error.samplingRangeAbove' : 'ui.newOrder.error.samplingRange', { field: fieldName(e.field), min: p.min, max: p.max });
   if (e.code === 'count') return t('ui.newOrder.error.count', { max: p.max });
   return t('ui.newOrder.error.extra', { line: p.line || '' });
 }
@@ -46,7 +52,13 @@ const FIELD_NAMES = {
   lineId: () => t('ui.newOrder.lineId'), locale: () => t('ui.newOrder.locale'), sampleAudio: () => t('ui.newOrder.sample.audio'),
   sampleText: () => t('ui.newOrder.sample.text'), sampleSource: () => t('ui.newOrder.sample.source'), sampleLicense: () => t('ui.newOrder.sample.license'), text: () => t('ui.newOrder.text'), type: () => t('ui.newOrder.type'),
 };
-const fieldName = (f) => (FIELD_NAMES[f] ? FIELD_NAMES[f]() : f);
+/** `sampling.topK` / `sampling.subTalker.topK` → el nombre del campo de muestreo (el del sub-talker, con su prefijo). */
+function samplingName(f) {
+  const m = /^sampling\.(subTalker\.)?(\w+)$/.exec(f);
+  if (!m) return null;
+  return (m[1] ? `${t('ui.newOrder.sampling.sub')}: ` : '') + t(`ui.newOrder.sampling.${m[2]}`);
+}
+const fieldName = (f) => (FIELD_NAMES[f] ? FIELD_NAMES[f]() : samplingName(f) || f);
 
 /** Abre el panel y devuelve su `dialog` (null si no pudo abrirse). `opener`: el botón que lo abrió (recupera el foco al
     cerrar); `onCreated(res)`: tras crear el pedido; `onClose()`: cuando el panel se cierra y se quita. */
@@ -88,6 +100,13 @@ export async function openNewOrder(project, { opener = null, onCreated = null, o
   const lineId = h('input', { id: 'no-lineid', type: 'text', autocomplete: 'off', spellcheck: 'false', maxlength: 100, aria: { describedby: 'no-lineid-hint' } });
   const lineKeyHint = h('span.hint', { id: 'no-lineid-hint' });
   const lineText = h('textarea', { id: 'no-text', rows: 3, maxlength: 4000, spellcheck: 'false' });
+  // muestreo (voice de ficha y line): texto libre, con coma decimal; vacío = no se envía
+  const samplingInput = (id) => h('input', { id: `no-sampling-${id}`, type: 'text', inputmode: 'decimal', autocomplete: 'off', spellcheck: 'false' });
+  const sampling = Object.fromEntries(SAMPLING_FIELDS.map((name) => [name, samplingInput(name)]));
+  const subSampling = Object.fromEntries(SUB_TALKER_FIELDS.map((name) => [name, samplingInput(`sub-${name}`)]));
+  const greedy = h('select', { id: 'no-sampling-greedy' },
+    h('option', { value: '' }, t('ui.newOrder.sampling.greedy.default')),
+    h('option', { value: 'true' }, t('ui.newOrder.sampling.greedy.on')), h('option', { value: 'false' }, t('ui.newOrder.sampling.greedy.off')));
   // común
   const seed = h('input', { id: 'no-seed', type: 'number', min: 0, max: MAX_SEED, aria: { describedby: 'no-seed-hint' } });
   const count = h('input', { id: 'no-count', type: 'number', min: 1, max: MAX_COUNT, value: 1 });
@@ -135,13 +154,23 @@ export async function openNewOrder(project, { opener = null, onCreated = null, o
       : h('p.notice.notice-warn', {}, '⚠ ', t('ui.newOrder.noVoices')),
     h('div.field', {}, h('label', { for: 'no-text' }, t('ui.newOrder.text')), lineText));
 
+  const rangeHint = (name) => { const r = SAMPLING_RANGES[name]; return t(r.exclusive ? 'ui.newOrder.sampling.rangeAbove' : 'ui.newOrder.sampling.range', { min: r.min, max: r.max }); };
+  const samplingField = (name, input, id) => h('div.field', {}, h('label', { for: id }, t(`ui.newOrder.sampling.${name}`)), input, h('span.hint', {}, rangeHint(name)));
+  const samplingBox = h('details.sampling', { id: 'no-sampling' },
+    h('summary', {}, t('ui.newOrder.sampling.title')),
+    h('div.stack', {},
+      h('p.hint', {}, t('ui.newOrder.sampling.hint')),
+      h('div.cols-2', {}, SAMPLING_FIELDS.map((name) => samplingField(name, sampling[name], `no-sampling-${name}`))),
+      h('div.field', {}, h('label', { for: 'no-sampling-greedy' }, t('ui.newOrder.sampling.greedy')), greedy),
+      h('h4', {}, t('ui.newOrder.sampling.sub')),
+      h('div.cols-2', {}, SUB_TALKER_FIELDS.map((name) => samplingField(name, subSampling[name], `no-sampling-sub-${name}`)))));
   const commonBox = h('div.cols-2', { id: 'no-common' },
     h('div.field', {}, h('label', { for: 'no-seed' }, t('ui.newOrder.seed')), seed, h('span.hint', { id: 'no-seed-hint' }, t('ui.newOrder.seedHint'))),
     h('div.field', {}, h('label', { for: 'no-count' }, t('ui.newOrder.count')), count));
   const form = h('form.no-form', { novalidate: true, onsubmit: (ev) => { ev.preventDefault(); submit(); } },
     h('div.field', {}, h('label', { for: 'no-type' }, t('ui.newOrder.type')), typeSel),
     voiceBox, lineBox,
-    commonBox,
+    commonBox, samplingBox,
     error,
     h('div.row', {}, send, cancel));
 
@@ -160,6 +189,7 @@ export async function openNewOrder(project, { opener = null, onCreated = null, o
     designBox.hidden = isSample();
     sampleBox.hidden = !isSample();
     commonBox.hidden = isSample();
+    samplingBox.hidden = isSample();   // la muestra no se sintetiza: sin muestreo
   }
   originSel.addEventListener('change', () => { onOrigin(); if (!isSample()) checkSheet(); });
   function showKey() { lineKeyHint.textContent = t('ui.newOrder.lineKey', { key: `${voiceSel.value || '…'}/${lineId.value.trim() || '…'}` }); }
@@ -175,11 +205,15 @@ export async function openNewOrder(project, { opener = null, onCreated = null, o
       type: typeSel.value, origin: originSel.value, key: key.value,
       locale: locale.value, sampleAudio: sampleAudio.value, sampleText: sampleText.value, sampleSource: sampleSource.value, sampleLicense: sampleLicense.value, testText: testText.value, extra: extra.value,
       sheet: Object.fromEntries(SHEET_FIELDS.map((name) => [name, sheet[name].value])),
+      sampling: { ...Object.fromEntries(SAMPLING_FIELDS.map((name) => [name, sampling[name].value])), greedy: greedy.value,
+        sub: Object.fromEntries(SUB_TALKER_FIELDS.map((name) => [name, subSampling[name].value])) },
       voice: voiceSel.value, lineId: lineId.value, text: lineText.value, seed: seed.value, count: count.value,
       seedBad: seed.validity.badInput, countBad: count.validity.badInput, // texto que no es un número: el valor sale ''
     };
   }
-  const focusOf = { key, locale, sampleAudio, sampleText, sampleSource, sampleLicense, testText, extra, voice: voiceSel, lineId, text: lineText, seed, count };
+  const focusOf = { key, locale, sampleAudio, sampleText, sampleSource, sampleLicense, testText, extra, voice: voiceSel, lineId, text: lineText, seed, count,
+    ...Object.fromEntries(SAMPLING_FIELDS.map((name) => [`sampling.${name}`, sampling[name]])),
+    ...Object.fromEntries(SUB_TALKER_FIELDS.map((name) => [`sampling.subTalker.${name}`, subSampling[name]])) };
 
   function showError(message, focusOn) {
     toastError(message);
@@ -197,6 +231,7 @@ export async function openNewOrder(project, { opener = null, onCreated = null, o
     error.hidden = true;
     const { body, errors } = buildOrder(fields(), existingKeys);
     if (!body) {
+      if (errors.some((e) => e.field.startsWith('sampling.'))) samplingBox.open = true;   // el campo mal escrito tiene que verse
       showError(errors.map(validationText).join(' '), focusOf[errors[0].field]);
       return;
     }

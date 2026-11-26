@@ -147,13 +147,14 @@ def _wait_for_memory(entry: dict, eng, machine: dict, should_cancel, lang=None) 
 
 
 def clean_workdirs() -> int:
-    """Delete the ``.qwentts-*`` folders under the projects' data that a killed run left; returns how many. Only
-    safe with the worker lock held (no engine is alive)."""
-    from . import engine_qwentts
+    """Delete the ``.qwentts-*`` and ``.replay-*`` (inside a take's folder) folders under the projects' data that a
+    killed run left; returns how many. Only safe with the worker lock held (no engine is alive)."""
+    from . import engine_qwentts, replay
+    prefixes = (engine_qwentts.WORKDIR_PREFIX, replay.REPLAY_PREFIX)
     removed = 0
     for root, dirs, _files in os.walk(paths.data_dir() / "projects"):
         for name in list(dirs):
-            if name.startswith(engine_qwentts.WORKDIR_PREFIX):
+            if name.startswith(prefixes):
                 shutil.rmtree(os.path.join(root, name), ignore_errors=True)
                 dirs.remove(name)
                 removed += 1

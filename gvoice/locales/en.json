@@ -542,6 +542,7 @@
   "listening.criterion.tone": "Audiobook tone and question intonation",
   "listening.criterion.stable": "Stable: repeating the same seed sounds the same",
   "warning.listening.eliminatory_failed": "The take has a \"no\" on eliminatory criteria of its listening sheet ({ids}); it was chosen anyway.",
+  "error.listening.mark_conflict": "the criteria {ids} are marked both yes and no",
   "error.listening.criterion_unknown": "\"{criterion}\" is not a listening criterion of this project (criteria: {known})",
   "error.project.listening_duplicate": "the listening criterion \"{id}\" is repeated in the configuration",
   "cli.cmd.take_rate": "listening sheet of a take: mark criteria (yes/no), clear marks and the note; with no options it shows the sheet",

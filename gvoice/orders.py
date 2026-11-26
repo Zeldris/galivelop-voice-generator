@@ -245,6 +245,15 @@ def _check_sample_unchanged(key: str, record: dict, sample: dict, text: str, loc
             raise GvoiceError("order.sample_changed", order=key)
 
 
+def _sample_checks(data: bytes, text: str, project: str) -> dict:
+    """The checks of a sample take; any failure of the analysis is stored as an error, the take is saved anyway
+    (as `worker._take` does)."""
+    try:
+        return checks.checks_of(io.BytesIO(data), text, checks.thresholds(project))
+    except Exception:
+        return {"error": "take.analysis_failed"}
+
+
 def _add_sample_take(project: str, key: str, record: dict, sample: dict, text: str, now: str) -> None:
     """Append the take of a sample to `record` (under the order lock) and write its audio, unless a take with the same
     sha256 is there already. The audio goes first: a crash leaves a file no take refers to, never the reverse."""
@@ -255,7 +264,7 @@ def _add_sample_take(project: str, key: str, record: dict, sample: dict, text: s
     take = {"id": new_id, "state": "new", "seed": None, "text": text, "dir": folder, "audio": folder + "/audio.wav",
             "note": "", "createdAt": now, "source": "sample", "locale": record["locale"], "audioMs": sample["audioMs"],
             "prints": {}, "sha256": sample["sha256"],
-            "checks": checks.checks_of(io.BytesIO(sample["data"]), text, checks.thresholds(project))}
+            "checks": _sample_checks(sample["data"], text, project)}
     fsutil.write_bytes(paths.inside(_order_dir(project, key), take["audio"]), sample["data"])
     record["attempts"].append(take)
 
@@ -458,16 +467,23 @@ def set_replay(project: str, key: str, attempt_id: int, replay: dict) -> dict:
 
 def rate(project: str, key: str, attempt_id: int, *, yes=(), no=(), clear=(), note=None, clear_note=False) -> dict:
     """Fill the listening sheet of take `attempt_id` (a sample take too): mark criteria ``yes``/``no``, ``clear``
-    marks (back to "not heard"), set the ``note`` or drop it (`clear_note`). Every id must be an effective criterion
-    of the project (``listening.criterion_unknown``). An emptied sheet is removed. Returns the take (a copy)."""
+    marks (back to "not heard"), set the ``note`` or drop it (`clear_note`). Every ``yes``/``no`` id must be an
+    effective criterion of the project (``listening.criterion_unknown``); a ``clear`` id may also be one the take
+    has a mark for (a criterion dropped from the configuration). An id in both ``yes`` and ``no`` is
+    ``listening.mark_conflict``. An emptied sheet is removed. Returns the take (a copy)."""
     yes, no, clear = list(yes), list(no), list(clear)
-    listening.check_ids(project, yes + no + clear)
+    listening.check_ids(project, yes + no)
+    both = [i for i in yes if i in no]
+    if both:
+        raise GvoiceError("listening.mark_conflict", ids=", ".join(dict.fromkeys(both)))
     if note is not None and not isinstance(note, str):
         raise GvoiceError("order.note_invalid")
 
     def change(order):
         item = _attempt(order, attempt_id)
         card = item.get("listening") or {}
+        old = card.get("marks") or {}
+        listening.check_ids(project, [i for i in clear if i not in old])
         marks = dict(card.get("marks") or {})
         for ids, value in ((yes, "yes"), (no, "no")):
             for i in ids:

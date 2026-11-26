@@ -16,6 +16,9 @@ from . import engine as engine_mod
 from .errors import GvoiceError
 
 
+REPLAY_PREFIX = ".replay-"
+
+
 def _params(project: str, order: dict, take: dict) -> dict:
     p = {"kind": order["type"], "seed": take["seed"], "text": take["text"],
          "sampling": take.get("sampling") or sampling.defaults()}
@@ -29,7 +32,8 @@ def _params(project: str, order: dict, take: dict) -> dict:
 def replay(project: str, key: str, take_id: int, engine=None, lang=None) -> dict:
     """Replay take `take_id` of order `key`; returns ``{at, device, sha256, same, expected}`` (what is stored on the
     take is the same without ``expected``). Raises ``take.replay_sample`` for a sample take and
-    ``take.replay_no_audio`` when there is nothing to compare with."""
+    ``take.replay_no_audio`` when there is nothing to compare with. It writes no line in the D16 log on purpose: a
+    replay is a check of a take, not the generation of an order."""
     order = orders.get(project, key)
     take = next((a for a in order["attempts"] if a["id"] == take_id), None)
     if take is None:
@@ -43,7 +47,7 @@ def replay(project: str, key: str, take_id: int, engine=None, lang=None) -> dict
             raise GvoiceError("take.replay_no_audio", take=take_id, order=key)
         expected = checks.sha256_of(audio)
     eng = engine or engine_mod.get_engine()
-    folder = tempfile.mkdtemp(prefix=".replay-", dir=str(orders.attempt_dir(project, key, take)))
+    folder = tempfile.mkdtemp(prefix=REPLAY_PREFIX, dir=str(orders.attempt_dir(project, key, take)))
     try:
         with machine_lock.hold():
             machine = limits.load_machine()

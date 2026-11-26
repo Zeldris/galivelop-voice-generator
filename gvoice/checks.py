@@ -16,7 +16,7 @@ per chunk with C-speed builtins (``sum(map(mul, ...))``, ``max``, ``count``), ne
 audio cannot be analysed, ``{"error": "<code>"}`` (the take is recorded all the same).
 
 Thresholds: `DEFAULTS` is the single place for their values; the project configuration (``checks`` in
-``project-config.schema.json``) overrides them field by field. The values are a first guess, **por afinar en la Deck**
+``project-config.schema.json``) overrides them field by field. The values are a first guess, **to be tuned on the Deck**
 (listening to real takes)."""
 from __future__ import annotations
 
@@ -104,7 +104,7 @@ def analyze(source, text: str, limits: dict | None = None) -> dict:
         else:
             voiced.append(None)
     peak = max(max(samples), -min(samples)) if samples else 0
-    clipped = samples.count(32767) + samples.count(-32768) if samples else 0
+    clipped = samples.count(32767) + samples.count(-32767) + samples.count(-32768) if samples else 0
 
     def ms(n):
         return n * 1000 // rate

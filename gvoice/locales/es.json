@@ -542,6 +542,7 @@
   "listening.criterion.tone": "Tono de audiolibro y entonación de la pregunta",
   "listening.criterion.stable": "Estable: repetir la misma semilla suena igual",
   "warning.listening.eliminatory_failed": "La toma tiene un «no» en criterios eliminatorios de la ficha de escucha ({ids}); se ha elegido igualmente.",
+  "error.listening.mark_conflict": "los criterios {ids} están marcados a la vez como sí y no",
   "error.listening.criterion_unknown": "«{criterion}» no es un criterio de escucha de este proyecto (criterios: {known})",
   "error.project.listening_duplicate": "el criterio de escucha «{id}» está repetido en la configuración",
   "cli.cmd.take_rate": "ficha de escucha de una toma: marcar criterios (sí/no), quitar marcas y la nota; sin opciones la muestra",

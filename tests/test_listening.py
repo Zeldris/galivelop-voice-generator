@@ -102,6 +102,27 @@ class RateTests(ListeningBase):
             orders.rate(PROJECT, "narrator", 1, yes=["theta"])
         self.assertEqual(ctx.exception.code, "listening.criterion_unknown")
 
+    def test_a_retired_criterion_can_be_cleared_but_not_marked(self):
+        orders.rate(PROJECT, "narrator", 1, no=["theta"])
+        self.configure([{"id": "calm", "eliminatory": False}])
+        with self.assertRaises(GvoiceError) as ctx:
+            orders.rate(PROJECT, "narrator", 1, clear=["accent"])  # unmarked and not a criterion
+        self.assertEqual(ctx.exception.code, "listening.criterion_unknown")
+        orders.rate(PROJECT, "narrator", 1, clear=["theta"])
+        self.assertNotIn("listening", self.take())
+
+    def test_the_same_id_in_yes_and_no_is_a_conflict(self):
+        with self.assertRaises(GvoiceError) as ctx:
+            orders.rate(PROJECT, "narrator", 1, yes=["theta", "clean"], no=["theta"])
+        self.assertEqual((ctx.exception.code, ctx.exception.params["ids"]), ("listening.mark_conflict", "theta"))
+        self.assertNotIn("listening", self.take())
+        code, _, err = self.run_cli("take", "rate", PROJECT, "narrator", "1", "--yes", "theta", "--no", "theta")
+        self.assertEqual(code, 1)
+        self.assertIn("theta are marked both yes and no", err)
+        code, _, err = self.run_cli("--lang", "es", "take", "rate", PROJECT, "narrator", "1", "--yes", "theta",
+                                    "--no", "theta")
+        self.assertIn("a la vez como sí y no", err)
+
 
 class ChooseTests(ListeningBase):
     def test_a_no_on_an_eliminatory_criterion_warns_and_still_chooses(self):

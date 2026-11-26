@@ -60,6 +60,8 @@ class MetricsTests(unittest.TestCase):
         self.assertEqual(m["clippedRatio"], 1.0)
         m = checks.analyze(wav(("flat", 500, -32768), ("flat", 500, 100)), TEN_CHARS)
         self.assertEqual(m["clippedRatio"], 0.5)
+        m = checks.analyze(wav(("flat", 500, 32767), ("flat", 500, -32767)), TEN_CHARS)
+        self.assertEqual(m["clippedRatio"], 1.0)
 
     def test_stereo_and_all_silence(self):
         m = checks.analyze(wav(("tone", 1000, 8000), ("sil", 500), channels=2), TEN_CHARS)
@@ -188,6 +190,14 @@ class TakeChecksTests(WorkerBase):
             take = self.make_voice()
         self.assertEqual(take["checks"], {"error": "take.analysis_failed"})
 
+    def test_a_sample_whose_analysis_blows_up_is_saved_with_the_error(self):
+        from unittest import mock
+        with mock.patch.object(checks, "checks_of", side_effect=RuntimeError("boom")):
+            orders.submit(self.p, {"type": "voice", "key": "s", "locale": "es-ES", "sample": {
+                "audio": make_wav(self.tmp / "s.wav", ms=1000, value=0), "text": "Amanece.", "source": "own",
+                "license": "CC0-1.0"}})
+        self.assertEqual(self.attempt("s", 1)["checks"], {"error": "take.analysis_failed"})
+
     def test_sample_take_has_checks_and_sha256(self):
         orders.submit(self.p, {"type": "voice", "key": "s", "locale": "es-ES", "sample": {
             "audio": make_wav(self.tmp / "s.wav", ms=1000, value=0), "text": "Amanece.", "source": "own",
@@ -266,11 +276,30 @@ class ReplayTests(CliBase):
         os.environ["GVOICE_FAKE_FAIL"] = "boom"
         code, _, err = self.run_cli("take", "replay", PROJECT, "narrator", "1")
         self.assertEqual(code, 2)
+        self.assertIn("boom", err)
         self.assertEqual(self.leftovers(), [])
         self.assertNotIn("replay", orders.get(PROJECT, "narrator")["attempts"][0])
 
+    def test_the_start_of_the_worker_deletes_a_killed_replay_folder(self):
+        old = self.path.parent / ".replay-old"
+        old.mkdir()
+        (old / "replay.wav").write_bytes(b"x")
+        keep = self.path.parent / "keep"
+        keep.mkdir()
+        self.assertEqual(worker.clean_workdirs(), 1)
+        self.assertFalse(old.exists())
+        self.assertTrue(keep.is_dir())
+
+    def test_order_show_skips_the_metrics_an_older_take_lacks(self):
+        self.edit(lambda a: a["checks"].pop("msPerChar"))
+        out = self.ok("order", "show", PROJECT, "narrator")
+        self.assertIn("checks:", out)
+        self.assertNotIn("msPerChar", out)
+
     def test_unknown_take(self):
-        self.assertEqual(self.run_cli("take", "replay", PROJECT, "narrator", "9")[0], 2)
+        code, out, err = self.run_cli("take", "replay", PROJECT, "narrator", "9")
+        self.assertEqual((code, out), (2, ""))
+        self.assertIn('has no attempt 9', err)
 
     def test_order_show_prints_warnings_translated(self):
         config = json.loads(CONFIG)

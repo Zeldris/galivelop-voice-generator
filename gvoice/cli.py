@@ -175,7 +175,7 @@ def _show_checks(out: _Out, a: dict) -> None:
     if c and "error" in c:
         out.line("cli.out.attempt_checks_error", code=c["error"])
     elif c:
-        out.line("cli.out.attempt_checks", metrics=", ".join("%s %s" % (k, c[k]) for k in checks.METRICS))
+        out.line("cli.out.attempt_checks", metrics=", ".join("%s %s" % (k, c[k]) for k in checks.METRICS if k in c))
         for w in c.get("warnings", []):
             out.line("cli.out.attempt_warning", text=sheet.Warning(w["code"], w["params"]).message(out.lang))
     r = a.get("replay")

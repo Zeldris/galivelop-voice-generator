@@ -11,8 +11,8 @@
 | **Rama** | `claude/0.4.0` (desde `ccr-5e26fc26-igtd9z` el 2026-11-26, mientras 0.3.3 espera a la Deck; 0.3.0 se cierra en `ccr-5e26fc26-igtd9z` y lo de aquí vuelve por merge) |
 | **Fase / tarea** | 0.4.0 (D19 vía 2 determinista): diseño con la persona, Q-7-Q-10 de `docs/questions.md` abiertas. 0.3.0: 0.3.1-0.3.2 hechos; 0.3.3 en la Deck. Presupuesto de compactaciones: 2 |
 | **Último punto estable** | 0.4.4 (2026-11-26): muestreo en el diálogo de nuevo pedido, avisos de las pruebas sin oído y ficha de escucha por toma en la interfaz y el simulador (ruta `rate`, `listening` en el detalle, `warnings` al elegir); antes, revisión de bloque fcaedae-0.4.3 con 7 arreglos (todo leve) y 0.4.3 (2026-11-26): ficha de escucha (`gvoice/listening.py`, `orders.rate`, `gvoice take rate`, aviso al elegir); antes, 0.4.2 (pruebas sin oído y `take replay`), revisión de bloque f17fbf9-0.4.1 con 4 arreglos y 0.4.1 (muestreo por pedido y por toma) |
-| **Siguiente paso** | 0.4.5 en la Deck (persona): E1-E8 de la investigación y cierre de F2.6; ruta `rate` del servidor real sigue en 501 hasta F4. Además 0.3.3 con `docs/records/deck-0.3.3/README.md` y el pedido del Portal |
-| **Check** | verde (`bash -n` de cada gancho, `unittest` 880 tests y `ci-local.py --validate`); sin CI visto aún en esta rama; `f17fbf9` **comprobado solo en local** (2026-11-26, confirmado por la persona): el CI no arrancó por cuota de Actions |
+| **Siguiente paso** | Revisión de bloque del diff desde `fcaedae` (`/code-review` en subagente `gw-reviewer`; arreglos con el trailer `Findings:`). Luego 0.4.5 en la Deck (persona): E1-E8 de la investigación y cierre de F2.6; la ruta `rate` del servidor real sigue en 501 hasta F4. Además 0.3.3 con `docs/records/deck-0.3.3/README.md` y el pedido del Portal |
+| **Check** | verde (`bash -n` de cada gancho, `unittest` 880 tests y `ci-local.py --validate`); `01a8751` y `f17fbf9` **comprobados solo en local** (2026-11-26, confirmado por la persona): el CI no arrancó por cuota de Actions; revisar la cuota antes del próximo PR a `main` |
 
 ## Para la próxima publicación
 

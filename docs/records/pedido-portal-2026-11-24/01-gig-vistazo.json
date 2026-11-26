@@ -1,0 +1,7 @@
+{
+  "$schema": "../../../gvoice/schemas/order.schema.json",
+  "key": "lectora-es/galivelop-image-generator/02-vistazo",
+  "type": "line",
+  "voice": "lectora-es",
+  "text": "¿En qué punto está? Está en desarrollo, con el código abierto. La última versión publicada es la cero punto seis, y la cero punto siete, con la hoja de marca como datos, ya está terminada y a falta de publicarse. Ahora trabaja en la pieza de marca, la versión cero punto ocho. Y faltan cosas importantes, y lo contamos igual: comprobar a mano en la Estím Dek el recorrido completo de la interfaz, y probar el servicio con el juego Uérld Méiker Fántasi. Lo último que ha cambiado lo tienes en las novedades, más abajo."
+}

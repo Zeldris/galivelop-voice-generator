@@ -1,0 +1,7 @@
+{
+  "$schema": "../../../gvoice/schemas/order.schema.json",
+  "key": "lectora-es/galivelop-image-generator/08-participar",
+  "type": "line",
+  "voice": "lectora-es",
+  "text": "Galivelóp i ge está abierto a colaboración, y el código es público. Si quieres aportar, aprender o simplemente saber más, escríbenos y te contamos cómo. Y si quieres que lo implantemos en tu proyecto, cuéntanoslo también. Gracias por escuchar."
+}

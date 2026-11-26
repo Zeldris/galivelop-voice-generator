@@ -1,0 +1,7 @@
+{
+  "$schema": "../../../gvoice/schemas/order.schema.json",
+  "key": "lectora-muestra-es/escucha-02",
+  "type": "line",
+  "voice": "lectora-muestra-es",
+  "text": "¿Cuántas veces te dije que el cielo se cierra a las seis?"
+}

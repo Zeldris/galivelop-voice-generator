@@ -1,0 +1,7 @@
+{
+  "$schema": "../../../gvoice/schemas/order.schema.json",
+  "key": "lectora-es/inicio/06-productos",
+  "type": "line",
+  "voice": "lectora-es",
+  "text": "Y antes de irte, una cosa más: del taller salen también dos productos de Álvaro, Galivelóp Divéloper y Galivelóp Iváliueitor. Los ves en la página de productos. Gracias por escuchar."
+}

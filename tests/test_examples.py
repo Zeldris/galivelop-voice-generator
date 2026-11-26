@@ -19,6 +19,12 @@ EXAMPLES = {
 ORDERS = ("examples/order-voice.json", "examples/order-line.json", "examples/order-voice-lectora-es.json",
           "examples/order-voice-sample-es.json")
 
+KIT_DIRS = ("docs/records/pedido-portal-2026-11-24", "docs/records/deck-0.3.3")
+
+
+def kit_orders():
+    return sorted(str(p.relative_to(ROOT)) for d in KIT_DIRS for p in (ROOT / d).glob("*.json"))
+
 
 def read(rel):
     with open(ROOT / rel, encoding="utf-8") as fh:
@@ -37,6 +43,21 @@ class ValidExamples(unittest.TestCase):
             self.assertEqual(errs(read(rel), name), [], rel)
         for rel in ORDERS:
             self.assertEqual(errs(read(rel), "order"), [], rel)
+
+    def test_deck_kit_orders_validate_and_have_unique_keys(self):
+        portal = sorted((ROOT / KIT_DIRS[0]).glob("*.json"))
+        self.assertEqual(len(portal), 7)
+        self.assertEqual(len(kit_orders()), 7 + 7)
+        keys = []
+        for rel in kit_orders():
+            data = read(rel)
+            self.assertEqual(errs(data, "order"), [], rel)
+            self.assertTrue((ROOT / Path(rel).parent / data["$schema"]).exists(), rel)
+            keys.append(data["key"])
+            if rel.startswith(KIT_DIRS[0]):
+                self.assertEqual((data["type"], data["voice"]), ("line", "lectora-es"), rel)
+                self.assertTrue(data["key"].startswith("lectora-es/"), rel)
+        self.assertEqual(len(keys), len(set(keys)))
 
     def test_example_schema_refs_point_to_existing_files(self):
         for rel in list(EXAMPLES.values()) + list(ORDERS):

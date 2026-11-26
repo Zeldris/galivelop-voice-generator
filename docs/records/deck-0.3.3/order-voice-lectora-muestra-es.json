@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../gvoice/schemas/order.schema.json",
+  "key": "lectora-muestra-es",
+  "type": "voice",
+  "locale": "es-ES",
+  "sample": {
+    "audio": "muestra.wav",
+    "text": "Sustituir por lo que se lea de verdad. Propuesta: Hace cinco días, en la zona de la cima, cierto cielo azul cubría el pueblo y nadie quiso decir nada.",
+    "source": "Grabación propia (rellenar: quién, cuándo y con qué micrófono)",
+    "license": "Rellenar (por ejemplo, la licencia con la que se cede la grabación)"
+  }
+}

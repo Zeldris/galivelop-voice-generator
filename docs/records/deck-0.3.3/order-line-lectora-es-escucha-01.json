@@ -1,0 +1,7 @@
+{
+  "$schema": "../../../gvoice/schemas/order.schema.json",
+  "key": "lectora-es/escucha-01",
+  "type": "line",
+  "voice": "lectora-es",
+  "text": "Hace cinco días llegamos a la zona del puerto."
+}

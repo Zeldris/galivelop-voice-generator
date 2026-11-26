@@ -1,0 +1,7 @@
+{
+  "$schema": "../../../gvoice/schemas/order.schema.json",
+  "key": "lectora-es/equipo/02-alvaro-garcia-grana",
+  "type": "line",
+  "voice": "lectora-es",
+  "text": "Empezamos por Álvaro García Graña, fundador del taller. Es arquitecto de software e ingeniero de sistemas de inteligencia artificial, y le interesa sobre todo la infraestructura que funciona en local. Creó Tarkor, Galivelóp uórkflou y Galivelóp i ge, y forma parte del equipo de toVeriAI. Además, lleva dos productos del taller: Galivelóp Divéloper y Galivelóp Iváliueitor. Pulsa Ver perfil para conocer más de él."
+}

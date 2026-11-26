@@ -1,0 +1,7 @@
+{
+  "$schema": "../../../gvoice/schemas/order.schema.json",
+  "key": "lectora-es/galivelop-workflow/07-avance",
+  "type": "line",
+  "voice": "lectora-es",
+  "text": "En el avance ves el camino. Las primeras versiones y los pilotos ya están hechos, y también las que añadieron la base, la medida del gasto, las preguntas con otros agentes y, la última, la interfaz, con idiomas configurables, perfiles de instalación y pruebas de interfaz. Lo que falta: la versión cero punto diez, una versión estable, con un repaso de la documentación y la seguridad. Y la uno punto cero llegará con un panel local, el Mánachment Cénter, para consultar y configurar. Debajo están las novedades, semana a semana."
+}

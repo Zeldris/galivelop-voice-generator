@@ -1,0 +1,7 @@
+{
+  "$schema": "../../../gvoice/schemas/order.schema.json",
+  "key": "lectora-es/inicio/05-participa",
+  "type": "line",
+  "voice": "lectora-es",
+  "text": "Para terminar, una pregunta: ¿creamos juntos? Galivelóp crece con las personas que se suman. No pedimos experiencia: pedimos ganas de construir, de aprender y de hacerlo en equipo. Hay tres caminos. Puedes colaborar en un proyecto abierto, con código, arte, textos, pruebas o investigación. Puedes proponernos ese proyecto que parece imposible. O puedes venir a aprender, que el mejor sitio para hacerlo es un proyecto de verdad. Funciona así: nos escribes, hablamos para ver dónde encajas, empiezas con una tarea pequeña y, desde ahí, creces a tu ritmo. Si tienes un proyecto propio, algunos miembros del equipo aceptan encargos, cada uno por su cuenta: en su perfil ves su trabajo y cómo escribirle. Y si quieres conocernos antes, o solo lanzar una idea, te esperamos en Díscord."
+}

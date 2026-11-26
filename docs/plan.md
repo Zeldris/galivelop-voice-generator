@@ -247,13 +247,13 @@ Decidido con la persona (Q-1-Q-4 de `docs/questions.md`):
   reserva. El pedido guarda origen y licencia.
 - **Motor:** solo Qwen3 Base en 0.3.0; Chatterbox entra como motor enchufable (D18) solo si en la Deck suena
   claramente más peninsular.
-- **Portal:** los 7 trozos del pedido del 2026-11-24 se generan ya con la `lectora-es` actual (vía 2), en la Deck.
+- **Portal:** los 7 trozos del pedido del 2026-11-24 se generan ya con la `lectora-es` actual (vía 2), en la Deck (pasos en [«En la Deck»](records/pedido-portal-2026-11-24.md#en-la-deck)).
 
 | Paso | Qué | Estado |
 |---|---|---|
 | 0.3.1 | Núcleo: esquema, `orders`, `worker`, `cli`, paquete, ejemplo y tests | hecho |
 | 0.3.2 | Interfaz: modo «muestra» en el diálogo de pedido nuevo y la toma de muestra en la vista | hecho |
-| 0.3.3 | En la Deck (persona): voz desde muestra con Qwen3 Base, escucha frente a la `lectora-es` | pendiente |
+| 0.3.3 | En la Deck (persona): voz desde muestra con Qwen3 Base, escucha frente a la `lectora-es` ([kit y pasos](records/deck-0.3.3/README.md)) | pendiente |
 
 ## Pendiente
 

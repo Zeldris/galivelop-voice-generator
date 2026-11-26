@@ -79,3 +79,83 @@ si quieres conocernos antes, o solo lanzar una idea, te esperamos en Discord.
 
 Y antes de irte, una cosa más: del taller salen también dos productos de Álvaro, Galivelop Developer y Galivelop
 Evaluator. Los ves en la página de productos. Gracias por escuchar.
+
+## En la Deck
+
+Los 7 pedidos ya están escritos, con el texto **como se pronuncia**, en
+[`pedido-portal-2026-11-24/`](pedido-portal-2026-11-24/) (el texto original queda arriba, en este archivo). Si usas
+VS Code en Flatpak, las órdenes del anfitrión van con `flatpak-spawn --host` delante (ver
+[`docs/investigacion/2026-10-25-banco-deck.md`](../investigacion/2026-10-25-banco-deck.md)).
+
+### Pronunciación usada
+
+Es una **primera propuesta, a confirmar escuchando**. Si una suena mal, se corrige editando el `text` del JSON y
+volviendo a enviarlo (`order submit` con la misma clave; después `attempt new` para las tomas nuevas; si `order submit` rechaza el cambio, se dice en su mensaje).
+
+| Original | Escrito como se pronuncia |
+|---|---|
+| Galivelop | Galivelóp |
+| IG (en «Galivelop IG») | i ge |
+| workflow | uórkflou |
+| Galivelop-workflow | Galivelóp uórkflou |
+| Developer | Divéloper |
+| Evaluator | Iváliueitor |
+| Steam Deck | Estím Dek |
+| World-Maker-Fantasy | Uérld Méiker Fántasi |
+| Management Center | Mánachment Cénter |
+| Discord | Díscord |
+
+### Órdenes
+
+Desde la raíz del repo (los comandos son `python3 -m gvoice ...`; todos verificados con `--help`):
+
+```sh
+# 1. El proyecto «portal» registrado y la voz lectora-es elegida
+python3 -m gvoice project list                      # si falta: python3 -m gvoice project add <carpeta del portal>
+python3 -m gvoice order show portal lectora-es      # tiene que salir con una toma elegida
+python3 -m gvoice order list portal --type voice --chosen
+
+# 2. Enviar los 7 pedidos (una toma cada uno; --count 3 para tener donde elegir)
+for f in docs/records/pedido-portal-2026-11-24/*.json; do
+  python3 -m gvoice order submit portal "$f" --count 3
+done
+
+# 3. Generar (procesa la cola hasta vaciarla)
+python3 -m gvoice work
+```
+
+Si `lectora-es` no está elegida, se pide y se elige antes con `examples/order-voice-lectora-es.json` y
+`python3 -m gvoice choose portal lectora-es <toma>`.
+
+**Dónde caen las tomas:** `~/.local/share/galivelop-voice/projects/portal/orders/<clave>/@/attempts/<id>/audio.wav`
+(con `GVOICE_DATA_HOME` o `XDG_DATA_HOME` cambia la raíz). La clave es, por ejemplo,
+`lectora-es/inicio/06-productos`, y `<id>` (`1`, `q3`...) sale en `python3 -m gvoice order show portal <clave>`.
+
+**Escuchar y decidir, trozo a trozo:**
+
+```sh
+python3 -m gvoice order show portal lectora-es/inicio/06-productos
+python3 -m gvoice attempt mark portal lectora-es/inicio/06-productos 2 candidate   # new | candidate | discarded
+python3 -m gvoice attempt note portal lectora-es/inicio/06-productos 2 "«Díscord» bien; pausa larga tras «más»"
+python3 -m gvoice choose portal lectora-es/inicio/06-productos 2
+# ¿Suena mal una palabra? Editar el text del JSON, volver a enviarlo y pedir tomas nuevas:
+python3 -m gvoice order submit portal docs/records/pedido-portal-2026-11-24/07-inicio-productos.json
+python3 -m gvoice attempt new portal lectora-es/inicio/06-productos --count 2   # tomas extra con otra semilla
+```
+
+**Obtener el WAV final** (cadena `lectura` sobre la toma elegida; sustituye al que haya con ese nombre). Ejemplo del
+trozo 7, con `T` la ruta del `audio.wav` de la toma elegida y `final/` en la raíz del portal:
+
+```sh
+T=~/.local/share/galivelop-voice/projects/portal/orders/lectora-es/inicio/06-productos/@/attempts/<id>/audio.wav
+python3 -m gvoice fx apply lectura "$T" <portal>/final/es/inicio/06-productos.wav
+```
+
+Se repite para cada trozo con su destino de la tabla de trozos (`final/es/<página>/<nn>-<seccion>.wav`). Hay que crear
+antes la carpeta de destino si no existe, y comprobar que `fx apply` la acepta (necesita `ffmpeg`).
+
+**Límites del CLI:** no hay una orden que copie la toma elegida a `final/` ni que diga la ruta del WAV elegido (hay
+que sacarla de `order show` y de la carpeta de datos), y `gvoice` no escribe la columna «Estado» de este archivo.
+
+**Al terminar:** en la tabla «Trozos», cambiar «pendiente» por «aprobado» en los trozos cuya toma se ha escuchado y
+dado por buena, y decir a la persona cuáles están aprobados para pasarlos a MP3 en el portal.

@@ -12,7 +12,7 @@
 | **Fase / tarea** | 0.3.0, 0.3.1 y 0.3.2 hechos y revisados (voz desde muestra: núcleo e interfaz) |
 | **Último punto estable** | Barrido de los leves de la revisión 0.3.1-0.3.2 hecho (2026-11-26); antes, Kit de la Deck preparado (2026-11-26): pedidos del Portal escritos como se pronuncia y kit 0.3.3; antes, revisión de bloque 0.3.1-0.3.2 hecha con 2 arreglos (2026-11-25): `order.sample_changed` (mismo audio con otra transcripción o variante, también en el simulador) y `submit_order` de muestra sin `check_count`; leves en `docs/records/pending.md`; el trailer `Findings: 2` de esos arreglos (`b493122`) faltaba y va en el commit siguiente; check verde |
 | **Siguiente paso** | En la Deck (persona): 0.3.3, voz desde muestra con Qwen3 Base y escucha, con `docs/records/deck-0.3.3/README.md`; y el pedido del Portal (7 trozos con la `lectora-es` actual) con la sección «En la Deck» de `docs/records/pedido-portal-2026-11-24.md` |
-| **Check** | verde (`bash -n` de cada gancho, `unittest` 788 tests y `ci-local.py --validate`) |
+| **Check** | verde (`bash -n` de cada gancho, `unittest` 788 tests y `ci-local.py --validate`); `f17fbf9` **comprobado solo en local** (2026-11-26, confirmado por la persona): el CI no arrancó por cuota de Actions; revisar la cuota antes del próximo PR a `main` |
 
 ## Para la próxima publicación
 

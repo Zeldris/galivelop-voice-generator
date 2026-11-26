@@ -279,7 +279,7 @@ Decidido con la persona (Q-7-Q-10 de `docs/questions.md`); base: `docs/investiga
 | 0.4.1 | Muestreo: esquemas, configuración, catálogo, motor real y falso, worker y toma | hecho |
 | 0.4.2 | Pruebas sin oído y `gvoice take replay` | hecho |
 | 0.4.3 | Ficha de escucha: núcleo y CLI (`gvoice take rate`) | hecho |
-| 0.4.4 | Interfaz: muestreo en el diálogo, avisos y ficha en la toma (también en el simulador) | — |
+| 0.4.4 | Interfaz: muestreo en el diálogo, avisos y ficha en la toma (también en el simulador) | hecho |
 | 0.4.5 | En la Deck (persona): E1-E8 de la investigación y cierre de F2.6 | — |
 
 ## Pendiente

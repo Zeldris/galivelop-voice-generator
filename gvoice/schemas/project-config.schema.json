@@ -71,6 +71,51 @@
     "sampling": {
       "$ref": "common.schema.json#/$defs/sampling",
       "description": "Default sampling of the project's takes; overridden by an order, over the engine catalog."
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Thresholds of the checks without listening (0.4.2) on each take's audio. Every field is optional; the defaults are in gvoice/checks.py (DEFAULTS, to be tuned on the Deck). Warnings never block.",
+      "properties": {
+        "silenceDbfs": {
+          "type": "number",
+          "description": "A 20 ms window with RMS below this level (dBFS) is silence.",
+          "maximum": 0,
+          "minimum": -120
+        },
+        "msPerCharMin": {
+          "type": "number",
+          "description": "Fewer milliseconds of audio per character than this: take.too_fast.",
+          "exclusiveMinimum": 0
+        },
+        "msPerCharMax": {
+          "type": "number",
+          "description": "More milliseconds of audio per character than this: take.too_slow.",
+          "exclusiveMinimum": 0
+        },
+        "innerSilenceMaxMs": {
+          "type": "number",
+          "description": "A silence between voiced stretches longer than this (ms): take.long_silence.",
+          "minimum": 0
+        },
+        "trailingSilenceMaxMs": {
+          "type": "number",
+          "description": "A final silence longer than this (ms): take.trailing_silence.",
+          "minimum": 0
+        },
+        "clippedRatioMax": {
+          "type": "number",
+          "description": "A share of samples at full scale above this (0 to 1): take.clipping.",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "rmsDbfsMin": {
+          "type": "number",
+          "description": "An RMS of the voiced windows below this level (dBFS): take.too_quiet.",
+          "maximum": 0,
+          "minimum": -120
+        }
+      }
     }
   }
 }

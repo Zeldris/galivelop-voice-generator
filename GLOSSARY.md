@@ -111,6 +111,19 @@ catálogo del motor; la toma guarda los efectivos junto a la semilla. Una línea
 _Evitar_: parámetros, ajustes
 _En código_: sampling
 
+**Pruebas sin oído**:
+Las comprobaciones automáticas del audio de cada toma, con la biblioteca estándar: segundos por carácter, silencio
+interno y final, recorte y nivel. Dan métricas y avisos (`take.too_fast`, `take.too_slow`, `take.long_silence`,
+`take.trailing_silence`, `take.clipping`, `take.too_quiet`) que la toma guarda junto al `sha256` de su audio; no
+bloquean nada y sus umbrales salen de `checks` de la configuración del proyecto (por afinar en la Deck).
+_Evitar_: validación, control de calidad
+_En código_: checks
+
+**Replay**:
+Regenerar una toma con exactamente lo que guardó (semilla, texto, instrucción o voz, muestreo, modelo y dispositivo)
+y comparar el `sha256` del audio con el de la toma (`gvoice take replay`). Una toma de muestra no se regenera.
+_En código_: replay
+
 **Candidata**:
 Un intento que la persona marca como bueno sin elegirlo todavía.
 _En código_: candidate

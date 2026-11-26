@@ -19,6 +19,9 @@ lock is held for the whole job, so another generator (the image one) never runs 
 * ``prints``: for each model `orders.missing_prints` says the take lacks: engine ``voiceprint`` on the take's audio
   -> ``orders.set_prints``. A model that fails stops the job (the ones already made stay).
 
+Each take also stores ``sha256`` of its audio and ``checks`` (`checks.for_take`: metrics and warnings without
+listening, or ``{"error": code}``; never fails the job). `build_job` builds the engine job (also used by `replay`).
+
 Audio: named after the queue entry id. The engine writes ``attempts/q<entry>/.pending.wav``; the worker
 `os.replace`s it onto ``audio.wav`` and only then calls `orders.add_attempt(..., entry_id=entry)`, idempotent per
 entry: a crash at any point leaves either no attempt or one with its audio, and a retry never duplicates it. The
@@ -50,7 +53,7 @@ import threading
 import time
 
 from . import engine as engine_mod
-from . import i18n, limits, log, machine_lock, orders, paths, queue, sampling, speech_locale
+from . import checks, i18n, limits, log, machine_lock, orders, paths, queue, sampling, speech_locale
 from .errors import GvoiceError
 
 MEMORY_POLL_S = 0.5  # how often a job waiting for memory looks again
@@ -165,6 +168,43 @@ def _model_of(machine: dict, use: str):
     return model
 
 
+def build_job(project: str, p: dict, output, machine: dict, model, device=None, no_fallback=False):
+    """The engine job of a take and the spec fields it adds: ``(job, extra)``. The one place a ``voice`` or ``line``
+    job is built, for the worker (`_take`) and for `replay`. `p` has ``kind``, ``seed``, ``text``, ``sampling`` and,
+    for a voice, ``instruction`` and ``locale``; for a line, ``voice`` and ``reference`` (the take id in that voice:
+    its locale and text are the ones used; ``worker.print_missing`` if its prints for `model` are not there)."""
+    common = dict(seed=p["seed"], text=p["text"], output=str(output), model=model, device=device, machine=machine,
+                  timeout_s=limits.timeout_s(machine), sampling=p["sampling"], no_fallback=no_fallback)
+    if p["kind"] == "voice":
+        job = engine_mod.DesignJob(instruction=p["instruction"], language=speech_locale.language(p.get("locale")),
+                                   **common)
+        extra = {"instruction": p["instruction"]}
+        if p.get("locale"):
+            extra["locale"] = p["locale"]
+        return job, extra
+    voice = p["voice"]
+    voice_order = orders.get(project, voice)
+    reference = next((a for a in voice_order["attempts"] if a["id"] == p["reference"]), None)
+    if reference is None:
+        raise GvoiceError("order.reference_unknown", reference=str(p["reference"]), voice=voice)
+    spk, rvq = orders.print_paths(project, voice, reference, model)
+    if not (spk.is_file() and rvq.is_file()):
+        raise GvoiceError("worker.print_missing", model=model, voice=voice, take=reference["id"])
+    job = engine_mod.LineJob(
+        spk=str(spk), rvq=str(rvq), reference_text=reference.get("text"),
+        language=speech_locale.language(reference.get("locale")),  # the take's, not the voice's now
+        **common)
+    extra = {"voice": voice, "reference": p["reference"]}
+    if reference.get("locale"):
+        extra["locale"] = reference["locale"]
+    return job, extra
+
+
+def run_job(eng, job, should_cancel):
+    """Run a job built by `build_job` on the engine."""
+    return eng.design(job, should_cancel) if isinstance(job, engine_mod.DesignJob) else eng.line(job, should_cancel)
+
+
 def _take(entry: dict, eng, machine: dict, state: dict, should_cancel):
     """A ``voice`` or ``line`` take, up to and including `add_attempt`; returns the attempt id."""
     entry_id, project, key = entry["id"], entry["project"], entry["key"]
@@ -177,39 +217,19 @@ def _take(entry: dict, eng, machine: dict, state: dict, should_cancel):
     # the effective sampling the entry was queued with (an entry from before 0.4.1 has none, a partial one is completed: resolved now)
     take_sampling = sampling.merge(entry.get("sampling"), sampling.effective(project, orders.get(project, key)))
     spec = {"seed": entry["seed"], "text": entry["text"], "sampling": take_sampling}
+    params = {"kind": entry["kind"], "seed": entry["seed"], "text": entry["text"], "sampling": take_sampling}
     if entry["kind"] == "voice":
         model = _model_of(machine, "design")
-        job = engine_mod.DesignJob(
-            instruction=entry["instruction"], text=entry["text"], seed=entry["seed"], output=str(tmp), model=model,
-            machine=machine, timeout_s=limits.timeout_s(machine),
-            language=speech_locale.language(entry.get("locale")), sampling=take_sampling)
-        spec["instruction"] = entry["instruction"]
-        if entry.get("locale"):
-            spec["locale"] = entry["locale"]
-        state["spec"] = {"model": model, "text": entry["text"]}
-        state["result"] = eng.design(job, should_cancel)
+        params.update(instruction=entry["instruction"], locale=entry.get("locale"))
     else:
         model = queue.production_model(project, machine)
         limits.check_model("produce", model, machine)
-        voice = entry.get("voice") or orders.get(project, key)["voice"]  # old queue files have no voice
-        voice_order = orders.get(project, voice)
-        reference = next((a for a in voice_order["attempts"] if a["id"] == entry["reference"]), None)
-        if reference is None:
-            raise GvoiceError("order.reference_unknown", reference=str(entry["reference"]), voice=voice)
-        spk, rvq = orders.print_paths(project, voice, reference, model)
-        if not (spk.is_file() and rvq.is_file()):
-            raise GvoiceError("worker.print_missing", model=model, voice=voice, take=reference["id"])
-        job = engine_mod.LineJob(
-            spk=str(spk), rvq=str(rvq), text=entry["text"], seed=entry["seed"], output=str(tmp), model=model,
-            machine=machine, timeout_s=limits.timeout_s(machine), reference_text=reference.get("text"),
-            language=speech_locale.language(reference.get("locale")),  # the take's, not the voice's now
-            sampling=take_sampling)
-        if reference.get("locale"):
-            spec["locale"] = reference["locale"]
-        spec["voice"] = voice
-        spec["reference"] = entry["reference"]
-        state["spec"] = {"model": model, "text": entry["text"]}
-        state["result"] = eng.line(job, should_cancel)
+        params.update(voice=entry.get("voice") or orders.get(project, key)["voice"],  # old queue files have no voice
+                      reference=entry["reference"])
+    job, extra = build_job(project, params, tmp, machine, model)
+    spec.update(extra)
+    state["spec"] = {"model": model, "text": entry["text"]}
+    state["result"] = run_job(eng, job, should_cancel)
     if should_cancel():
         raise engine_mod.Cancelled()
     final = tmp.parent / "audio.wav"
@@ -220,6 +240,10 @@ def _take(entry: dict, eng, machine: dict, state: dict, should_cancel):
     state["tmp"] = None
     state["final"] = final  # if add_attempt fails nothing refers to the audio
     spec["result"] = state["result"]
+    try:  # the take is recorded whatever the analysis says (a bad WAV is ``checks: {"error": ...}``)
+        spec.update(checks.for_take(project, final, entry["text"]))
+    except Exception:
+        spec["checks"] = {"error": "take.analysis_failed"}
     attempt_id = orders.add_attempt(project, key, spec, entry_id=entry_id)
     state["final"] = None
     return attempt_id

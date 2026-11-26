@@ -42,7 +42,7 @@ import wave
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import fsutil, paths, projects, sampling, schema, sheet
+from . import checks, fsutil, paths, projects, sampling, schema, sheet
 from .errors import GvoiceError
 
 STATES = ("new", "candidate", "discarded")
@@ -254,7 +254,8 @@ def _add_sample_take(project: str, key: str, record: dict, sample: dict, text: s
     folder = _attempt_folder(new_id, None)
     take = {"id": new_id, "state": "new", "seed": None, "text": text, "dir": folder, "audio": folder + "/audio.wav",
             "note": "", "createdAt": now, "source": "sample", "locale": record["locale"], "audioMs": sample["audioMs"],
-            "prints": {}, "sha256": sample["sha256"]}
+            "prints": {}, "sha256": sample["sha256"],
+            "checks": checks.checks_of(io.BytesIO(sample["data"]), text, checks.thresholds(project))}
     fsutil.write_bytes(paths.inside(_order_dir(project, key), take["audio"]), sample["data"])
     record["attempts"].append(take)
 
@@ -361,7 +362,7 @@ def add_attempt(project: str, key: str, spec: dict, entry_id=None) -> int:
     the attempt records ``queueEntry`` and the call is idempotent per entry (an existing one's id is returned).
     ``result``, an `EngineResult` (or its dict), is stored as the D16 metadata: ``device``, ``engineVersion``,
     ``engineCommit``, ``model``, ``durationMs``, ``audioMs``, ``loadMs`` and ``command``; the seed stored is the
-    spec's, and so is ``sampling`` (the effective values, when the spec has them). Nothing is read or written on disk: the audio is the caller's job."""
+    spec's, and so are ``sampling`` (the effective values), ``checks`` and ``sha256`` (0.4.2, `checks.for_take`), when the spec has them. Nothing is read or written on disk: the audio is the caller's job."""
     if entry_id is not None and (type(entry_id) is not int or entry_id < 1):
         raise GvoiceError("order.spec_invalid", missing="entry_id")
     current = get(project, key)
@@ -401,6 +402,10 @@ def add_attempt(project: str, key: str, spec: dict, entry_id=None) -> int:
             record["reference"] = spec["reference"]
         if isinstance(spec.get("sampling"), dict):  # the effective values (a sample take has none)
             record["sampling"] = copy.deepcopy(spec["sampling"])
+        if isinstance(spec.get("checks"), dict):  # 0.4.2: metrics and warnings of the audio (or its error)
+            record["checks"] = copy.deepcopy(spec["checks"])
+        if isinstance(spec.get("sha256"), str):
+            record["sha256"] = spec["sha256"]
         if spec.get("locale"):  # the language the take was spoken in (a line: its reference take's)
             record["locale"] = spec["locale"]
         if entry_id is not None:
@@ -436,6 +441,16 @@ def set_prints(project: str, key: str, attempt_id: int, model: str, result=None)
             if result and result.get(name) is not None:
                 meta[field] = result[name]
         item.setdefault("prints", {})[model] = meta
+        return copy.deepcopy(item)
+
+    return _modify(project, key, change)
+
+
+def set_replay(project: str, key: str, attempt_id: int, replay: dict) -> dict:
+    """Store ``replay`` (``{at, device, sha256, same}``, the last one) on take `attempt_id`; returns the take (a copy)."""
+    def change(order):
+        item = _attempt(order, attempt_id)
+        item["replay"] = copy.deepcopy(replay)
         return copy.deepcopy(item)
 
     return _modify(project, key, change)

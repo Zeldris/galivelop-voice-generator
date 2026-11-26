@@ -4,7 +4,7 @@ Copiado de gimg@fa1076e (D7); adaptado a gvoice (D9, D10): sin perfiles, composi
 los pedidos son ``voice`` o ``line`` y se identifican por proyecto + clave.
 
 Exit codes: 0 ok, 1 a `GvoiceError` or an unexpected error (the message goes to stderr), 2 usage error, 130
-interrupted. ``--json`` prints the data instead of text; ``--lang`` picks the language of the messages."""
+interrupted; ``take replay`` is 0 for the same audio, 1 for different audio and 2 for an error. ``--json`` prints the data instead of text; ``--lang`` picks the language of the messages."""
 from __future__ import annotations
 
 import argparse
@@ -14,7 +14,7 @@ import sys
 import traceback
 from pathlib import Path
 
-from . import __version__, bench, effects, engine, i18n, limits, models, orders, projects, queue, server, sheet, worker
+from . import __version__, bench, checks, effects, engine, i18n, limits, models, orders, projects, queue, replay, server, sheet, worker
 from .errors import GvoiceError
 
 LANGS = ("es", "en")
@@ -81,6 +81,9 @@ def _build(lang: str) -> argparse.ArgumentParser:
     leaf(g, "mark", "cli.cmd.attempt_mark", project, okey, attempt,
          arg("state", "cli.arg.state", choices=orders.STATES))
     leaf(g, "note", "cli.cmd.attempt_note", project, okey, attempt, arg("text", "cli.arg.text"))
+
+    g = group(top, "take", "cli.cmd.take")
+    leaf(g, "replay", "cli.cmd.take_replay", project, okey, arg("take", "cli.arg.attempt", type=int))
 
     leaf(top, "choose", "cli.cmd.choose", project, okey, attempt)
     leaf(top, "undo", "cli.cmd.undo", project, okey)
@@ -159,6 +162,21 @@ def _sampling_text(s: dict) -> str:
     return text + ", greedy" if s["greedy"] else text
 
 
+def _show_checks(out: _Out, a: dict) -> None:
+    """The metrics and the translated warnings of a take, and its last replay."""
+    c = a.get("checks")
+    if c and "error" in c:
+        out.line("cli.out.attempt_checks_error", code=c["error"])
+    elif c:
+        out.line("cli.out.attempt_checks", metrics=", ".join("%s %s" % (k, c[k]) for k in checks.METRICS))
+        for w in c.get("warnings", []):
+            out.line("cli.out.attempt_warning", text=sheet.Warning(w["code"], w["params"]).message(out.lang))
+    r = a.get("replay")
+    if r:
+        out.line("cli.out.attempt_replay", at=r["at"], device=out.none(r["device"]),
+                 result=out.t("cli.out.replay_same_short" if r["same"] else "cli.out.replay_different_short"))
+
+
 def _stale_view(project: str, record: dict) -> dict:
     """The record plus what is stale (D10): ``stale`` for a line, ``staleLines`` for a voice."""
     item = dict(record)
@@ -230,6 +248,7 @@ def _order(args, sub, out: _Out) -> None:
                 out.line("cli.out.attempt_prints", models=", ".join(a.get("prints") or {}) or out.t("cli.out.none"))
             if a.get("sampling"):
                 out.line("cli.out.attempt_sampling", sampling=_sampling_text(a["sampling"]))
+            _show_checks(out, a)
             if a.get("note"):
                 out.line("cli.out.attempt_note", note=a["note"])
 
@@ -363,6 +382,17 @@ def _run(args, out: _Out) -> int:
         _attempt(args, sub, out)
     elif cmd in ("choose", "undo"):
         _choose_undo(args, out)
+    elif cmd == "take":
+        try:
+            found = replay.replay(args.project, args.key, args.take, lang=out.lang)
+        except Exception as exc:  # 1 means "different audio" here, so an error is 2 (engine failures included)
+            print(queue.error_text(worker._error_for(exc), out.lang), file=sys.stderr)
+            return 2
+        if out.as_json:
+            out.data(found)
+        else:
+            out.line("cli.out.replay_same" if found["same"] else "cli.out.replay_different", id=args.take, **found)
+        return 0 if found["same"] else 1
     elif cmd == "queue":
         _queue(args, sub, out)
     elif cmd == "models":

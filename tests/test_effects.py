@@ -323,6 +323,17 @@ class WithFfmpeg(unittest.TestCase):
         self.assertIn("loudnorm=", data["filter"])
         self.assertTrue(dst.is_file())
 
+    def test_failing_replace_is_a_translated_error_not_a_raw_oserror(self):
+        src, dst = self.dir / "in.wav", self.dir / "out.wav"
+        write_wav_header(src, rate=24000, fmt=3, bits=32)
+        with mock.patch.object(effects, "_run", side_effect=_touch_output), \
+                mock.patch("gvoice.effects.os.replace", side_effect=OSError("disk full")):
+            with self.assertRaises(GvoiceError) as cm:
+                effects.apply(chain({"type": "gain", "gainDb": 1}), src, dst)
+        self.assertEqual((cm.exception.code, cm.exception.params["reason"]), ("effects.failed", "disk full"))
+        self.assertEqual(cm.exception.message("en"), "ffmpeg failed: disk full")
+        self.assertFalse(list(self.dir.glob(".*.tmp")))
+
     def test_cli_unsupported_step_exits_1_with_the_reason(self):
         import contextlib
         import io

@@ -306,6 +306,17 @@ if __name__ == "__main__":
 
 
 class SampleVoiceSchemaTests(unittest.TestCase):
+    def test_source_and_license_are_defined_once_in_common(self):
+        refs = {"source": "common.schema.json#/$defs/sampleSource", "license": "common.schema.json#/$defs/sampleLicense"}
+        order = S.load_schema("order")["properties"]["sample"]["properties"]
+        voice = S.load_schema("voice")["properties"]
+        for name, ref in refs.items():
+            self.assertEqual(order[name], {"$ref": ref})
+            self.assertEqual(voice[name], {"$ref": ref})
+        too_long = {"type": "voice", "key": "v", "locale": "es-ES", "sample": {
+            "audio": "/a.wav", "text": "t", "source": "x" * 501, "license": "x"}}
+        self.assertTrue(S.validate(too_long, S.load_schema("order")))
+
     def test_voice_json_from_a_sample_has_source_and_license_not_sheet_and_device(self):
         sch = S.load_schema("voice")
         voice = {"key": "v", "reference": {"audio": "reference.wav", "text": "reference.txt"},
@@ -315,4 +326,6 @@ class SampleVoiceSchemaTests(unittest.TestCase):
             partial = {k: v for k, v in voice.items() if k != drop}
             self.assertTrue(S.validate(partial, sch), drop)
         self.assertTrue(S.validate(dict(voice, device="cpu"), sch))
+        errors = S.validate({k: v for k, v in voice.items() if k != "locale"}, sch)
+        self.assertTrue(errors and "locale" in " ".join(S.format_error(e, "en") for e in errors))
         self.assertTrue(S.validate(dict(voice, designSheet={}), sch))  # a sheet needs a device and has no source

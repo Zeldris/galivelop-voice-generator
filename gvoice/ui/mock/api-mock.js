@@ -199,7 +199,9 @@ async function loadLocale(lang) {
 const fill = (s, params) => s.replace(/\{(\w+)\}/g, (m, k) => (k in params ? String(params[k]) : m));
 async function text(lang, key, params = {}) { const d = await loadLocale(lang); return fill(d[key] || key, params); }
 async function fail(lang, status, code, params = {}) {
-  return { status, json: { error: { code, params, message: await text(lang, 'error.' + code, params) } } };
+  const shown = code === 'order.origin_changed'   // was/new son códigos de origen: se muestran en el idioma
+    ? { ...params, was: await text(lang, 'order.origin.' + params.was), new: await text(lang, 'order.origin.' + params.new) } : params;
+  return { status, json: { error: { code, params, message: await text(lang, 'error.' + code, shown) } } };
 }
 const ok = (json, status = 200) => ({ status, json });
 const warnView = async (lang, list) => Promise.all(list.map(async (w) => ({ ...w, message: await text(lang, 'warning.' + w.code, w.params) })));
@@ -252,10 +254,10 @@ route('POST', '/api/projects/{p}/orders', async (c) => {
   if (sample) {   // como orders.submit: locale obligatoria, sin ficha ni semilla ni frase de prueba
     if (spec.designSheet || spec.testText !== undefined || spec.seed !== undefined || !LOCALES.includes(spec.locale)) return fail(c.lang, 400, 'api.bad_param', { name: 'order' });
     for (const f of ['audio', 'text', 'source', 'license']) if (typeof sample[f] !== 'string' || !sample[f].trim()) return fail(c.lang, 400, 'api.bad_param', { name: 'order' });
-    if (record && !record.sample) return fail(c.lang, 409, 'order.origin_changed', { order: spec.key, was: 'design sheet', new: 'sample' });
+    if (record && !record.sample) return fail(c.lang, 409, 'order.origin_changed', { order: spec.key, was: 'sheet', new: 'sample' });
     // el audio del simulador es siempre el mismo: como orders.submit, otra transcripción o variante exige otro audio
     if (record && record.attempts.some((a) => a.source === 'sample' && (a.text !== sample.text.trim() || a.locale !== spec.locale))) return fail(c.lang, 409, 'order.sample_changed', { order: spec.key });
-  } else if (record && record.sample) return fail(c.lang, 409, 'order.origin_changed', { order: spec.key, was: 'sample', new: 'design sheet' });
+  } else if (record && record.sample) return fail(c.lang, 409, 'order.origin_changed', { order: spec.key, was: 'sample', new: 'sheet' });
   if (!record) {
     record = { key: spec.key, type: spec.type, attempts: [], chosen: null, chosenHistory: [], createdAt: now() };
     orders[p].push(record);

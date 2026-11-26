@@ -4,10 +4,7 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
 
 ## Pendiente
 
-- Hallazgos leves de la revisión de bloque 0.3.1-0.3.2 (voz desde muestra), sin arreglar en este PR (no vuelven a revisarse en él):
-  - `origin_changed` usa literales en inglés en el núcleo y en el simulador, en vez de textos de `gvoice/locales/`.
-  - `source`/`license` de la muestra están duplicados en `order.schema.json` y `voice.schema.json` en vez de en `common.schema.json`.
-  - Observaciones: formato WAV que acepta el códec de Qwen (comprobar en la Deck, 0.3.3); `~` sin expandir en `sample.audio` del CLI; la salida «0 en cola» al enviar una voz de muestra; ruta absoluta en `buildOrder`; «es de muestra» se calcula en tres sitios; `OSError` sin traducir en `effects.py:186`; `locale` no obligatorio en `voice.schema.json`.
+- Observación de la revisión de bloque 0.3.1-0.3.2: formato WAV que acepta el códec de Qwen (comprobar en la Deck, 0.3.3; no se toca desde aquí). El resto de los leves de esa revisión se arregló el 2026-11-26.
 - **Pedido del Portal del 2026-11-24** ([`pedido-portal-2026-11-24.md`](pedido-portal-2026-11-24.md)): regrabar 7 trozos con `lectora-es` en la Deck (motor real) y, al entregar, decir cuáles están aprobados para pasarlos a MP3.
 - Hallazgos leves de la revisión de bloque de la lectora es (F2-F3, locale y efectos), sin arreglar en este PR (no vuelven a revisarse en él):
   - Un locale desconocido lanza `ValueError` en vez de un `GvoiceError` traducido (`worker.py:183`, `speech_locale.py:17`).

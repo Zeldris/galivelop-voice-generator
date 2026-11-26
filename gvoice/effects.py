@@ -183,7 +183,10 @@ def apply(chain: dict, src, dst) -> str:
     tmp = dst.with_name(".%s.%d.tmp" % (dst.name, os.getpid()))
     try:
         _run(["-i", str(src), "-af", filters, "-c:a", "pcm_s16le", "-f", "wav", str(tmp)])
-        os.replace(tmp, dst)
+        try:
+            os.replace(tmp, dst)
+        except OSError as exc:
+            raise GvoiceError("effects.failed", reason=str(exc))
     finally:
         tmp.unlink(missing_ok=True)
     return filters

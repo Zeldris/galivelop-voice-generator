@@ -139,7 +139,8 @@ def _read_order(source: str) -> dict:
     sample = order.get("sample") if isinstance(order, dict) else None
     if source != "-" and isinstance(sample, dict) and isinstance(sample.get("audio"), str) and sample["audio"]:
         # a relative audio path is relative to the order file, not to where gvoice was run
-        sample["audio"] = os.path.join(os.path.dirname(os.path.abspath(source)), sample["audio"])
+        audio = os.path.expanduser(sample["audio"])
+        sample["audio"] = os.path.join(os.path.dirname(os.path.abspath(source)), audio)
     return order
 
 
@@ -174,7 +175,10 @@ def _order(args, sub, out: _Out) -> None:
             return
         for text in texts:
             out.line("cli.out.warning", text=text)
-        _queued(out, entries)
+        if orders.is_sample(record):  # nothing queued: the sample is take 1
+            out.line("cli.out.sample_ready", order=record["key"])
+        else:
+            _queued(out, entries)
     elif sub == "list":
         chosen = True if args.chosen else False if args.unchosen else None
         found = [_stale_view(args.project, r) for r in orders.list_orders(args.project, args.type, chosen)]

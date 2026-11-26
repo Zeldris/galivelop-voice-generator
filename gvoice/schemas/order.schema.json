@@ -73,16 +73,10 @@
           "description": "Transcript of the audio."
         },
         "source": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 500,
-          "description": "Where the sample comes from (free text)."
+          "$ref": "common.schema.json#/$defs/sampleSource"
         },
         "license": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 200,
-          "description": "License or permission of the sample (free text, for example CC0-1.0 or own recording)."
+          "$ref": "common.schema.json#/$defs/sampleLicense"
         }
       }
     }

@@ -240,6 +240,14 @@ class SampleTests(Base):
         orders.submit(self.p, self.sample_order(key="s"))
         self.assertEqual(self.code(self.voice(key="s")), "order.origin_changed")
 
+    def test_origin_changed_message_is_translated_in_both_languages(self):
+        orders.submit(self.p, self.voice(key="v"))
+        with self.assertRaises(GvoiceError) as cm:
+            orders.submit(self.p, self.sample_order(key="v"))
+        self.assertEqual((cm.exception.params["was"], cm.exception.params["new"]), ("sheet", "sample"))
+        self.assertEqual(cm.exception.message("en"), 'order "v" was made from a design sheet and cannot change to an audio sample')
+        self.assertEqual(cm.exception.message("es"), "el pedido «v» sale de una ficha de diseño y no puede pasar a una muestra de audio")
+
     def test_attempt_specs_refused(self):
         orders.submit(self.p, self.sample_order())
         with self.assertRaises(GvoiceError) as cm:

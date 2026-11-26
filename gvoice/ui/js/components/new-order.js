@@ -37,6 +37,7 @@ function validationText(e) {
   if (e.code === 'too_long') return t('ui.newOrder.error.tooLong', { field: fieldName(e.field), max: p.max });
   if (e.code === 'seed') return t('ui.newOrder.error.seed', { max: p.max });
   if (e.code === 'locale') return t('ui.newOrder.error.locale', { locales: p.locales });
+  if (e.code === 'absolute') return t('ui.newOrder.error.absolute', { field: fieldName(e.field) });
   if (e.code === 'count') return t('ui.newOrder.error.count', { max: p.max });
   return t('ui.newOrder.error.extra', { line: p.line || '' });
 }

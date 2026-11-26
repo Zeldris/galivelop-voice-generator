@@ -45,6 +45,9 @@ export function ordersOf(res) {
 
 /* ---- fila de la lista ---- */
 
+/** ¿Ruta absoluta (POSIX o de unidad de Windows)? */
+const isAbsolutePath = (v) => v.startsWith('/') || /^[A-Za-z]:[\\/]/.test(v);
+
 /** ¿Es una voz que sale de una muestra (lleva `sample`) y no de una ficha de diseño? */
 export const isSampleOrder = (o) => !!o && o.type === 'voice' && !!o.sample && typeof o.sample === 'object';
 
@@ -134,6 +137,7 @@ export function buildOrder(f, existingKeys = null) {
       ['sampleSource', 'source', MAX_SAMPLE_SOURCE], ['sampleLicense', 'license', MAX_SAMPLE_LICENSE]]) {
       const v = String(f[field] ?? '').trim();
       if (!v) bad(field, 'required');
+      else if (field === 'sampleAudio' && !isAbsolutePath(v)) bad(field, 'absolute');   // el servidor no conoce la carpeta del JSON ni del navegador
       else if (max !== null && v.length > max) bad(field, 'too_long', { max });
       sample[name] = v;
     }

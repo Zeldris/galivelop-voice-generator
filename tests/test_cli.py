@@ -109,6 +109,29 @@ class SampleOrderTests(CliBase):
         self.assertEqual((data["entries"], len(data["order"]["attempts"])), ([], 1))
         self.assertEqual(data["order"]["attempts"][0]["source"], "sample")
 
+    def test_tilde_in_audio_is_expanded_before_the_order_file_folder(self):
+        self.add_project()
+        path = self.sample_file()
+        home = self.tmp / "home"
+        home.mkdir()
+        from tests.test_orders import make_wav
+        make_wav(home / "voice.wav")
+        data = json.loads(Path(path).read_text())
+        data["sample"]["audio"] = "~/voice.wav"
+        Path(path).write_text(json.dumps(data))
+        with mock.patch.dict(os.environ, {"HOME": str(home)}):
+            result = self.js("order", "submit", PROJECT, path)
+        self.assertEqual(len(result["order"]["attempts"]), 1)
+
+    def test_submit_of_a_sample_voice_says_the_take_is_ready_not_zero_queued(self):
+        self.add_project()
+        path = self.sample_file()
+        text = self.ok("order", "submit", PROJECT, path)
+        self.assertEqual(text.strip(), 'Sample voice "narrator" sent: its take 1 is the sample and nothing is queued.')
+        es = self.ok("--lang", "es", "order", "submit", PROJECT, path)
+        self.assertIn("su toma 1 es la muestra y no hay nada en cola", es)
+        self.assertNotIn("Encoladas", es)
+
     def test_missing_audio_says_so(self):
         self.add_project()
         self.fails("order", "submit", PROJECT, self.sample_file(audio="nope.wav"), message="cannot read the sample audio")

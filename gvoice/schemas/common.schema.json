@@ -54,6 +54,18 @@
       "type": "string",
       "pattern": "^(cpu|[A-Za-z]+[0-9]+)$",
       "description": "Engine device as in the machine profile, for example cpu or Vulkan0. The same seed gives different takes on different devices (D16)."
+    },
+    "sampleSource": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "Where a human audio sample comes from (free text)."
+    },
+    "sampleLicense": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "License or permission of a human audio sample (free text, for example CC0-1.0 or own recording)."
     }
   }
 }

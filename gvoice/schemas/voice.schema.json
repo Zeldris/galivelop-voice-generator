@@ -87,16 +87,10 @@
       "description": "Device the reference was generated on (D16); a sample voice has none."
     },
     "source": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 500,
-      "description": "Where the sample the voice was cloned from comes from (a voice made from a sample)."
+      "$ref": "common.schema.json#/$defs/sampleSource"
     },
     "license": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 200,
-      "description": "License or permission of that sample (a voice made from a sample)."
+      "$ref": "common.schema.json#/$defs/sampleLicense"
     }
   },
   "allOf": [
@@ -118,7 +112,8 @@
       "else": {
         "required": [
           "source",
-          "license"
+          "license",
+          "locale"
         ],
         "properties": {
           "device": false

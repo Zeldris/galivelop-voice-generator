@@ -286,6 +286,14 @@ out({
                        {**order, "designSheet": {}}):
             self.assertNotEqual(schema.validate(broken, schema.load_schema("order")), [], broken)
 
+    def test_build_sample_voice_requires_an_absolute_audio_path(self):
+        for audio in ("ana.wav", "./ana.wav", "~/ana.wav"):
+            got = self.build({**self.SAMPLE, "sampleAudio": audio})
+            self.assertIsNone(got["body"], audio)
+            self.assertEqual([(e["field"], e["code"]) for e in got["errors"]], [("sampleAudio", "absolute")], audio)
+        for audio in ("/home/deck/ana.wav", "C:\\\\voces\\\\ana.wav"):
+            self.assertEqual(self.build({**self.SAMPLE, "sampleAudio": audio})["errors"], [], audio)
+
     def test_build_sample_voice_rejects_an_existing_key(self):
         got = self.run_js(f"const {{ buildOrder }} = await mod('js/order-model.js'); out(buildOrder({json.dumps(self.SAMPLE)}, new Set(['ana'])));")
         self.assertEqual([(e["field"], e["code"]) for e in got["errors"]], [("key", "key_exists")])
@@ -438,6 +446,8 @@ out({ voice, line, orphan, unchosen: list.json.map((o) => o.key) });
     def test_api_mock_sample_voice_makes_the_sample_take_and_no_design_takes(self):
         got = self.run_js(self.mock_script("""
 const order = %s;
+const { readFileSync } = await import('node:fs');
+globalThis.fetch = async () => ({ json: async () => JSON.parse(readFileSync(new URL(UI + '/../locales/es.json').pathname, 'utf8')) });
 const url = '/api/projects/example-world/orders';
 const first = await call('POST', url, { order, count: 1 });
 const again = await call('POST', url, { order, count: 1 });
@@ -453,6 +463,8 @@ out({
   newText: strip(await call('POST', url, { order: { ...order, sample: { ...order.sample, text: 'Otro.' } }, count: 1 })),
   newLocale: strip(await call('POST', url, { order: { ...order, locale: 'en-US' }, count: 1 })),
   toSheet: strip(await call('POST', url, { order: { key: 'ana', type: 'voice', testText: 'x', designSheet: {} }, count: 1 })),
+  toSheetMsg: (await call('POST', url + '?lang=es', { order: { key: 'ana', type: 'voice', testText: 'x', designSheet: {} }, count: 1 })).json.error.message,
+  toSheetParams: (await call('POST', url, { order: { key: 'ana', type: 'voice', testText: 'x', designSheet: {} }, count: 1 })).json.error.params,
   peaks: peaks.status,
 });
 """ % json.dumps(self.SAMPLE_ORDER)))
@@ -469,6 +481,8 @@ out({
         self.assertEqual(got["newText"], {"status": 409, "code": "order.sample_changed"})
         self.assertEqual(got["newLocale"], {"status": 409, "code": "order.sample_changed"})
         self.assertEqual(got["toSheet"], {"status": 409, "code": "order.origin_changed"})
+        self.assertEqual(got["toSheetMsg"], "el pedido «ana» sale de una muestra de audio y no puede pasar a una ficha de diseño")
+        self.assertEqual(got["toSheetParams"], {"order": "ana", "was": "sample", "new": "sheet"})
         self.assertEqual(got["peaks"], 200)  # a seedless take still has audio
 
     def test_take_model_marks_the_sample_take_and_a_sample_order_makes_no_more_takes(self):
@@ -584,7 +598,7 @@ out({ MAX_COUNT: m.MAX_COUNT, MAX_SEED: m.MAX_SEED, MAX_KEY: m.MAX_KEY, MAX_TEST
         self.assertEqual(got["MAX_LINE_TEXT"], order_props["text"]["maxLength"])
         sample_props = order_props["sample"]["properties"]
         self.assertEqual((got["MAX_SAMPLE_TEXT"], got["MAX_SAMPLE_SOURCE"], got["MAX_SAMPLE_LICENSE"]),
-                         (sample_props["text"]["maxLength"], sample_props["source"]["maxLength"], sample_props["license"]["maxLength"]))
+                         (sample_props["text"]["maxLength"], common["sampleSource"]["maxLength"], common["sampleLicense"]["maxLength"]))
         self.assertEqual(got["LOCALES"], common["locale"]["enum"])
         self.assertIn(got["DEFAULT_LOCALE"], got["LOCALES"])
         with self.assertRaises(Exception) as cm:  # MAX_COUNT: 1..50 in orders.check_count, no schema

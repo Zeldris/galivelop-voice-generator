@@ -187,9 +187,9 @@ def submit(project: str, order: dict) -> dict:
                       "chosenHistory": []}
         if record["type"] != kind:
             raise GvoiceError("order.type_changed", order=key, type=record["type"], new=kind)
-        if kind == "voice" and ("sample" in record or "designSheet" in record) \
-                and ("sample" in record) != (sample is not None):
-            was, new = ("sample", "design sheet") if "sample" in record else ("design sheet", "sample")
+        if kind == "voice" and (is_sample(record) or "designSheet" in record) \
+                and is_sample(record) != (sample is not None):
+            was, new = ("sample", "sheet") if is_sample(record) else ("sheet", "sample")
             raise GvoiceError("order.origin_changed", order=key, was=was, new=new)
         if sample is not None:
             _check_sample_unchanged(key, record, sample, order["sample"]["text"], order["locale"])

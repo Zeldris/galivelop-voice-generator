@@ -18,7 +18,10 @@ class GvoiceError(Exception):
     def message(self, lang: str | None = None) -> str:
         from . import schema
 
-        text = i18n.t("error." + self.code, lang, **self.params)
+        params = self.params
+        if self.code == "order.origin_changed":  # was/new are origin codes (sample, sheet): render them in `lang`
+            params = dict(params, **{k: i18n.t("order.origin." + params[k], lang) for k in ("was", "new")})
+        text = i18n.t("error." + self.code, lang, **params)
         lines = [schema.format_error(e, lang) for e in self.errors]
         return "\n".join([text] + lines)
 

@@ -1,6 +1,8 @@
 /* Nuevo en gvoice (no copiado de gimg) (F5.4): lógica pura de la galería de tomas, sin DOM, para probarla con node.
    Estado de una toma, huellas por modelo, a qué toma vuelve «Deshacer» y cálculos de la forma de onda. */
 
+import { isSampleOrder } from './order-model.js';
+
 export const STATES = ['new', 'candidate', 'discarded'];
 
 /** `chosen` si la toma es la elegida del pedido; si no, su propio estado (`new`, `candidate`, `discarded`). */
@@ -14,7 +16,7 @@ export const isSampleTake = (take) => !!take && take.source === 'sample';
 
 /** Por qué no se piden más tomas (`'sample'`: la voz sale de una muestra y no hace tomas de diseño) o null si se puede. */
 export function noMoreTakesReason(order) {
-  return order && order.type === 'voice' && order.sample ? 'sample' : null;
+  return isSampleOrder(order) ? 'sample' : null;
 }
 
 /** Una toma tiene audio cuando el motor ya midió su duración (`audioMs`); sin él no se puede ni oír ni elegir. */

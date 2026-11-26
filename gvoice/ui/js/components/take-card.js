@@ -3,7 +3,9 @@
    onda, estado (nueva, candidata, descartada), nota, huellas (solo en `voice`) y «Elegir». La toma elegida lleva visto y
    texto («✓ Elegida») y un subrayado, nunca solo color. La tarjeta se crea una vez y `update()` repinta lo que cambia sin
    tocar el audio ni la nota que se está escribiendo. Las pruebas sin oído de la toma (0.4.2: métricas y avisos de
-   `checks`) salen bajo la forma de onda, con los mismos avisos que la ficha de diseño. Las acciones (`mark`, `note`, `choose`) las pone la vista. */
+   `checks`) salen bajo la forma de onda, con los mismos avisos que la ficha de diseño. La ficha de escucha (0.4.3: una
+   fila por criterio con sí / no / sin oír, y una nota) va debajo de las acciones; `actions.rate(take, {marks, note})` la
+   guarda. Un «no» en un criterio eliminatorio se marca con texto y símbolo, no solo con color. Las acciones (`mark`, `note`, `choose`) las pone la vista. */
 
 import { h, mmss, replace } from '../dom.js';
 import { t } from '../i18n.js';
@@ -11,13 +13,15 @@ import { api } from '../api.js';
 import { busy } from '../async-guard.js';
 import { icon } from './icons.js';
 import { createWaveform } from './waveform.js';
-import { bucketsFor, canChoose, hasAudio, isSampleTake, printStates, takeChecks, takeState } from '../take-model.js';
+import { bucketsFor, canChoose, hasAudio, isSampleTake, LISTENING_MARKS, listeningRows, printStates, takeChecks, takeState } from '../take-model.js';
 import { warningList } from './sheet-warnings.js';
 
 const PRINT_KEY = { done: 'ui.take.print.done', running: 'ui.take.print.running', queued: 'ui.take.print.queued', pending: 'ui.take.print.pending' };
 const PRINT_MARK = { done: '✓', running: '…', queued: '…', pending: '○' };
 
-/** takeCard({project, key, type, models, actions: {mark, note, choose}, onPlay, alive}) → {node, id, update, load, toggle,
+const MARK_KEY = { yes: 'ui.take.mark.yes', no: 'ui.take.mark.no', null: 'ui.take.mark.unheard' };
+
+/** takeCard({project, key, type, models, actions: {mark, note, rate, choose}, onPlay, alive}) → {node, id, update, load, toggle,
     pause, focus, destroy, audio}. `onPlay(card)` avisa de que esta toma empieza a sonar (la vista pausa las demás). */
 export function takeCard({ project, key, type, models = [], actions, onPlay = () => {}, alive = () => true }) {
   let take = null; let order = null; let entries = [];
@@ -48,11 +52,24 @@ export function takeCard({ project, key, type, models = [], actions, onPlay = ()
   const noteBox = h('textarea', { id: noteId, rows: 2, maxlength: 2000, oninput: () => { dirty = true; saveBtn.disabled = false; } });
   const saveBtn = h('button.btn', { type: 'button', disabled: true, onclick: () => saveNote() }, t('ui.take.noteSave'));
   noteBox.addEventListener('change', () => { if (dirty) saveNote(); });
+  // ficha de escucha: las filas se crean una vez por lista de criterios y `update()` solo cambia su estado
+  const listeningId = `lis-${Math.random().toString(36).slice(2, 8)}`;
+  const listeningSummary = h('p.hint.take-listening-summary');
+  const listeningRowsBox = h('div.listening-rows');
+  const listeningNoteBox = h('textarea', { id: `${listeningId}-note`, rows: 2, maxlength: 2000, oninput: () => { lisDirty = true; lisSave.disabled = false; } });
+  const lisSave = h('button.btn', { type: 'button', disabled: true, onclick: () => saveListeningNote() }, t('ui.take.listeningNoteSave'));
+  listeningNoteBox.addEventListener('change', () => { if (lisDirty) saveListeningNote(); });
+  const listeningBox = h('section.take-listening', { aria: { labelledby: `${listeningId}-h` } },
+    h('h4', { id: `${listeningId}-h` }, t('ui.take.listening')), h('p.hint', {}, t('ui.take.listeningHint')),
+    listeningSummary, listeningRowsBox,
+    h('div.field.take-note', {}, h('label', { for: `${listeningId}-note` }, t('ui.take.listeningNote')), listeningNoteBox, h('div.row', {}, lisSave)));
+  let lisDirty = false; let lisSig = null; let lisRows = new Map();
   const node = h('article.take-card', { tabindex: -1, data: { take: '' } },
     h('div.row-between', {}, title, badges), meta,
     h('div.take-player', {}, play, time), wave.node, noAudio, audio, status, checksBox, prints,
     h('div.row.take-actions', {}, chooseBtn, candidateBtn, discardBtn), why,
-    h('div.field.take-note', {}, h('label', { for: noteId }, t('ui.take.note')), noteBox, h('div.row', {}, saveBtn)));
+    h('div.field.take-note', {}, h('label', { for: noteId }, t('ui.take.note')), noteBox, h('div.row', {}, saveBtn)),
+    listeningBox);
 
   const mark = busy(async (state) => { await actions.mark(take, state); });
   const choose = busy(async () => { await actions.choose(take); });
@@ -61,9 +78,47 @@ export function takeCard({ project, key, type, models = [], actions, onPlay = ()
     // what was typed while the request was in flight stays dirty (and unsaved), and `update()` does not overwrite it
     if (await actions.note(take, sent) && noteBox.value === sent) { dirty = false; saveBtn.disabled = true; }
   });
+  // una marca a la vez por tarjeta; pulsar la que ya está puesta no pide nada
+  const rateMark = busy(async (id, mark) => { await actions.rate(take, { marks: { [id]: mark } }); });
+  const saveListeningNote = busy(async () => {
+    const sent = listeningNoteBox.value;
+    if (await actions.rate(take, { note: sent }) && listeningNoteBox.value === sent) { lisDirty = false; lisSave.disabled = true; }
+  });
   /** Same path as the buttons (one request at a time per card, the current state read when it runs). */
   const toggleState = (state) => mark(take.state === state ? 'new' : state);
   const chooseIfAllowed = () => (take && canChoose(order, take) ? choose() : undefined);
+
+  /** Pinta la ficha de escucha de la toma: crea las filas si cambió la lista de criterios y, si no, solo su estado. */
+  function paintListening() {
+    const rows = listeningRows(take);
+    listeningBox.hidden = !rows.length;
+    const sig = rows.map((r) => `${r.id}|${r.label}|${r.eliminatory}`).join('\n');
+    if (sig !== lisSig) {
+      lisSig = sig; lisRows = new Map();
+      replace(listeningRowsBox, rows.map((r) => {
+        const labelId = `${listeningId}-${r.id}`;
+        const buttons = new Map(LISTENING_MARKS.map((m) => [String(m), h('button.btn.btn-toggle', {
+          type: 'button', aria: { pressed: 'false', label: t('ui.take.listeningMark', { criterion: r.label, mark: t(MARK_KEY[m]) }) },
+          onclick: () => { const cur = listeningRows(take).find((x) => x.id === r.id); if (!cur || cur.mark !== m) rateMark(r.id, m); },
+        }, t(MARK_KEY[m]))]));
+        const failed = h('p.field-error.listening-failed', { hidden: true }, h('span', { aria: { hidden: true } }, '✗ '), t('ui.take.listeningFailed'));
+        const row = h('div.listening-row', { role: 'group', aria: { labelledby: labelId }, data: { criterion: r.id } },
+          h('div.row-between', {}, h('span.listening-label', { id: labelId }, r.label, r.eliminatory ? h('span.chip', {}, t('ui.take.listeningEliminatory')) : null),
+            h('div.row.listening-marks', {}, [...buttons.values()])), failed);
+        lisRows.set(r.id, { row, buttons, failed });
+        return row;
+      }));
+    }
+    for (const r of rows) {
+      const view = lisRows.get(r.id);
+      for (const [m, b] of view.buttons) b.setAttribute('aria-pressed', String(m === String(r.mark)));
+      view.row.classList.toggle('is-failed', r.failed);
+      view.failed.hidden = !r.failed;
+    }
+    const sum = take.listeningSummary;
+    listeningSummary.textContent = sum ? t('ui.take.listeningSummary', { yes: sum.yes, total: sum.total, no: sum.no }) : t('ui.take.listeningNone');
+    if (!lisDirty) listeningNoteBox.value = typeof take.listeningNote === 'string' ? take.listeningNote : '';
+  }
 
   const totalMs = () => (Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration * 1000 : durationMs || (take && take.audioMs) || 0);
   function paintTime() {
@@ -181,6 +236,7 @@ export function takeCard({ project, key, type, models = [], actions, onPlay = ()
         chosen ? null : h('p.hint', {}, t('ui.take.printsHint')));
     }
     if (!dirty) noteBox.value = take.note || '';
+    paintListening();
   }
 
   function pause() { if (!audio.paused) audio.pause(); }

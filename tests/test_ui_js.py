@@ -504,7 +504,8 @@ const view = await mount('ana');
 const card = cardOf(view, 1).textContent;
 const more = btn(view.node, 'Pedir más tomas');
 const head = view.node.children[0].textContent;
-const r = { ids: cards(view).map((c) => c.dataset.take), card, head, moreDisabled: more.disabled,
+const meta = cardOf(view, 1).find((e) => e.className.includes('take-meta')).map((e) => e.textContent).join(' ');
+const r = { ids: cards(view).map((c) => c.dataset.take), card, meta, head, moreDisabled: more.disabled,
   reason: view.node.find((e) => e.className.includes('hint') && e.textContent.includes('sale de una muestra')).map((e) => e.hidden),
   note: view.node.find((e) => e.className.includes('notice-warn')).map((e) => [e.hidden, e.textContent]),
   sentTakes: 0, whole: view.node.textContent };
@@ -518,7 +519,9 @@ out(r);
         self.assertIn("Muestra", got["card"])
         self.assertIn("origen: own recording", got["card"])
         self.assertIn("licencia: CC0-1.0", got["card"])
-        for word in ("semilla", "null", "undefined"):
+        self.assertIn("origen: own recording", got["meta"])
+        self.assertNotIn("semilla", got["meta"])   # the criteria of the listening sheet name the seed
+        for word in ("null", "undefined"):
             self.assertNotIn(word, got["card"])
         self.assertIn("Hola, soy Ana.", got["head"])
         self.assertIn("es-ES", got["head"])
@@ -1425,6 +1428,141 @@ view.cleanup();
         self.assertEqual([n for _, _, n in got["t1"]], [1, 1])  # an icon beside the text, never colour alone
         self.assertIn("silencio de 1900 ms", got["t3"][0][1])
         self.assertTrue(got["ok2"])
+
+    def test_listening_rows_helper_normalises_the_rows_and_flags_a_failed_eliminatory(self):
+        got = self.run_js("""
+const { listeningRows, LISTENING_MARKS } = await mod('js/take-model.js');
+out({ marks: LISTENING_MARKS, none: listeningRows({}), notArray: listeningRows({ listening: { marks: {} } }),
+  rows: listeningRows({ listening: [
+    { id: 'theta', label: 'θ', eliminatory: true, mark: 'no' }, { id: 'tone', label: 'Tono', eliminatory: false, mark: 'no' },
+    { id: 'clean', label: '', eliminatory: true, mark: 'yes' }, { id: 'stable', eliminatory: false, mark: 'maybe' }, null, { label: 'sin id' }] }) });
+""")
+        self.assertEqual(got["marks"], ["yes", "no", None])
+        self.assertEqual((got["none"], got["notArray"]), ([], []))
+        self.assertEqual(got["rows"], [
+            {"id": "theta", "label": "θ", "eliminatory": True, "mark": "no", "failed": True},
+            {"id": "tone", "label": "Tono", "eliminatory": False, "mark": "no", "failed": False},  # «no» but not eliminatory
+            {"id": "clean", "label": "clean", "eliminatory": True, "mark": "yes", "failed": False},  # no label: the id
+            {"id": "stable", "label": "stable", "eliminatory": False, "mark": None, "failed": False}])  # a strange mark = not heard
+
+    LISTENING_ENV = ORDER_ENV + """
+const lisBox = (view, id) => cardOf(view, id).find((e) => e.className.includes('take-listening'))[0];
+const lisRow = (view, id, crit) => lisBox(view, id).find((e) => e.dataset && e.dataset.criterion === crit)[0];
+const pressed = (view, id, crit) => lisRow(view, id, crit).find((e) => e.tag === 'button').filter((b) => b.attrs['aria-pressed'] === 'true').map((b) => b.textContent);
+const lisBtn = (view, id, crit, text) => lisRow(view, id, crit).find((e) => e.tag === 'button' && e.textContent === text)[0];
+const rates = () => seen.filter((s) => s[1].includes('/rate')).map((s) => [s[1].split('/attempts/')[1].split('/')[0], s[2]]);
+"""
+
+    def test_take_card_shows_one_row_per_criterion_with_three_states_and_flags_a_failed_eliminatory(self):
+        got = self.run_js(self.LISTENING_ENV + """
+const view = await mount('narrator');
+const row = (id, crit) => lisRow(view, id, crit);
+out({
+  labels: lisBox(view, 2).find((e) => e.className.includes('listening-label')).map((e) => e.textContent),
+  buttons: lisRow(view, 2, 'theta').find((e) => e.tag === 'button').map((b) => b.textContent),
+  take2: ['theta', 'tone', 'stable'].map((c) => pressed(view, 2, c)),
+  take1: pressed(view, 1, 'theta'),
+  summary: [1, 2, 3].map((id) => lisBox(view, id).find((e) => e.className.includes('take-listening-summary'))[0].textContent),
+  note: lisBox(view, 2).find((e) => e.tag === 'textarea')[0].value,
+  failed3: ['accent', 'theta', 'tone'].map((c) => [row(3, c).classList.contains('is-failed'), row(3, c).find((e) => e.className.includes('listening-failed'))[0].hidden]),
+  failedText: row(3, 'accent').textContent,
+  noButNotEliminatory: [row(2, 'tone').classList.contains('is-failed'), row(2, 'tone').find((e) => e.className.split(' ').includes('chip')).length, row(2, 'theta').find((e) => e.className.split(' ').includes('chip')).length],
+  aria: lisBtn(view, 3, 'accent', 'No').attrs['aria-label'],
+});
+view.cleanup();
+""")
+        self.assertEqual(len(got["labels"]), 5)
+        self.assertTrue(got["labels"][0].startswith("Distingue la θ"), got["labels"])
+        self.assertEqual(got["buttons"], ["Sí", "No", "Sin oír"])
+        self.assertEqual(got["take2"], [["Sí"], ["No"], ["Sin oír"]])
+        self.assertEqual(got["take1"], ["Sin oír"])
+        self.assertEqual(got["summary"], ["Aún sin marcas.", "3 de 5 sí, 1 no", "0 de 5 sí, 1 no"])
+        self.assertEqual(got["note"], "tono algo seco")
+        self.assertEqual(got["failed3"], [[True, False], [False, True], [False, True]])
+        self.assertIn("✗", got["failedText"])  # symbol and text, never only colour
+        self.assertIn("eliminatorio", got["failedText"])
+        self.assertEqual(got["noButNotEliminatory"], [False, 0, 1])  # a «no» on `tone` is not flagged and has no «eliminatorio» chip
+        self.assertEqual(got["aria"], "Sin acento inglés ni seseo: No")
+
+    def test_take_card_rate_sends_one_mark_updates_the_row_and_ignores_the_mark_already_set(self):
+        got = self.run_js(self.LISTENING_ENV + """
+const view = await mount('narrator');
+const r = {};
+lisBtn(view, 1, 'theta', 'No').click();
+await until(() => pressed(view, 1, 'theta').join() === 'No');
+r.after = { pressed: pressed(view, 1, 'theta'), failed: lisRow(view, 1, 'theta').classList.contains('is-failed'),
+  summary: lisBox(view, 1).find((e) => e.className.includes('take-listening-summary'))[0].textContent, calls: rates() };
+lisBtn(view, 1, 'theta', 'No').click();           // ya puesta: no pide nada
+await sleep(60);
+r.again = rates().length;
+lisBtn(view, 1, 'theta', 'Sin oír').click();      // «sin oír» borra la marca (null)
+await until(() => pressed(view, 1, 'theta').join() === 'Sin oír');
+r.cleared = { calls: rates(), failed: lisRow(view, 1, 'theta').classList.contains('is-failed'),
+  summary: lisBox(view, 1).find((e) => e.className.includes('take-listening-summary'))[0].textContent };
+view.cleanup();
+out(r);
+""")
+        self.assertEqual(got["after"]["pressed"], ["No"])
+        self.assertTrue(got["after"]["failed"])
+        self.assertEqual(got["after"]["summary"], "0 de 5 sí, 1 no")
+        self.assertEqual(got["after"]["calls"], [["1", {"marks": {"theta": "no"}}]])  # only that criterion, no note
+        self.assertEqual(got["again"], 1)
+        self.assertEqual(got["cleared"]["calls"][1], ["1", {"marks": {"theta": None}}])
+        self.assertFalse(got["cleared"]["failed"])
+        self.assertEqual(got["cleared"]["summary"], "Aún sin marcas.")  # the emptied sheet has no summary
+
+    def test_take_card_saves_the_listening_note_apart_and_keeps_what_is_typed_meanwhile(self):
+        got = self.run_js(self.LISTENING_ENV + """
+const view = await mount('narrator');
+const noteBox = () => lisBox(view, 2).find((e) => e.tag === 'textarea')[0];
+const save = () => lisBox(view, 2).find((e) => e.tag === 'button' && e.textContent === 'Guardar nota de la ficha')[0];
+const r = { saveOff: save().disabled };
+noteBox().type('zona suena a z');
+r.saveOn = !save().disabled;
+save().click();
+await until(() => rates().length === 1);
+await until(() => save().disabled);
+r.calls = rates(); r.noteAfter = noteBox().value; r.toast = toasts();
+r.takeNote = cardOf(view, 2).find((e) => e.tag === 'textarea')[0].value;   // la nota de la toma no se toca
+lisBtn(view, 2, 'stable', 'Sí').click();
+await until(() => pressed(view, 2, 'stable').join() === 'Sí');
+r.afterMark = noteBox().value;                                              // una marca no pisa la nota guardada
+noteBox().type('a medias');
+lisBtn(view, 2, 'stable', 'No').click();
+await until(() => pressed(view, 2, 'stable').join() === 'No');
+r.typed = noteBox().value;                                                  // ni la que se está escribiendo
+view.cleanup();
+out(r);
+""")
+        self.assertTrue(got["saveOff"])
+        self.assertTrue(got["saveOn"])
+        self.assertEqual(got["calls"], [["2", {"note": "zona suena a z"}]])  # no `marks`: the server leaves them alone
+        self.assertEqual(got["noteAfter"], "zona suena a z")
+        self.assertIn("Nota de la ficha de la toma 2 guardada", got["toast"])
+        self.assertEqual(got["takeNote"], "la mejor")
+        self.assertEqual(got["afterMark"], "zona suena a z")
+        self.assertEqual(got["typed"], "a medias")
+
+    def test_choosing_a_take_with_a_failed_eliminatory_shows_the_warning_and_still_chooses(self):
+        got = self.run_js(self.LISTENING_ENV + """
+const view = await mount('narrator');
+btn(cardOf(view, 3), 'Elegir').click();               // take 3: «no» en accent (eliminatorio)
+await until(() => chosenIds(view).join() === '3');
+r = { warned: toasts() };
+view.cleanup();
+const other = await mount('narrator');
+doc.getElementById('toasts').textContent = '';
+btn(cardOf(other, 2), 'Elegir').click();             // take 2: solo «no» en tone
+await until(() => chosenIds(other).join() === '2');
+out({ ...r, soft: toasts() });
+other.cleanup();
+process.exit(0);   // el aviso dura 15 s: no esperar a que se apague
+""".replace("r = {", "const r = {"))
+        self.assertIn("Toma 3 elegida", got["warned"])
+        self.assertIn("⚠", got["warned"])
+        self.assertIn("criterios eliminatorios de la ficha de escucha (accent)", got["warned"])
+        self.assertIn("Toma 2 elegida", got["soft"])
+        self.assertNotIn("eliminatorios", got["soft"])
 
     def test_order_view_line_shows_voice_and_stale_without_prints(self):
         got = self.run_js(self.ORDER_ENV + """

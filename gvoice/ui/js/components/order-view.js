@@ -15,7 +15,7 @@ import { MAX_COUNT, isSampleOrder } from '../order-model.js';
 import { pickPair } from '../compare-model.js';
 import { takeCard } from './take-card.js';
 import { icon } from './icons.js';
-import { warningIcon } from './sheet-warnings.js';
+import { warningIcon, warningItems } from './sheet-warnings.js';
 import { bindShortcuts, loading, openHelp } from './shortcuts.js';
 import { toast, toastError, toastOk } from './toast.js';
 
@@ -95,7 +95,7 @@ export function orderView(route) {
     for (const take of takes) {
       let card = cards.get(take.id);
       if (!card) {
-        card = takeCard({ project, key, type: order.type, models, alive, actions: { mark, note, choose: (tk) => choose(tk) }, onPlay: pauseOthers });
+        card = takeCard({ project, key, type: order.type, models, alive, actions: { mark, note, rate, choose: (tk) => choose(tk) }, onPlay: pauseOthers });
         cards.set(take.id, card);
       }
       card.update(take, { order, entries });
@@ -182,12 +182,26 @@ export function orderView(route) {
       return true;
     } catch (e) { if (alive()) toastError(describeError(e, t)); return false; }
   }
+  /** Los avisos de elegir (`warnings`, p. ej. un «no» en un criterio eliminatorio): un aviso cada uno, sin impedir nada. */
+  const warned = (res) => { for (const w of warningItems(res && res.warnings)) toast(`⚠ ${w.text}`, { timeout: 15000 }); };
   const afterChange = (res) => { if (res && Array.isArray(res.entries) && res.entries.length && alive()) toast(t('ui.order.printsQueued', { id: res.new })); };
+  /** Guarda la ficha de escucha ({marks, note}) y deja en la toma lo que devuelve el servidor (la toma con su ficha). */
+  async function rate(take, sheet) {
+    try {
+      const res = await api.rate(project, key, take.id, sheet);
+      if (!alive()) return false;
+      Object.assign(currentTake(take), res && typeof res === 'object' ? res : {});
+      if (sheet.note !== undefined) toastOk(t('ui.take.listeningSaved', { id: take.id }), { timeout: 2500 });
+      paint();
+      return true;
+    } catch (e) { if (alive()) toastError(describeError(e, t)); return false; }
+  }
   const choose = (take) => exclusive(async () => {
     try {
       const res = await api.choose(project, key, take.id);
       if (!alive()) return;
       toastOk(t('ui.order.chosenToast', { id: take.id }));
+      warned(res);
       afterChange(res);
     } catch (e) { if (alive()) toastError(describeError(e, t)); }
     await refresh();   // también tras un fallo: el servidor pudo cambiar (un 409 suele ser un dato viejo)

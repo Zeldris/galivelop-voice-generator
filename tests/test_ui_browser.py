@@ -347,10 +347,65 @@ class SampleVoice(UiBase):
         card = self.js("document.querySelector('.take-card').textContent")
         self.assertIn("Muestra", card)
         self.assertIn("grabación propia", card)
-        self.assertNotIn("semilla", card)
+        self.assertNotIn("semilla", self.js("document.querySelector('.take-card .take-meta').textContent"))  # the card as a whole names the seed in a criterion
         self.assertNotIn("null", card)
         self.assertTrue(self.js("[...document.querySelectorAll('button')].find(b => b.textContent.includes('Pedir más tomas')).disabled"))
         self.assertEqual(self.js(Screens.FIT_PROBE), [])
+        self.no_problems()
+
+
+class SamplingAndListening(UiBase):
+    """0.4.4: the sampling section of the new-order dialog, the checks of a take and its listening sheet, on the simulator."""
+
+    def toasts(self):
+        return self.js("document.getElementById('toasts').textContent")
+
+    def fill(self, field, value):
+        self.js("(() => { const e = document.getElementById(%s); e.value = %s; e.dispatchEvent(new Event('input')); })()"
+                % (json.dumps(field), json.dumps(value)))
+
+    def test_the_sampling_section_opens_flags_a_bad_field_and_fits_at_360_and_1280(self):
+        for width in (360, 1280):
+            self.replace_page(width, 800)
+            self.open("/p/%s" % PROJECT, "document.querySelector('#main h1') && document.querySelector('a.card')")
+            self.click(".filters .btn-primary")
+            self.page.wait("document.querySelector('dialog.new-order[open]')")
+            self.assertFalse(self.js("document.getElementById('no-sampling').open"))
+            self.js("document.getElementById('no-sampling').open = true")
+            self.page.pump(0.2)
+            self.assertEqual(self.js(Screens.FIT_PROBE), [], width)
+            self.js("document.getElementById('no-sampling').open = false")
+            for field, value in (("no-key", "zed"), ("no-testtext", "Hola."), ("no-sheet-age", "adult"), ("no-sampling-topK", "0")):
+                self.fill(field, value)
+            self.click("dialog.new-order button[type=submit]")
+            self.page.wait("!document.getElementById('no-error').hidden")
+            self.assertTrue(self.js("document.getElementById('no-sampling').open"), "a bad field opens the section")
+            self.assertIn("Top-k: tiene que estar entre 1 y 1000", self.js("document.getElementById('no-error').textContent"))
+            self.assertEqual(self.js("!!document.querySelector('a.order-row[aria-label=zed]')"), False)  # nothing was created
+            self.fill("no-sampling-topK", "40")
+            self.click("dialog.new-order button[type=submit]")
+            self.page.wait("!document.querySelector('dialog.new-order')")
+        self.no_problems()
+
+    def test_a_take_shows_its_checks_and_rates_and_choosing_a_failed_eliminatory_warns(self):
+        self.open("/p/%s/o/%s" % (PROJECT, ORDER), "document.querySelectorAll('.take-card').length >= 3")
+        card = lambda n: "document.querySelector('.take-card[data-take=\"%d\"]')" % n  # noqa: E731
+        checks = self.js(card(1) + ".querySelector('.take-checks').textContent")
+        self.assertIn("La toma es muy rápida", checks)
+        self.assertEqual(self.js(card(1) + ".querySelectorAll('.take-checks li[data-code]').length"), 2)
+        self.assertTrue(self.js("!!" + card(1) + ".querySelector('.take-checks svg')"))
+        # one row per criterion; a «no» on an eliminatory one is flagged with its text visible
+        self.assertEqual(self.js(card(3) + ".querySelectorAll('.listening-row').length"), 5)
+        self.assertEqual(self.js("[...%s.querySelectorAll('.listening-failed')].filter(e => e.offsetParent).length" % card(3)), 1)
+        row = card(1) + ".querySelector('.listening-row[data-criterion=theta]')"
+        self.js("[...%s.querySelectorAll('button')].find(b => b.textContent === 'No').click()" % row)
+        self.page.wait(row + ".classList.contains('is-failed')")
+        self.assertEqual(self.js("%s.querySelector('button[aria-pressed=true]').textContent" % row), "No")
+        self.assertTrue(self.js("!!" + row + ".querySelector('.listening-failed').offsetParent"))
+        self.js("[...%s.querySelectorAll('button')].find(b => b.textContent.trim() === 'Elegir').click()" % card(3))
+        self.page.wait("document.getElementById('toasts').textContent.includes('eliminatorios')")
+        self.assertIn("Toma 3 elegida", self.toasts())
+        self.page.wait("%s.classList.contains('is-chosen')" % card(3))   # the warning did not prevent it
         self.no_problems()
 
 

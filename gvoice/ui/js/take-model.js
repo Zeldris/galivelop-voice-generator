@@ -29,6 +29,21 @@ export function takeChecks(take) {
   return { error: null, metrics, warnings: Array.isArray(c.warnings) ? c.warnings : [] };
 }
 
+/** Los estados de un criterio de la ficha de escucha, en el orden en que se ofrecen: `null` es «sin oír». */
+export const LISTENING_MARKS = ['yes', 'no', null];
+
+/** Las filas de la ficha de escucha de una toma (0.4.3, `listening` del detalle): `[{id, label, eliminatory, mark,
+    failed}]`, con `failed` si es un «no» en un criterio eliminatorio (avisa al elegir, no lo impide). Una fila rara se
+    descarta y una marca que no es `yes` ni `no` cuenta como «sin oír». Puro. */
+export function listeningRows(take) {
+  const rows = take && Array.isArray(take.listening) ? take.listening : [];
+  return rows.filter((r) => r && typeof r.id === 'string' && r.id).map((r) => {
+    const mark = r.mark === 'yes' || r.mark === 'no' ? r.mark : null;
+    const eliminatory = !!r.eliminatory;
+    return { id: r.id, label: typeof r.label === 'string' && r.label ? r.label : r.id, eliminatory, mark, failed: eliminatory && mark === 'no' };
+  });
+}
+
 /** Por qué no se piden más tomas (`'sample'`: la voz sale de una muestra y no hace tomas de diseño) o null si se puede. */
 export function noMoreTakesReason(order) {
   return isSampleOrder(order) ? 'sample' : null;

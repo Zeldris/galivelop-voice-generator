@@ -122,3 +122,11 @@ dialog.shortcuts .row { margin-top: 12px; }
 .take-checks { display: grid; gap: 6px; }
 .take-checks .hint, .take-checks-ok { margin: 0; }
 .take-checks-ok { color: var(--ok); font-size: 14px; }
+.take-listening { display: grid; gap: 8px; border-top: 1px solid var(--rule); padding-top: 10px; }
+.take-listening h4 { margin: 0; }
+.take-listening .hint { margin: 0; }
+.listening-rows { display: grid; gap: 8px; }
+.listening-row { display: grid; gap: 4px; padding: 6px 8px; border: 1px solid var(--rule); border-left-width: 3px; }
+.listening-row.is-failed { border-color: var(--bad); }
+.listening-label { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.listening-failed { margin: 0; }

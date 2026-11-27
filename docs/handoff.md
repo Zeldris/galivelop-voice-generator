@@ -8,11 +8,11 @@
 
 | Campo | Valor |
 |---|---|
-| **Rama** | `ccr-5e26fc26-igtd9z` (asignada por la sesión; `main` fusionado en la rama tras el PR #11, `aeca90d`, el 2026-11-22) |
-| **Fase / tarea** | **Actualización del flujo a Galivelop-workflow v0.9.0** (`gw-update`, pedida por la persona el 2026-11-24; `schemaVersion` 1 → 2: `language`/`visibleLanguages` pasan al bloque `languages`). Decisiones de la persona (2026-11-24, «todo ok»): aplicar `--update`; en `AGENTS.md`, `merge-main.py` en el paso 5, `timeout` de 90 min para push y check largo, y el «Siguiente» tras un cierre (reglas del proyecto conservadas); en `CLAUDE.md`, la línea de idioma nueva; en `REVIEW.md`, `languages.ui`; marcadores a v0.9.0. F2.6 sigue esperando a la Deck; 0.3.0 con B1/B2 en `docs/plan.md` |
-| **Último punto estable** | Actualización a v0.9.0 aplicada (2026-11-24): 83 archivos del flujo actualizados y 11 nuevos (`front.py`, `merge-main.py`, `profile.py`, `generated-check.py`, `other-repo-read.py`, skill `gw-seo`), `.claude/gw.json` migrado, gancho `PreToolUse` en `.claude/settings.json`, sin `.gw-new`, `apply.py --check` en 0; `doctor.py` sin `FAIL` (avisa de que `workflowClone` no existe en la nube: el clon está en `/home/user/zeldris/galivelop-workflow`) |
-| **Siguiente paso** | PR #12 (v0.9.0 → `main`): CI de GitHub sin arrancar (sin cuota de Actions); la persona da por bueno el check local el 2026-11-24 (**comprobado solo en local**, `docs/records/ci-local.md`) y pide fusionar. Tras fusionar: `/clear`; F2.6 sigue esperando a la Deck |
-| **Check** | verde (`bash -n` de cada gancho, `unittest` 751 tests y `ci-local.py --validate`) |
+| **Rama** | `ccr-2447cc83-5kxr8j` (asignada por la sesión; desde `main` tras el PR #12 y la vendorización de `grun`) |
+| **Fase / tarea** | **R3 (adoptar `grun`), paso 1 hecho:** `gvoice.paths`, `machine_lock`, `limits`, `log` y `errors` son adaptadores finos de `grun` (`GALIVELOP_STATE_HOME`; `GVOICE_STATE_HOME` borrado) y `gvoice/fsutil.py` se borró (se usa `grun.fsutil`). `i18n` queda propio (`grun.i18n` no admite locales ajenos). Pendientes: paso 2 `queue` → `grun.queue.Queue` y paso 3 `worker` → `grun.worker.Worker` |
+| **Último punto estable** | R3 paso 1 (commits `refactor(R3)`): suite completa en verde, tests nuevos `GrunAdapterTests` y de `machine_lock` rojos sin el arreglo |
+| **Siguiente paso** | R3 paso 2: `gvoice/queue.py` → `grun.queue.Queue` (sin cambiar la forma de `/api/queue`, invariante 13); luego paso 3: `worker` → `grun.worker.Worker`. F2.6 sigue esperando a la Deck |
+| **Check** | verde (`bash -n` de cada gancho, `unittest` 758 tests y `ci-local.py --validate`) |
 
 ## Para la próxima publicación
 

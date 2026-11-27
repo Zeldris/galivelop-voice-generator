@@ -2,6 +2,7 @@ import copy
 import fcntl
 import json
 import os
+import socket
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,6 +17,14 @@ LINE = json.loads((ROOT / "examples" / "order-line.json").read_text())
 CONFIG = json.loads((ROOT / "examples" / "galivelop-voices.json").read_text())
 
 
+def closed_url() -> str:
+    """The address of an Ollama that is not there (a worker looks for one before every job), so a test never talks to
+    the one of the machine it runs on."""
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return "http://127.0.0.1:%d" % sock.getsockname()[1]
+
+
 class QueueBase(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -23,7 +32,7 @@ class QueueBase(unittest.TestCase):
         self.tmp = Path(tmp.name).resolve()
         env = mock.patch.dict(os.environ, {
             "GVOICE_CONFIG_HOME": str(self.tmp / "cfg"), "GVOICE_DATA_HOME": str(self.tmp / "data"),
-            "GALIVELOP_STATE_HOME": str(self.tmp / "state")})
+            "GALIVELOP_STATE_HOME": str(self.tmp / "state"), "GRUN_OLLAMA_URL": closed_url()})
         env.start()
         self.addCleanup(env.stop)
         for var in ("GVOICE_MACHINE_PROFILE", "GVOICE_ENGINE", "GVOICE_FAKE_DELAY", "GVOICE_FAKE_FAIL"):

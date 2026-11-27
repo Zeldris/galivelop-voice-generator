@@ -13,6 +13,7 @@ from unittest import mock
 
 from gvoice import __version__, cli, models, queue
 from gvoice.errors import GvoiceError
+from tests.test_queue import closed_url
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = (ROOT / "examples" / "galivelop-voices.json").read_text()
@@ -28,7 +29,8 @@ class CliBase(unittest.TestCase):
         self.tmp = Path(tmp.name).resolve()
         env = mock.patch.dict(os.environ, {
             "GVOICE_CONFIG_HOME": str(self.tmp / "cfg"), "GVOICE_DATA_HOME": str(self.tmp / "data"),
-            "GALIVELOP_STATE_HOME": str(self.tmp / "state"), "GVOICE_ENGINE": "fake", "GVOICE_LANG": "en"})
+            "GALIVELOP_STATE_HOME": str(self.tmp / "state"), "GVOICE_ENGINE": "fake", "GVOICE_LANG": "en",
+            "GRUN_OLLAMA_URL": closed_url()})
         env.start()
         self.addCleanup(env.stop)
         for name in ("GVOICE_MACHINE_PROFILE", "GVOICE_DEBUG", "GVOICE_FAKE_FAIL", "GVOICE_FAKE_DELAY"):

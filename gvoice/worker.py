@@ -1,85 +1,60 @@
-"""The queue worker: one process at a time (``<data>/worker.lock``, non-blocking flock), one job at a time on the
-machine (``<state>/gpu.lock``, `machine_lock`, D8).
+"""The queue worker of gvoice: `grun.worker.Worker` plus the three kinds of job that are gvoice's (R3, D-9).
 
-Copiado de gimg@fa1076e (D7); adaptado a gvoice (D10): sin imágenes, composición ni metadatos de PNG; tres clases
-de trabajo y el candado de la máquina.
+grun does the generic part: one worker per data folder (``<data>/worker.lock``), recovery of the entries a dead worker
+left, signals (SIGTERM and SIGHUP end the worker through `SystemExit`), the machine lock (``<state>/gpu.lock``, D8), the
+eviction of Ollama (D-7; ``engine.ollama`` and ``engine.ollamaUrl`` of the machine profile, ``GRUN_OLLAMA_URL``), the
+wait for ``minFreeMemoryMb`` (D15; a cancel ends it), the cancel, and the classification of what fails into the
+``error`` of the entry (`grun.worker.Worker._error_for`: a `GrunError` keeps its code and params, `EngineTimeout` is
+``engine.timeout``, an `EngineError` with a ``code`` keeps it, any other is ``engine.failed``, anything else
+``worker.unexpected``).
 
-Right after taking its lock the worker recovers the queue (`queue.recover_orphans`): holding the lock proves no other
-worker is alive, so every ``running`` entry is dead and goes back to ``queued`` (``cancelled`` if a cancel was
-requested) and its pending audio is deleted.
+What stays here is the adapter, `VoiceRunner`, which is grun's engine (``run``) and order store
+(``attempt_for_entry``, ``add_attempt``, invariant 9) at once, and `_WorkerQueue`, the queue the worker uses:
 
-Per entry: claim -> wait for the machine lock (the entry shows ``running``; a cancel ends the wait) -> the job. The
-lock is held for the whole job, so another generator (the image one) never runs at the same time.
-
-* ``voice``: machine profile again (it may have changed since enqueue) -> engine ``design`` (instruction of the
-  entry, the test text, the design model of the profile) -> ``orders.add_attempt``.
+* ``voice``: the design model of the machine profile -> engine ``design`` (instruction of the entry, test text, seed).
 * ``line``: the voice print of the reference take the entry was made with, for the production model
-  (`queue.production_model`; ``worker.print_missing`` with its model, voice and take if the files are not there)
-  -> engine ``line`` -> ``orders.add_attempt``.
-* ``prints``: for each model `orders.missing_prints` says the take lacks: engine ``voiceprint`` on the take's audio
-  -> ``orders.set_prints``. A model that fails stops the job (the ones already made stay).
+  (`queue.production_model`; ``worker.print_missing`` with its model, voice and take if the files are not there) ->
+  engine ``line``.
+* ``prints``: for each model `orders.missing_prints` says the take lacks: engine ``voiceprint`` on the take's audio ->
+  ``orders.set_prints``. A model that fails stops the job (the ones already made stay).
 
-Audio: named after the queue entry id. The engine writes ``attempts/q<entry>/.pending.wav``; the worker
+Audio: named after the queue entry id. The engine writes ``attempts/q<entry>/.pending.wav``; `VoiceRunner.add_attempt`
 `os.replace`s it onto ``audio.wav`` and only then calls `orders.add_attempt(..., entry_id=entry)`, idempotent per
-entry: a crash at any point leaves either no attempt or one with its audio, and a retry never duplicates it. The
-pending file is removed on every failure or cancel; if `add_attempt` fails the moved audio is removed too.
+entry: a crash at any point leaves either no attempt or one with its audio, and a retry never duplicates it (a take
+already stored is found by ``attempt_for_entry`` and never made twice). The pending file is removed on every failure
+or cancel (`VoiceRunner.run` and `_WorkerQueue.finish`; after a kill, `queue.clean_pending` at the next recovery);
+if `add_attempt` fails the moved audio is removed too. On start the worker also deletes the ``.qwentts-*`` folders a
+killed run left (`clean_workdirs`, only with no holder of the machine lock).
 
-Memory (D15, F2.3): with an engine that watches memory (`Engine.watches_memory`, the real one) the job, once it
-holds the machine lock, waits until ``MemAvailable`` reaches ``minFreeMemoryMb`` (`_wait_for_memory`: it never fails
-for that; a cancel ends the wait; the reason is printed once to stderr). The lock is held first on purpose: the other
-generator (images) cannot start and eat the memory between the check and the start, and what the waiting job
-reserves is only the lock, not memory. During the run the engine's watchdog aborts below ``watchMemoryMb``
-(``engine.low_memory``). On start the worker also deletes the ``.qwentts-*`` folders a killed run left
-(`clean_workdirs`).
+Memory (D15, F2.3): only an engine that watches memory (`Engine.watches_memory`, the real one) makes the job wait for
+``minFreeMemoryMb`` (`VoiceRunner.min_free_memory_mb`); the fake one never waits. During the run the engine's watchdog
+aborts below ``watchMemoryMb`` (``engine.low_memory``).
 
-Errors: the entry ``error`` is ``{"code", "params"}`` plus ``"errors"`` (schema errors) when there are any
-(`queue.make_error`; render with `queue.error_text`): a `GvoiceError` keeps its code and params, `EngineTimeout` is
-``engine.timeout``, an `EngineError` with a `code` keeps it, any other is ``engine.failed`` with ``{"message"}``,
-anything else ``worker.unexpected``. Log (D16): one line for every operation that fails or succeeds (a ``prints`` job
-writes one per model); a cancel writes none. Once the result exists nothing can fail the entry: the success log line
-and `queue.finish` are best effort. No `finish` error ever stops `run()`."""
+Log (D16, `log`): one line for every operation that fails or succeeds (a ``prints`` job writes one per model); a
+cancel writes none. It is written by `_WorkerQueue.finish` just before the entry is closed (best effort: it never
+fails the entry; ``worker.log_failed`` on stderr) and, for ``prints``, per model by the runner. The entry ``error`` is
+the one grun makes, plus ``"errors"`` (schema errors) when a `GvoiceError` carries them (`_for_grun`)."""
 from __future__ import annotations
 
 import contextlib
-import fcntl
+import functools
 import os
 import shutil
-import signal
 import sys
-import threading
-import time
+
+from grun import queue as grun_queue
+from grun import worker as grun_worker
+from grun.errors import GrunError
 
 from . import engine as engine_mod
-from . import i18n, limits, log, machine_lock, orders, paths, queue, speech_locale
+from . import errors, i18n, limits, log, machine_lock, orders, paths, queue, speech_locale
 from .errors import GvoiceError
 
 MEMORY_POLL_S = 0.5  # how often a job waiting for memory looks again
-LOCK_RETRY_S = 0.3  # how long `_single_worker` keeps trying the lock before it says another worker is alive
 
 
 def lock_path():
     return queue.worker_lock_path()
-
-
-@contextlib.contextmanager
-def _single_worker():
-    path = lock_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(str(path), os.O_RDWR | os.O_CREAT, 0o600)
-    try:
-        # a momentary holder (`grun.queue.Queue` probing the lock) must not make a fresh worker give up
-        deadline = time.monotonic() + LOCK_RETRY_S
-        while True:
-            try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except BlockingIOError:
-                if time.monotonic() >= deadline:
-                    raise GvoiceError("worker.already_running", path=str(path))
-                time.sleep(0.02)
-        yield
-    finally:
-        os.close(fd)
 
 
 def _unlink(path) -> None:
@@ -87,16 +62,26 @@ def _unlink(path) -> None:
         os.unlink(path)
 
 
-def _error_for(exc: BaseException) -> dict:
-    if isinstance(exc, GvoiceError):
-        return queue.make_error(exc.code, exc.errors, **exc.params)
-    if isinstance(exc, engine_mod.EngineTimeout):
-        return queue.make_error("engine.timeout")
-    if isinstance(exc, engine_mod.EngineError) and exc.code:
-        return queue.make_error(exc.code, **exc.params)
-    if isinstance(exc, engine_mod.EngineError):
-        return queue.make_error("engine.failed", message=exc.message)
-    return queue.make_error("worker.unexpected", message="%s: %s" % (type(exc).__name__, exc))
+def _as_grun(exc: BaseException) -> BaseException:
+    """A `GvoiceError` that carries schema errors as a `GrunError` whose ``errors`` param the worker stores in the entry
+    (`grun.worker.Worker._error_for`); any other error as it is."""
+    if isinstance(exc, GvoiceError) and exc.errors:
+        return GrunError(exc.code, errors=exc.errors, **exc.params)
+    return exc
+
+
+def _for_grun(fn):
+    """Make what `fn` raises what grun classifies (`_as_grun`)."""
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except GvoiceError as exc:
+            converted = _as_grun(exc)
+            if converted is exc:
+                raise
+            raise converted from exc
+    return wrapper
 
 
 _OPERATION = {"voice": log.OP_DESIGN, "line": log.OP_LINE, "prints": log.OP_PRINT}
@@ -112,35 +97,6 @@ def _log_line(entry: dict, machine: dict, provider: str, result=None, error=None
         log.append(entry["project"], record)
     except Exception:  # the log must never hide the real failure
         pass
-
-
-def _finish(entry_id, state, lang=None, **kw) -> None:
-    """`queue.finish` that never raises: the entry stays ``running`` and recovery deals with it."""
-    try:
-        queue.finish(entry_id, state, **kw)
-    except Exception as exc:
-        print(i18n.t("worker.finish_failed", lang, id=entry_id, reason=exc), file=sys.stderr)
-
-
-def _wait_for_memory(entry: dict, eng, machine: dict, should_cancel, lang=None) -> None:
-    """Wait (polling, cancelable) until free memory is at least ``minFreeMemoryMb``; engines that do not watch memory
-    (the fake one) never wait. Says why it waits, once, on stderr."""
-    if not getattr(eng, "watches_memory", False):
-        return
-    said = False
-    while True:
-        free = limits.available_memory_mb()
-        try:
-            limits.check_memory(free, machine)
-            return
-        except limits.LimitError as exc:
-            if not said:
-                said = True
-                print(i18n.t("worker.waiting_memory", lang, id=entry["id"], free=exc.params["free"],
-                             min=exc.params["min"]), file=sys.stderr)
-        if should_cancel():
-            raise machine_lock.WaitCancelled()
-        time.sleep(MEMORY_POLL_S)
 
 
 def clean_workdirs() -> int:
@@ -165,164 +121,210 @@ def _model_of(machine: dict, use: str):
     return model
 
 
-def _take(entry: dict, eng, machine: dict, state: dict, should_cancel):
-    """A ``voice`` or ``line`` take, up to and including `add_attempt`; returns the attempt id."""
-    entry_id, project, key = entry["id"], entry["project"], entry["key"]
-    existing = orders.attempt_for_entry(project, key, entry_id)
-    if existing is not None:  # a crash after add_attempt: the attempt and its audio are already there
-        return existing["id"]
-    tmp = orders.pending_audio_path(project, key, entry_id)
-    state["tmp"] = tmp
-    tmp.parent.mkdir(parents=True, exist_ok=True)
-    spec = {"seed": entry["seed"], "text": entry["text"]}
-    if entry["kind"] == "voice":
-        model = _model_of(machine, "design")
-        job = engine_mod.DesignJob(
-            instruction=entry["instruction"], text=entry["text"], seed=entry["seed"], output=str(tmp), model=model,
-            machine=machine, timeout_s=limits.timeout_s(machine),
-            language=speech_locale.language(entry.get("locale")))
-        spec["instruction"] = entry["instruction"]
-        if entry.get("locale"):
-            spec["locale"] = entry["locale"]
-        state["spec"] = {"model": model, "text": entry["text"]}
-        state["result"] = eng.design(job, should_cancel)
-    else:
-        model = queue.production_model(project, machine)
-        limits.check_model("produce", model, machine)
-        voice = entry.get("voice") or orders.get(project, key)["voice"]  # old queue files have no voice
-        voice_order = orders.get(project, voice)
-        reference = next((a for a in voice_order["attempts"] if a["id"] == entry["reference"]), None)
-        if reference is None:
-            raise GvoiceError("order.reference_unknown", reference=str(entry["reference"]), voice=voice)
-        spk, rvq = orders.print_paths(project, voice, reference, model)
-        if not (spk.is_file() and rvq.is_file()):
-            raise GvoiceError("worker.print_missing", model=model, voice=voice, take=reference["id"])
-        job = engine_mod.LineJob(
-            spk=str(spk), rvq=str(rvq), text=entry["text"], seed=entry["seed"], output=str(tmp), model=model,
-            machine=machine, timeout_s=limits.timeout_s(machine), reference_text=reference.get("text"),
-            language=speech_locale.language(reference.get("locale")))  # the take's, not the voice's now
-        if reference.get("locale"):
-            spec["locale"] = reference["locale"]
-        spec["voice"] = voice
-        spec["reference"] = entry["reference"]
-        state["spec"] = {"model": model, "text": entry["text"]}
-        state["result"] = eng.line(job, should_cancel)
-    if should_cancel():
-        raise engine_mod.Cancelled()
-    final = tmp.parent / "audio.wav"
-    try:
-        os.replace(tmp, final)
-    except OSError as exc:
-        raise GvoiceError("worker.audio_move", reason=str(exc))
-    state["tmp"] = None
-    state["final"] = final  # if add_attempt fails nothing refers to the audio
-    spec["result"] = state["result"]
-    attempt_id = orders.add_attempt(project, key, spec, entry_id=entry_id)
-    state["final"] = None
-    return attempt_id
+class VoiceRunner:
+    """grun's engine and order store for gvoice (see the module docstring). One per `run`; it keeps what the entry in
+    progress needs for its log line (``ctx``: spec, result, stats), that `_WorkerQueue.finish` reads."""
 
+    def __init__(self, engine: engine_mod.Engine, lang=None):
+        self.engine = engine
+        self.lang = lang
+        self.machine = {}
+        self.ctx = None
 
-def _prints(entry: dict, eng, machine: dict, state: dict, should_cancel, provider: str, lang=None):
-    """The ``prints`` job: one voice print per missing model. Returns the take id."""
-    project, key, take = entry["project"], entry["key"], entry["take"]
-    order = orders.get(project, key)
-    attempt = next((a for a in order["attempts"] if a["id"] == take), None)
-    if attempt is None:
-        raise GvoiceError("order.attempt_unknown", attempt=take, order=key)
-    audio = orders.attempt_audio(project, key, attempt)
-    if "audioMs" not in attempt or not audio.is_file():
-        raise GvoiceError("worker.take_without_audio", take=take, voice=key)
-    for model in orders.missing_prints(project, key, take):
-        spk, rvq = orders.print_paths(project, key, attempt, model)
-        job = engine_mod.PrintJob(
-            reference=str(audio), text=attempt["text"], model=model, spk=str(spk), rvq=str(rvq),
-            machine=machine, timeout_s=limits.timeout_s(machine))
+    # -- the profile ---------------------------------------------------------------------------------------
+
+    @_for_grun
+    def load_profile(self) -> dict:
+        """The machine profile as it is now (it may have changed since enqueue)."""
+        self.ctx = None
+        self.machine = {}
+        self.machine = limits.load_machine()
+        return self.machine
+
+    def min_free_memory_mb(self, job):
+        """What the worker waits for before the run: ``minFreeMemoryMb`` with an engine that watches memory, else 0."""
+        if not getattr(self.engine, "watches_memory", False):
+            return 0
+        return job.machine.get("minFreeMemoryMb") or 0
+
+    # -- the order store (invariant 9) -------------------------------------------------------------------------
+
+    @_for_grun
+    def attempt_for_entry(self, entry: dict):
+        """Start of the entry: its order must exist; the id of the take it already made (a crash after `add_attempt`),
+        else ``None``. A ``prints`` job has none: its finished models are skipped by `orders.missing_prints`."""
+        self.ctx = {"id": entry["id"], "spec": {}, "result": None, "take": None, "tmp": None, "stats": None}
+        project, key = entry["project"], entry["key"]
+        orders.get(project, key)
+        if entry["kind"] == "prints":
+            return None
+        existing = orders.attempt_for_entry(project, key, entry["id"])
+        return None if existing is None else existing["id"]
+
+    @_for_grun
+    def add_attempt(self, entry: dict, result):
+        """The result exists: store the take (``voice``, ``line``) and return its id; for ``prints``, the take."""
+        if entry["kind"] == "prints":
+            return entry["take"]
+        tmp = self.ctx["tmp"]
+        final = tmp.parent / "audio.wav"
         try:
-            result = eng.voiceprint(job, should_cancel)
-        except engine_mod.Cancelled:
-            raise
-        except Exception as exc:
-            _log_line(entry, machine, provider, error=queue.error_text(_error_for(exc), "en"),
-                      stats=getattr(exc, "stats", None), model=model, text=attempt["text"])
-            raise
+            os.replace(tmp, final)
+        except OSError as exc:
+            raise GvoiceError("worker.audio_move", reason=str(exc))
         try:
-            orders.set_prints(project, key, take, model, result)
-        except Exception as exc:
-            _log_line(entry, machine, provider, error=queue.error_text(_error_for(exc), "en"), model=model,
-                      text=attempt["text"])
+            return orders.add_attempt(entry["project"], entry["key"], self.ctx["take"], entry_id=entry["id"])
+        except BaseException:  # nothing refers to the audio
+            _unlink(final)
             raise
-        _log_line(entry, machine, provider, result=result, model=model, text=attempt["text"])
-    return take
 
+    # -- the engine ----------------------------------------------------------------------------------------------
 
-def _process(entry: dict, eng, lang=None) -> None:
-    entry_id = entry["id"]
-    machine = {}
-    state = {"tmp": None, "final": None, "result": None, "spec": {}}
-
-    def should_cancel():
-        return queue.is_cancel_requested(entry_id)
-
-    try:
-        with machine_lock.hold(should_cancel):
-            machine.update(limits.load_machine())
-            orders.get(entry["project"], entry["key"])
-            _wait_for_memory(entry, eng, machine, should_cancel, lang)
+    @_for_grun
+    def run(self, job, on_progress, should_cancel, pass_fds):
+        """The job of the entry; the engine itself keeps the machine lock open in its child (`machine_lock.held_fds`)."""
+        entry, machine, ctx = job.entry, job.machine, self.ctx
+        try:
             if entry["kind"] == "prints":
-                attempt_id = _prints(entry, eng, machine, state, should_cancel, eng.provider, lang)
-            else:
-                attempt_id = _take(entry, eng, machine, state, should_cancel)
-    except (engine_mod.Cancelled, machine_lock.WaitCancelled):
-        _finish(entry_id, "cancelled", lang)
-        return
-    except Exception as exc:  # a bug must not leave the entry running or kill the loop
-        error = _error_for(exc)
-        if entry["kind"] != "prints":  # a prints job logged its own failing operation
-            _log_line(entry, machine, eng.provider, error=queue.error_text(error, "en") or error["code"],
-                      stats=getattr(exc, "stats", None), **state["spec"])
-        _finish(entry_id, "failed", lang, error=error)
-        return
-    finally:
-        for leftover in (state["tmp"], state["final"]):
-            if leftover is not None:
-                _unlink(leftover)
-        if state["tmp"] is not None:
-            with contextlib.suppress(OSError):
-                state["tmp"].parent.rmdir()
-    # the result exists: from here nothing may fail the entry
-    if entry["kind"] != "prints" and state["result"] is not None:
+                return self._prints(entry, machine, should_cancel)
+            return self._take(entry, machine, should_cancel)
+        except BaseException as exc:
+            ctx["stats"] = getattr(exc, "stats", None)
+            if ctx["tmp"] is not None:  # nothing was moved yet: the pending audio goes
+                _unlink(ctx["tmp"])
+                with contextlib.suppress(OSError):
+                    ctx["tmp"].parent.rmdir()
+            raise
+
+    def _take(self, entry: dict, machine: dict, should_cancel):
+        """A ``voice`` or ``line`` take up to the pending audio; returns the engine's result."""
+        ctx = self.ctx
+        project, key = entry["project"], entry["key"]
+        tmp = orders.pending_audio_path(project, key, entry["id"])
+        ctx["tmp"] = tmp
+        tmp.parent.mkdir(parents=True, exist_ok=True)
+        spec = {"seed": entry["seed"], "text": entry["text"]}
+        if entry["kind"] == "voice":
+            model = _model_of(machine, "design")
+            job = engine_mod.DesignJob(
+                instruction=entry["instruction"], text=entry["text"], seed=entry["seed"], output=str(tmp),
+                model=model, machine=machine, timeout_s=limits.timeout_s(machine),
+                language=speech_locale.language(entry.get("locale")))
+            spec["instruction"] = entry["instruction"]
+            if entry.get("locale"):
+                spec["locale"] = entry["locale"]
+            ctx["spec"] = {"model": model, "text": entry["text"]}
+            result = self.engine.design(job, should_cancel)
+        else:
+            model = queue.production_model(project, machine)
+            limits.check_model("produce", model, machine)
+            voice = entry.get("voice") or orders.get(project, key)["voice"]  # old queue files have no voice
+            voice_order = orders.get(project, voice)
+            reference = next((a for a in voice_order["attempts"] if a["id"] == entry["reference"]), None)
+            if reference is None:
+                raise GvoiceError("order.reference_unknown", reference=str(entry["reference"]), voice=voice)
+            spk, rvq = orders.print_paths(project, voice, reference, model)
+            if not (spk.is_file() and rvq.is_file()):
+                raise GvoiceError("worker.print_missing", model=model, voice=voice, take=reference["id"])
+            job = engine_mod.LineJob(
+                spk=str(spk), rvq=str(rvq), text=entry["text"], seed=entry["seed"], output=str(tmp), model=model,
+                machine=machine, timeout_s=limits.timeout_s(machine), reference_text=reference.get("text"),
+                language=speech_locale.language(reference.get("locale")))  # the take's, not the voice's now
+            if reference.get("locale"):
+                spec["locale"] = reference["locale"]
+            spec["voice"] = voice
+            spec["reference"] = entry["reference"]
+            ctx["spec"] = {"model": model, "text": entry["text"]}
+            result = self.engine.line(job, should_cancel)
+        ctx["result"] = result
+        ctx["take"] = dict(spec, result=result)
+        return result
+
+    def _prints(self, entry: dict, machine: dict, should_cancel):
+        """The ``prints`` job: one voice print per missing model. Returns the take id."""
+        project, key, take = entry["project"], entry["key"], entry["take"]
+        order = orders.get(project, key)
+        attempt = next((a for a in order["attempts"] if a["id"] == take), None)
+        if attempt is None:
+            raise GvoiceError("order.attempt_unknown", attempt=take, order=key)
+        audio = orders.attempt_audio(project, key, attempt)
+        if "audioMs" not in attempt or not audio.is_file():
+            raise GvoiceError("worker.take_without_audio", take=take, voice=key)
+        provider = self.engine.provider
+        for model in orders.missing_prints(project, key, take):
+            spk, rvq = orders.print_paths(project, key, attempt, model)
+            job = engine_mod.PrintJob(
+                reference=str(audio), text=attempt["text"], model=model, spk=str(spk), rvq=str(rvq),
+                machine=machine, timeout_s=limits.timeout_s(machine))
+            try:
+                result = self.engine.voiceprint(job, should_cancel)
+            except engine_mod.Cancelled:
+                raise
+            except Exception as exc:
+                _log_line(entry, machine, provider, error=queue.error_text(_error_of(exc), "en"),
+                          stats=getattr(exc, "stats", None), model=model, text=attempt["text"])
+                raise
+            try:
+                orders.set_prints(project, key, take, model, result)
+            except Exception as exc:
+                _log_line(entry, machine, provider, error=queue.error_text(_error_of(exc), "en"), model=model,
+                          text=attempt["text"])
+                raise
+            _log_line(entry, machine, provider, result=result, model=model, text=attempt["text"])
+        return take
+
+    # -- the log ---------------------------------------------------------------------------------------------------
+
+    def closing(self, q, entry_id, state: str, error) -> None:
+        """Called by `_WorkerQueue.finish` before the entry is closed: the pending audio of a failed or cancelled
+        entry goes, and the D16 line of a ``voice`` or ``line`` is written (``failed`` or ``done``; ``prints`` wrote
+        its own). Never raises."""
         try:
-            log.append(entry["project"], log.record_for(
-                entry["key"], entry["kind"], dict(entry, **state["spec"]), machine, eng.provider,
-                result=state["result"], operation=_OPERATION[entry["kind"]]))
-        except Exception as exc:
-            print(i18n.t("worker.log_failed", lang, id=entry_id, reason=exc), file=sys.stderr)
-    _finish(entry_id, "done", lang, attempt_id=attempt_id)
+            entry = q.get(entry_id)
+        except Exception:
+            return
+        if state != "done":
+            with contextlib.suppress(Exception):
+                queue.clean_pending(entry)
+        if entry["kind"] == "prints" or state == "cancelled":
+            return
+        ctx = self.ctx if self.ctx and self.ctx["id"] == entry_id else {"spec": {}, "result": None, "stats": None}
+        provider = self.engine.provider
+        if state == "failed":
+            _log_line(entry, self.machine, provider, error=queue.error_text(error, "en") or (error or {}).get("code"),
+                      stats=ctx["stats"], **ctx["spec"])
+        elif ctx["result"] is not None:  # a take found already stored has no result: nothing to log
+            try:
+                log.append(entry["project"], log.record_for(
+                    entry["key"], entry["kind"], dict(entry, **ctx["spec"]), self.machine, provider,
+                    result=ctx["result"], operation=_OPERATION[entry["kind"]]))
+            except Exception as exc:
+                print(i18n.t("worker.log_failed", self.lang, id=entry_id, reason=exc), file=sys.stderr)
 
 
-def _terminate(signum, frame):
-    raise SystemExit(128 + signum)
+_CLASSIFIER = grun_worker.Worker(None, None, app="gvoice", load_profile=None)
 
 
-@contextlib.contextmanager
-def _exit_on_signals():
-    """SIGTERM and SIGHUP end the worker through `SystemExit`, like Ctrl-C does through `KeyboardInterrupt`: the
-    ``finally`` blocks run (the machine lock is closed, the pending audio deleted). The entry in progress stays
-    ``running`` and `queue.recover_orphans` requeues it on the next run. Only in the main thread; the old handlers
-    come back on exit."""
-    if threading.current_thread() is not threading.main_thread():
-        yield
-        return
-    previous = {}
-    try:
-        for name in ("SIGTERM", "SIGHUP"):
-            if hasattr(signal, name):
-                num = getattr(signal, name)
-                previous[num] = signal.signal(num, _terminate)
-        yield
-    finally:
-        for num, handler in previous.items():
-            signal.signal(num, handler)
+def _error_of(exc: BaseException) -> dict:
+    """The ``error`` of an entry for `exc`, as the worker stores it (for the log line of a failed print)."""
+    return _CLASSIFIER._error_for(_as_grun(exc))
+
+
+class _WorkerQueue(grun_queue.Queue):
+    """The queue of the worker: its recovery also deletes the workdirs of a killed engine, and closing an entry writes
+    its D16 log line (`VoiceRunner.closing`)."""
+
+    runner = None
+
+    def recover_orphans(self) -> None:
+        super().recover_orphans()
+        if not machine_lock.busy():  # an engine orphaned by a killed worker still holds the lock (and its folder)
+            clean_workdirs()
+
+    def finish(self, entry_id, state, error=None, attempt_id=None):
+        if self.runner is not None:
+            self.runner.closing(self, entry_id, state, error)
+        return super().finish(entry_id, state, error=error, attempt_id=attempt_id)
 
 
 def run(once: bool = False, engine=None, lang=None) -> int:
@@ -330,17 +332,12 @@ def run(once: bool = False, engine=None, lang=None) -> int:
 
     `lang` is the language of the messages the worker prints. Raises ``GvoiceError("worker.already_running")`` if
     another process holds the worker lock."""
-    with _single_worker(), _exit_on_signals():
-        queue.recover_orphans()
-        if not machine_lock.busy():  # an engine orphaned by a killed worker still holds the lock (and its folder)
-            clean_workdirs()
-        eng = engine or engine_mod.get_engine()
-        handled = 0
-        while True:
-            entry = queue.claim()
-            if entry is None:
-                return handled
-            _process(entry, eng, lang)
-            handled += 1
-            if once:
-                return handled
+    runner = VoiceRunner(engine or engine_mod.get_engine(), lang)
+    work_queue = queue._queue(_WorkerQueue)
+    work_queue.runner = runner
+    worker = grun_worker.Worker(work_queue, runner, app="gvoice", load_profile=runner.load_profile, order_store=runner,
+                                lang=lang, memory_poll_s=MEMORY_POLL_S)
+    try:
+        return worker.run(once)
+    except GrunError as exc:
+        raise errors.from_grun(exc) from None

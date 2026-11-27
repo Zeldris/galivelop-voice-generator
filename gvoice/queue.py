@@ -50,7 +50,7 @@ def worker_lock_path() -> Path:
     return grun_paths.worker_lock_path(paths.data_dir())
 
 
-def _clean_pending(entry: dict) -> None:
+def clean_pending(entry: dict) -> None:
     """Delete what a dead worker left of `entry`: the pending audio of a take, the temporary files of a print.
     (grun calls it for each entry it recovers and swallows what it raises.)"""
     if entry["kind"] in ("voice", "line"):
@@ -68,9 +68,10 @@ def _clean_pending(entry: dict) -> None:
             pending.parent.rmdir()  # only if it is empty
 
 
-def _queue() -> grun_queue.Queue:
-    """The queue of the data folder of this moment (it follows ``GVOICE_DATA_HOME``)."""
-    return grun_queue.Queue(paths.data_dir(), clean_pending=_clean_pending, keep_terminal=KEEP_TERMINAL)
+def _queue(cls=grun_queue.Queue) -> grun_queue.Queue:
+    """The queue of the data folder of this moment (it follows ``GVOICE_DATA_HOME``); `cls` is a subclass of
+    `grun.queue.Queue` (the worker's, `worker._WorkerQueue`)."""
+    return cls(paths.data_dir(), clean_pending=clean_pending, keep_terminal=KEEP_TERMINAL)
 
 
 def _gvoice_errors(fn):

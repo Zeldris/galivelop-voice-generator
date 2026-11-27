@@ -9,9 +9,9 @@
 | Campo | Valor |
 |---|---|
 | **Rama** | `ccr-2447cc83-5kxr8j` (asignada por la sesión; desde `main` tras el PR #12 y la vendorización de `grun`) |
-| **Fase / tarea** | **R3 (adoptar `grun`), lado gvoice hecho** (pasos 1, 2 y 3; detalle en «Hecho»). Falta lo que no es de este lado: revisión de bloque y entorno antes de `main` |
-| **Último punto estable** | R3 paso 3 (commits `feat(R3)` del perfil y `refactor(R3)` del trabajador): suite completa en verde (773 tests, 1 omitido), tests nuevos rojos sin el arreglo |
-| **Siguiente paso** | Persona confirmó ir a `main` por PR (2026-11-27). Fase 3: `reviewed.sh`, subida, CI en verde y descripción del PR con la skill `pr`. Barrido P3/P4 apuntado en `pending.md`. F2.6 sigue esperando a la Deck |
+| **Fase / tarea** | **R3 (adoptar `grun`) cerrada y fusionada en `main`** (PR #13, merge `1990d92`, 2026-11-27, CI en verde sobre `220914e`) |
+| **Último punto estable** | `main` en `1990d92`: suite completa en verde (773 tests, 1 omitido) |
+| **Siguiente paso** | Tarea de barrido de leves P3/P4 (apuntada en `pending.md`). F2.6 sigue esperando a la Deck |
 | **Check** | verde (`bash -n` de cada gancho, `unittest` 773 tests y `ci-local.py --validate`) |
 
 ## Para la próxima publicación

@@ -17,16 +17,32 @@ from .errors import GvoiceError, PathError
 FOLDER = "galivelop-voice"
 ENV_PREFIX = "GVOICE"
 
-state_dir = _grun.state_dir
-machine_lock_path = _grun.machine_lock_path
+def _home(own: str, folder_default: Path, grun_fn) -> Path:
+    """``$<own>`` as set (a relative value is used as is, as before R3; grun ignores it), else grun's folder."""
+    explicit = os.environ.get(own)
+    if explicit:
+        return Path(explicit)
+    return grun_fn()
 
 
 def config_dir() -> Path:
-    return _grun.config_dir(FOLDER, ENV_PREFIX)
+    return _home("GVOICE_CONFIG_HOME", None, lambda: _grun.config_dir(FOLDER, ENV_PREFIX))
 
 
 def data_dir() -> Path:
-    return _grun.data_dir(FOLDER, ENV_PREFIX)
+    return _home("GVOICE_DATA_HOME", None, lambda: _grun.data_dir(FOLDER, ENV_PREFIX))
+
+
+def state_dir() -> Path:
+    """grun's state folder; ``$GALIVELOP_STATE_HOME`` (absolute) wins, else ``$GVOICE_STATE_HOME`` even if relative."""
+    galivelop = os.environ.get("GALIVELOP_STATE_HOME")
+    if galivelop and os.path.isabs(galivelop):
+        return _grun.state_dir()
+    return _home("GVOICE_STATE_HOME", None, _grun.state_dir)
+
+
+def machine_lock_path() -> Path:
+    return state_dir() / "gpu.lock"
 
 
 def models_dir() -> Path:

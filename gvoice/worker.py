@@ -338,6 +338,7 @@ def run(once: bool = False, engine=None, lang=None) -> int:
     worker = grun_worker.Worker(work_queue, runner, app="gvoice", load_profile=runner.load_profile, order_store=runner,
                                 lang=lang, memory_poll_s=MEMORY_POLL_S)
     try:
+        work_queue.list_entries()  # grun's `Worker.run` swallows a failing queue (`queue.corrupt`): fail here instead
         return worker.run(once)
     except GrunError as exc:
         raise errors.from_grun(exc) from None

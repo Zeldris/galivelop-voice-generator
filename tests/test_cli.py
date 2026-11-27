@@ -222,6 +222,15 @@ class QueueTests(CliBase):
         self.assertEqual(self.js("work"), {"processed": 1})
         self.assertEqual(self.js("work"), {"processed": 0})
 
+    def test_work_corrupt_queue_fails(self):
+        path = queue.queue_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{not json")
+        code, out, err = self.run_cli("work", "--once")
+        self.assertNotEqual(code, 0)
+        self.assertNotIn("Processed", out)
+        self.assertIn(str(path), err)  # the `queue.corrupt` text names the file
+
     def test_worker_already_running(self):
         import fcntl
         queue.worker_lock_path().parent.mkdir(parents=True, exist_ok=True)

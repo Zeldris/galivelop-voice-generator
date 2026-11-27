@@ -66,3 +66,7 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
   - `loading()` vive en `gvoice/ui/js/components/shortcuts.js` y `projects-view.js`/`project-view.js` lo importan solo por eso: su sitio es `dom.js`.
   - Dos líneas en blanco seguidas tras los imports en `project-view.js` y `projects-view.js`.
 - Flujo (upstream, 2026-11-18): la fusión de settings.json de apply.py v0.8.0 añade PreToolUse ^(Read|Bash)$ → whole-read.py sin quitar el Read antiguo, y el gancho corre dos veces en cada Read; aquí se quitó a mano. Llevarlo a Galivelop-workflow.
+- Leves de la revisión de bloque de R3 (2026-11-27), sin arreglar:
+  - Un `kind` desconocido en la cola ya no es `queue.corrupt` sino `KeyError`/`worker.unexpected`, y `test_corrupt_queue` (`tests/test_queue.py`) se debilitó: validar `KINDS` al cargar o restaurar el test.
+  - `gvoice/worker.py` (136-142 y 152-162): `load_profile` y el pedido se cargan antes de esperar el candado de máquina y pueden quedar obsoletos; recargar dentro del candado o ajustar el docstring.
+  - `GVOICE_MEMINFO` y `GVOICE_PROC_STATUS` pasaron a `GRUN_MEMINFO` y `GRUN_PROC_STATUS` sin alias: poner alias o una nota en el plan.

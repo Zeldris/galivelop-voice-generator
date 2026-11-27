@@ -29,6 +29,14 @@ class FolderTests(unittest.TestCase):
             self.assertEqual(paths.config_dir(), Path("/h/.config/galivelop-voice"))
             self.assertEqual(paths.data_dir(), Path("/h/.local/share/galivelop-voice"))
 
+    def test_relative_own_homes_used(self):
+        with self.env(HOME="/h", GVOICE_CONFIG_HOME="rc", GVOICE_DATA_HOME="rd", XDG_DATA_HOME="/y"):
+            self.assertEqual(paths.config_dir(), Path("rc"))
+            self.assertEqual(paths.data_dir(), Path("rd"))
+        with self.env(HOME="/h", GVOICE_STATE_HOME="rs", GALIVELOP_STATE_HOME=""):
+            self.assertEqual(paths.state_dir(), Path("rs"))
+            self.assertEqual(paths.machine_lock_path(), Path("rs/gpu.lock"))
+
     def test_home_fallback(self):
         with self.env(HOME="/h"):
             self.assertEqual(paths.config_dir(), Path("/h/.config/galivelop-voice"))

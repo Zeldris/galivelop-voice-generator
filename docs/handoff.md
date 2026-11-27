@@ -11,7 +11,7 @@
 | **Rama** | `ccr-2447cc83-5kxr8j` (asignada por la sesión; desde `main` tras el PR #12 y la vendorización de `grun`) |
 | **Fase / tarea** | **R3 (adoptar `grun`), lado gvoice hecho** (pasos 1, 2 y 3; detalle en «Hecho»). Falta lo que no es de este lado: revisión de bloque y entorno antes de `main` |
 | **Último punto estable** | R3 paso 3 (commits `feat(R3)` del perfil y `refactor(R3)` del trabajador): suite completa en verde (773 tests, 1 omitido), tests nuevos rojos sin el arreglo |
-| **Siguiente paso** | Revisión de bloque de R3 (`/code-review` del diff desde el último commit con `Findings:`; el bloque pasa de 4000 líneas), con los estorbos de grun de «Hecho» 1 como entrada. F2.6 sigue esperando a la Deck |
+| **Siguiente paso** | Fase 2 de entorno de R3: `gw-opt-tokens` y `retro` (la revisión de bloque está hecha, arreglos en el commit `fix(R3)`: `queue.corrupt` en `work --once` y `GVOICE_*_HOME` relativas). F2.6 sigue esperando a la Deck |
 | **Check** | verde (`bash -n` de cada gancho, `unittest` 773 tests y `ci-local.py --validate`) |
 
 ## Para la próxima publicación

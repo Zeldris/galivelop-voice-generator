@@ -70,3 +70,4 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
   - Un `kind` desconocido en la cola ya no es `queue.corrupt` sino `KeyError`/`worker.unexpected`, y `test_corrupt_queue` (`tests/test_queue.py`) se debilitó: validar `KINDS` al cargar o restaurar el test.
   - `gvoice/worker.py` (136-142 y 152-162): `load_profile` y el pedido se cargan antes de esperar el candado de máquina y pueden quedar obsoletos; recargar dentro del candado o ajustar el docstring.
   - `GVOICE_MEMINFO` y `GVOICE_PROC_STATUS` pasaron a `GRUN_MEMINFO` y `GRUN_PROC_STATUS` sin alias: poner alias o una nota en el plan.
+- Barrido de leves (retro R3, P3 y P4, aprobados): una tarea que cierre los 3 leves de la revisión de bloque de R3 (`worker.py`: carga del perfil antes del candado y alias `GVOICE_MEMINFO`/`GVOICE_PROC_STATUS`; `queue.py`: validar `KINDS`) y retire de esta lista las entradas obsoletas de bloques ya fusionados. Para la siguiente versión; id al abrirla.

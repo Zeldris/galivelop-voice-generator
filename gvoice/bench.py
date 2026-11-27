@@ -23,7 +23,9 @@ from datetime import datetime
 from pathlib import Path
 
 from . import engine as engine_mod
-from . import fsutil, i18n, limits, machine_lock, paths
+from grun import fsutil
+
+from . import i18n, limits, machine_lock, paths
 from .errors import GvoiceError
 
 STEPS = ("design", "print", "produce")

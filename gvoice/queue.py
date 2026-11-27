@@ -38,7 +38,9 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import engine, fsutil, i18n, limits, orders, paths, projects, schema
+from grun import fsutil
+
+from . import engine, i18n, limits, orders, paths, projects, schema
 from .errors import GvoiceError
 
 KEEP_TERMINAL = 200

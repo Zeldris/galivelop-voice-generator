@@ -7,7 +7,9 @@ from __future__ import annotations
 import copy
 from pathlib import Path
 
-from . import __version__, fsutil, paths, schema
+from grun import fsutil
+
+from . import __version__, paths, schema
 from .errors import GvoiceError
 
 CONFIG_FILE = "galivelop-voices.json"

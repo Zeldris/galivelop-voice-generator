@@ -24,7 +24,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
-from . import fsutil, paths
+from grun import fsutil
+
+from . import paths
 from .errors import GvoiceError
 
 FAKE_VERSION = "fake-1"

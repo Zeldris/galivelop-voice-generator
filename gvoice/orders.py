@@ -31,7 +31,9 @@ import random
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import fsutil, paths, projects, schema, sheet
+from grun import fsutil
+
+from . import paths, projects, schema, sheet
 from .errors import GvoiceError
 
 STATES = ("new", "candidate", "discarded")

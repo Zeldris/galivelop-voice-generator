@@ -1,13 +1,12 @@
 """opt-ai JSONL log of every engine operation, and the duration estimate (D16).
 
-Copiado de gimg@fa1076e (D7); adaptado a gvoice: the line carries device, seed, engine commit and model (D16)."""
+Adapter over `grun.log` (R3): appending and the median estimate are grun's, on the per-project file; the record layout
+(``gen_ai.*``, ``app.voice.*``: device, seed, engine commit and model, D16) and the file location are gvoice's."""
 from __future__ import annotations
 
-import json
-import statistics
-from datetime import datetime, timezone
+from grun import log as _grun
 
-from . import fsutil, paths
+from . import paths
 
 OP_DESIGN = "voice_design"
 OP_LINE = "speech_generation"
@@ -18,8 +17,8 @@ def log_path(project: str):
     return paths.project_data_dir(project, "log.bad_project") / "log.jsonl"
 
 
-def _now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+_now = _grun.now
+_lines = _grun.lines
 
 
 def pick_stat(result, stats: dict, name: str):
@@ -67,40 +66,12 @@ def record_for(key: str, task: str, spec: dict, machine: dict, provider: str | N
 
 def append(project: str, record: dict) -> None:
     """Append one JSON line to the project's log."""
-    path = log_path(project)
-    text = json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n"
-    with fsutil.lock(path):
-        with open(path, "a", encoding="utf-8") as fh:
-            fh.write(text)
-            fh.flush()
-
-
-def _lines(path):
-    try:
-        fh = open(path, encoding="utf-8")
-    except FileNotFoundError:
-        return
-    with fh:
-        for raw in fh:
-            try:
-                line = json.loads(raw)
-            except ValueError:
-                continue
-            if isinstance(line, dict):
-                yield line
+    _grun.append(log_path(project), record)
 
 
 def estimate(project: str, provider: str, operation: str, model: str, device: str):
     """Median ``app.duration_ms`` (ms) of the non-error lines with the same provider, operation, model and device
     (the same model is slower on the CPU than on Vulkan: D14); ``None`` without data."""
-    values = []
-    for line in _lines(log_path(project)):
-        duration = line.get("app.duration_ms")
-        if ("app.error" in line or line.get("gen_ai.provider.name") != provider
-                or line.get("gen_ai.operation.name") != operation
-                or line.get("gen_ai.request.model") != model
-                or line.get("app.voice.device") != device
-                or not isinstance(duration, (int, float)) or isinstance(duration, bool)):
-            continue
-        values.append(duration)
-    return statistics.median(values) if values else None
+    return _grun.estimate(log_path(project), **{
+        "gen_ai.provider.name": provider, "gen_ai.operation.name": operation,
+        "gen_ai.request.model": model, "app.voice.device": device})

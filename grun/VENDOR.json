@@ -1,0 +1,26 @@
+{
+  "files": {
+    "__init__.py": "002ec650c204c03288361c7c516d16f42fc032f0d86d55a546d0cc6e68c6bc9a",
+    "__main__.py": "a6f2857f4d6d13b313fc22e1dd47e15e0c55fa35e2303e4f71d30a2e22646dac",
+    "doctor.py": "bb1d013bdfab56202d8e5c001dd930a3a3b1b731ae8d6cb5a4cf66e2c1829aed",
+    "engine.py": "5ded8b962243c4927678e6b0fc5f8ca7ecd31ed72ed5dce0f603fe04dea43f02",
+    "errors.py": "6103067e6b00e29c5fcce6558fbfc18f28f26f2284ca55dfc493fde43c8dbd50",
+    "fsutil.py": "8fb9da42f0082c7d33c2205dff5a43066145361787524d97eafeb9bfc54842b2",
+    "i18n.py": "da04a873abd41b1b8ce3fc20df6b9bba00c30c12872467a3f778f12f72d2ccc0",
+    "limits.py": "54a6e7fead8dc7cb999691a60900567a8e9e0d6af2a3c6d867f69ff94d96b1a4",
+    "locales/en.json": "b7b0aee60af87b882791316df3d0c677b2c83a831a4e5740c5673d633aa8352f",
+    "locales/es.json": "370cb544b8b678c49d06295940831d218e730494c2bd1f1d6a4f11bee4e72fd1",
+    "log.py": "7e026e2d3c7aefbb60a13d5aa79db121ee6b9653a51de4c1813a01bac894d435",
+    "machine_lock.py": "bdf09ded2e30550bc9bd34eeb8fb2e955a92a18cfccad9ca0c7ca0a2b5f63a00",
+    "ollama.py": "2876328657fb9a7b488831905428f8c479f75ce7f58adbeac7390d22d4c363a3",
+    "paths.py": "90fecb4d2e0e18582d4a0fb114c9a3492b3ff1d7bb2cda1d494081872ee7c909",
+    "profile.py": "ecf114b3d1a8b5a3b1bf5c57e02ce6fec32f8998f4b3ef107f6b0b410792efc1",
+    "queue.py": "b0056aed6042a99620c35fc14cea1ac32d4ba6ecb674e7ee07efac19ad0b060a",
+    "vendor.py": "c480ed539ee722133ae9279bf5058207212ecfaeb04332ab7038e3817c235e48",
+    "worker.py": "2b823eafe758b2646461e2eb6b434d7e5ef19b0fab3c156b15fcccf4a35c68e3"
+  },
+  "fingerprint": "3fcde460a379af83e42f3682ecec05910ff61f962831c3f795e40f3b43ba7900",
+  "schema": "grun.vendor/0",
+  "source": "6099663b2c51",
+  "version": "0.1.0.dev0"
+}

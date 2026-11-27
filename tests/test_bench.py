@@ -16,7 +16,7 @@ from gvoice import bench, cli, engine, engine_qwentts, limits, machine_lock, mod
 
 FAKE = str(Path(__file__).resolve().parent / "fake_qwentts.py")
 ENV_VARS = ("FAKE_QT_FAIL_DEVICE", "FAKE_QT_HANG", "FAKE_QT_NOWAV", "FAKE_QT_BADWAV", "FAKE_QT_CRASH",
-            "FAKE_QT_LATE_FAIL_S", "FAKE_QT_SLEEP_S", "FAKE_QT_KILL_SELF", "GVOICE_PROC_STATUS",
+            "FAKE_QT_LATE_FAIL_S", "FAKE_QT_SLEEP_S", "FAKE_QT_KILL_SELF", "GRUN_PROC_STATUS",
             "GVOICE_MACHINE_PROFILE", "GVOICE_FAKE_DELAY", "GVOICE_FAKE_FAIL")
 
 
@@ -37,9 +37,9 @@ class BenchBase(unittest.TestCase):
         self.meminfo.write_text("MemTotal: 16000000 kB\nMemAvailable: 8000000 kB\n")
         self.log = self.tmp / "calls.jsonl"
         env = {"GVOICE_DATA_HOME": str(self.tmp / "data"), "GVOICE_MODELS_HOME": str(self.tmp / "models"),
-               "GVOICE_CONFIG_HOME": str(self.tmp / "config"), "GVOICE_STATE_HOME": str(self.tmp / "state"),
+               "GVOICE_CONFIG_HOME": str(self.tmp / "config"), "GALIVELOP_STATE_HOME": str(self.tmp / "state"),
                engine_qwentts.BIN_ENV: str(self.bin), "FAKE_QT_LOG": str(self.log), "GVOICE_LANG": "en",
-               "GVOICE_ENGINE": self.engine_name, "GVOICE_MEMINFO": str(self.meminfo)}
+               "GVOICE_ENGINE": self.engine_name, "GRUN_MEMINFO": str(self.meminfo)}
         env.update({v: "" for v in ENV_VARS})
         patch = mock.patch.dict(os.environ, env)
         patch.start()
@@ -304,7 +304,7 @@ class QwenTtsBenchTests(BenchBase):
                                                                 len(bench.PHRASES["long"]) / 10))
         for row in doc["rows"]:
             self.assertEqual(row["status"], "ok")
-            self.assertEqual(row["min_free_mb"], 7812)  # from GVOICE_MEMINFO, sampled by the memory watch
+            self.assertEqual(row["min_free_mb"], 7812)  # from GRUN_MEMINFO, sampled by the memory watch
             self.assertIsInstance(row["peak_rss_mb"], int)
         self.assertIsNone(doc["rows"][2]["audio_s"])  # the print has no audio
         calls = self.calls()

@@ -45,7 +45,7 @@ python3 -m gvoice fx apply lectura voz.wav limpia.wav   # limpia una voz de lect
 
 `order list` y `order show` marcan las frases elegidas con una referencia que ya no es la vigente (desfasadas, D10).
 `--json` da la salida legible por máquina y `--lang es|en` el idioma; el resto con `--help`. Variables:
-`GVOICE_CONFIG_HOME`, `GVOICE_DATA_HOME`, `GVOICE_STATE_HOME`, `GVOICE_ENGINE` (por ahora solo `fake`) y `GVOICE_LANG`.
+`GVOICE_CONFIG_HOME`, `GVOICE_DATA_HOME`, `GALIVELOP_STATE_HOME`, `GVOICE_ENGINE` (por ahora solo `fake`) y `GVOICE_LANG`.
 
 ## Estructura
 

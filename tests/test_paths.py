@@ -39,7 +39,7 @@ class FlatpakTests(unittest.TestCase):
     """Inside the VS Code Flatpak the XDG folders point to the sandbox; gvoice uses the host folders instead."""
 
     def env(self, **kw):
-        base = {k: "" for k in ("GVOICE_CONFIG_HOME", "GVOICE_DATA_HOME", "GVOICE_STATE_HOME", "XDG_CONFIG_HOME",
+        base = {k: "" for k in ("GVOICE_CONFIG_HOME", "GVOICE_DATA_HOME", "GALIVELOP_STATE_HOME", "XDG_CONFIG_HOME",
                                 "XDG_DATA_HOME", "XDG_STATE_HOME", "FLATPAK_ID")}
         base.update(HOME="/h", **kw)
         return mock.patch.dict(os.environ, base)
@@ -170,6 +170,35 @@ class InsideTests(unittest.TestCase):
         err = PathError("path.dotdot")
         self.assertIn("..", err.message("es"))
         self.assertNotEqual(err.message("es"), err.message("en"))
+
+
+class GrunAdapterTests(unittest.TestCase):
+    """`gvoice.paths` delegates the guard to grun and raises gvoice's errors (R3)."""
+
+    def test_guard_error_is_gvoice_and_grun_path_error(self):
+        from grun import errors as grun_errors
+        with self.assertRaises(PathError) as cm:
+            paths.check_relative("../x")
+        self.assertIsInstance(cm.exception, GvoiceError)
+        self.assertIsInstance(cm.exception, grun_errors.PathError)
+        self.assertEqual((cm.exception.code, type(cm.exception)), ("path.dotdot", PathError))
+        self.assertIn("..", cm.exception.message("es"))  # rendered with the texts of gvoice
+
+    def test_inside_outside_error_keeps_its_parameters(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.symlink("/", os.path.join(tmp, "link"))
+            with self.assertRaises(PathError) as cm:
+                paths.inside(tmp, "link/etc")
+        self.assertEqual((cm.exception.code, cm.exception.params), ("path.outside", {"path": "link/etc"}))
+
+    def test_gvoice_error_is_a_grun_error(self):
+        from grun import errors as grun_errors
+        self.assertTrue(issubclass(GvoiceError, grun_errors.GrunError))
+
+    def test_state_is_the_galivelop_one(self):
+        with mock.patch.dict(os.environ, {"GALIVELOP_STATE_HOME": "/s"}):
+            self.assertEqual(paths.state_dir(), Path("/s"))
+            self.assertEqual(paths.machine_lock_path(), Path("/s/gpu.lock"))
 
 
 class KeyTests(unittest.TestCase):

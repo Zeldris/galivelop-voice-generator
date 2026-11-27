@@ -45,7 +45,7 @@ python3 -m gvoice fx apply lectura voice.wav clean.wav   # cleans a reading voic
 
 `order list` and `order show` mark the chosen lines made with a reference that is no longer the current one (stale,
 D10). `--json` gives machine-readable output and `--lang es|en` the language; the rest with `--help`. Variables:
-`GVOICE_CONFIG_HOME`, `GVOICE_DATA_HOME`, `GVOICE_STATE_HOME`, `GVOICE_ENGINE` (only `fake` for now) and `GVOICE_LANG`.
+`GVOICE_CONFIG_HOME`, `GVOICE_DATA_HOME`, `GALIVELOP_STATE_HOME`, `GVOICE_ENGINE` (only `fake` for now) and `GVOICE_LANG`.
 
 ## Structure
 

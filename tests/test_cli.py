@@ -28,7 +28,7 @@ class CliBase(unittest.TestCase):
         self.tmp = Path(tmp.name).resolve()
         env = mock.patch.dict(os.environ, {
             "GVOICE_CONFIG_HOME": str(self.tmp / "cfg"), "GVOICE_DATA_HOME": str(self.tmp / "data"),
-            "GVOICE_STATE_HOME": str(self.tmp / "state"), "GVOICE_ENGINE": "fake", "GVOICE_LANG": "en"})
+            "GALIVELOP_STATE_HOME": str(self.tmp / "state"), "GVOICE_ENGINE": "fake", "GVOICE_LANG": "en"})
         env.start()
         self.addCleanup(env.stop)
         for name in ("GVOICE_MACHINE_PROFILE", "GVOICE_DEBUG", "GVOICE_FAKE_FAIL", "GVOICE_FAKE_DELAY"):

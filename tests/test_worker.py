@@ -291,7 +291,7 @@ class MachineLockTests(WorkerBase):
         blocker = self.tmp / "file"
         blocker.write_text("x")
         self.push()
-        with mock.patch.dict(os.environ, {"GVOICE_STATE_HOME": str(blocker / "sub")}):
+        with mock.patch.dict(os.environ, {"GALIVELOP_STATE_HOME": str(blocker / "sub")}):
             self.run_worker()
         entry = queue.get(1)
         self.assertEqual((entry["state"], entry["error"]["code"]), ("failed", "machine_lock.unavailable"))
@@ -442,7 +442,7 @@ if __name__ == "__main__":
 class MemoryTests(WorkerBase):
     def setUp(self):
         super().setUp()
-        patch = mock.patch.dict(os.environ, {"GVOICE_MEMINFO": str(self.tmp_meminfo())})
+        patch = mock.patch.dict(os.environ, {"GRUN_MEMINFO": str(self.tmp_meminfo())})
         patch.start()
         self.addCleanup(patch.stop)
         poll = mock.patch.object(worker, "MEMORY_POLL_S", 0.05)
@@ -457,7 +457,7 @@ class MemoryTests(WorkerBase):
         return os.path.join(tmp.name, "meminfo")
 
     def set_free(self, mb):
-        with open(os.environ["GVOICE_MEMINFO"], "w") as fh:
+        with open(os.environ["GRUN_MEMINFO"], "w") as fh:
             fh.write("MemAvailable: %d kB\n" % (mb * 1024))
 
     def watching_engine(self):
@@ -511,7 +511,7 @@ class MemoryTests(WorkerBase):
         self.assertEqual(queue.get(1)["state"], "done")
 
     def test_unknown_memory_does_not_wait(self):
-        os.environ["GVOICE_MEMINFO"] = os.environ["GVOICE_MEMINFO"] + ".missing"
+        os.environ["GRUN_MEMINFO"] = os.environ["GRUN_MEMINFO"] + ".missing"
         self.push()
         self.run_worker(engine=self.watching_engine())
         self.assertEqual(queue.get(1)["state"], "done")

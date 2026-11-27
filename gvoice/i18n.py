@@ -1,6 +1,8 @@
 """Message lookup with es/en texts and fallback.
 
-Copiado de gimg@4365f9a (D7); adapted to gvoice (GVOICE_LANG)."""
+Kept as its own module on purpose (R3): `grun.i18n` looks texts up only in `grun/locales/` and reads
+``GALIVELOP_LANG``, while gvoice needs its own es/en texts (`gvoice/locales/`) and ``GVOICE_LANG``. Same lookup
+semantics otherwise. It can go when grun takes a locales folder and a language variable as parameters."""
 from __future__ import annotations
 
 import json

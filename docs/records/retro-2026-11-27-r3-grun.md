@@ -1,6 +1,6 @@
 # Retro R3 — adoptar `grun` (2026-11-27)
 
-**Estado:** aprobada y aplicada: P1 aprobada (queda en `## For Galivelop-workflow`), P2 aplicada, P3 y P4 aprobadas por la persona el 2026-11-27 (se ejecutan en la tarea de barrido, apuntada en `pending.md`).
+**Estado:** aprobada y aplicada: P1 aprobada (queda en `## For Galivelop-workflow`), P2 aplicada, P3 y P4 aprobadas por la persona el 2026-11-27 (se ejecutan en la tarea de barrido, apuntada en el archivo de pendientes).
 
 Fuentes: `measure.py` sobre la sesión `15c9eb88` (10 llamadas en la principal, 39 en subagentes), `pending.md`,
 diff de la rama contra `origin/main` (52 archivos, +3443/−810) y las skills usadas (`gw-orchestrate-dealer`,

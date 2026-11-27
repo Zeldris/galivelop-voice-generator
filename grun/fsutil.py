@@ -1,6 +1,6 @@
 """Atomic JSON files and per-file locks.
 
-Copiado de gimg@fa1076e (D7); adaptado a gvoice (D9)."""
+Extracted from gvoice@8a17618 gvoice/fsutil.py."""
 from __future__ import annotations
 
 import contextlib
@@ -8,19 +8,50 @@ import fcntl
 import json
 import os
 import tempfile
-import threading
 from pathlib import Path
 
 _MISSING = object()
-_umask_lock = threading.Lock()
+
+
+def _read_umask_once() -> int:
+    mask = os.umask(0o022)
+    os.umask(mask)
+    return mask
+
+
+_IMPORT_UMASK = _read_umask_once()  # the only time this module changes the umask: at import, before any thread uses it
+
+
+def current_umask() -> int:
+    """The process umask without changing it: ``Umask:`` of ``/proc/self/status`` (Linux), else the one read once
+    when this module was imported (changing it on every call would let other threads create 0666 files)."""
+    try:
+        with open("/proc/self/status", encoding="ascii", errors="replace") as fh:
+            for row in fh:
+                if row.startswith("Umask:"):
+                    return int(row.split()[1], 8)
+    except (OSError, ValueError, IndexError):
+        pass
+    return _IMPORT_UMASK
 
 
 def honour_umask(fd: int) -> None:
     """`mkstemp` files are 0600; give the final file the mode a plain open() would (0666 & ~umask)."""
-    with _umask_lock:
-        mask = os.umask(0)
-        os.umask(mask)
-    os.fchmod(fd, 0o666 & ~mask)
+    os.fchmod(fd, 0o666 & ~current_umask())
+
+
+def _fsync_dir(folder: Path) -> None:
+    """Make a rename in `folder` durable; a platform that cannot open a folder (Windows) is skipped."""
+    try:
+        fd = os.open(str(folder), os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
 
 
 def write_json(path, data) -> None:
@@ -30,8 +61,15 @@ def write_json(path, data) -> None:
     text = json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix="." + path.name + ".", suffix=".tmp")
     try:
-        honour_umask(fd)
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh = os.fdopen(fd, "w", encoding="utf-8")
+    except BaseException:
+        os.close(fd)
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+    try:
+        with fh:
+            honour_umask(fh.fileno())
             fh.write(text)
             fh.flush()
             os.fsync(fh.fileno())
@@ -40,6 +78,7 @@ def write_json(path, data) -> None:
         with contextlib.suppress(OSError):
             os.unlink(tmp)
         raise
+    _fsync_dir(path.parent)
 
 
 def read_json(path, default=_MISSING):
@@ -82,3 +121,24 @@ def try_lock(path):
         yield taken
     finally:
         os.close(fd)
+
+
+def held(path):
+    """Does a process hold `path` (a lock file itself, not ``<path>.lock``) right now? ``True`` / ``False``, or
+    ``None`` when it cannot be known (the file exists but cannot be opened). A pure read: it creates nothing, and no
+    file means no holder. The probe takes the lock *shared*, so two probes at the same moment never see each other
+    as the holder. Adapted from gimg@HEAD gimg/fsutil.py."""
+    try:
+        fd = os.open(str(path), os.O_RDWR)
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return None
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except OSError:
+            return True
+        return False
+    finally:
+        os.close(fd)  # closing releases the lock

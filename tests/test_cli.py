@@ -13,6 +13,7 @@ from unittest import mock
 
 from gvoice import __version__, cli, models, queue
 from gvoice.errors import GvoiceError
+from tests.test_queue import closed_url
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = (ROOT / "examples" / "galivelop-voices.json").read_text()
@@ -28,7 +29,8 @@ class CliBase(unittest.TestCase):
         self.tmp = Path(tmp.name).resolve()
         env = mock.patch.dict(os.environ, {
             "GVOICE_CONFIG_HOME": str(self.tmp / "cfg"), "GVOICE_DATA_HOME": str(self.tmp / "data"),
-            "GVOICE_STATE_HOME": str(self.tmp / "state"), "GVOICE_ENGINE": "fake", "GVOICE_LANG": "en"})
+            "GALIVELOP_STATE_HOME": str(self.tmp / "state"), "GVOICE_ENGINE": "fake", "GVOICE_LANG": "en",
+            "GRUN_OLLAMA_URL": closed_url()})
         env.start()
         self.addCleanup(env.stop)
         for name in ("GVOICE_MACHINE_PROFILE", "GVOICE_DEBUG", "GVOICE_FAKE_FAIL", "GVOICE_FAKE_DELAY"):
@@ -219,6 +221,15 @@ class QueueTests(CliBase):
         self.assertEqual(self.js("work", "--once"), {"processed": 1})
         self.assertEqual(self.js("work"), {"processed": 1})
         self.assertEqual(self.js("work"), {"processed": 0})
+
+    def test_work_corrupt_queue_fails(self):
+        path = queue.queue_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{not json")
+        code, out, err = self.run_cli("work", "--once")
+        self.assertNotEqual(code, 0)
+        self.assertNotIn("Processed", out)
+        self.assertIn(str(path), err)  # the `queue.corrupt` text names the file
 
     def test_worker_already_running(self):
         import fcntl

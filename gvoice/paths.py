@@ -1,65 +1,47 @@
 """Data and config folders, and the D25 path guard.
 
-Copiado de gimg@fa1076e (D7); adaptado a gvoice (D9)."""
+Adapter over `grun.paths` (R3): the state folder and the machine lock path are grun's (``$GALIVELOP_STATE_HOME``);
+the data and config folders are grun's with gvoice's folder name and ``GVOICE_`` prefix; the path guard raises
+gvoice's `PathError` (grun raises its own). Project, model and engine folders and the key checks are gvoice's."""
 from __future__ import annotations
 
 import os
 import re
 from pathlib import Path
 
+from grun import paths as _grun
+
+from . import errors
 from .errors import GvoiceError, PathError
 
+FOLDER = "galivelop-voice"
+ENV_PREFIX = "GVOICE"
 
-
-def _xdg_base(xdg: str):
-    """``$<xdg>`` if it is absolute (the XDG spec says to ignore relative values), else ``None``.
-
-    Inside a Flatpak (``FLATPAK_ID`` set, e.g. VS Code on the Deck) the XDG folders point to the sandbox,
-    ``~/.var/app/<id>/...``, where the ``gvoice`` of the host never looks: those are ignored, so both sides share
-    ``~/.config``, ``~/.local/share`` and ``~/.local/state``."""
-    base = os.environ.get(xdg)
-    if not base or not os.path.isabs(base):
-        return None
-    if os.environ.get("FLATPAK_ID"):
-        sandbox = Path.home() / ".var" / "app"
-        if Path(base) == sandbox or sandbox in Path(base).parents:
-            return None
-    return Path(base)
-
-
-def _home_dir(own: str, xdg: str, fallback: tuple) -> Path:
+def _home(own: str, folder_default: Path, grun_fn) -> Path:
+    """``$<own>`` as set (a relative value is used as is, as before R3; grun ignores it), else grun's folder."""
     explicit = os.environ.get(own)
     if explicit:
         return Path(explicit)
-    base = _xdg_base(xdg)
-    if base is not None:
-        return base / "galivelop-voice"
-    return Path.home().joinpath(*fallback)
+    return grun_fn()
 
 
 def config_dir() -> Path:
-    return _home_dir("GVOICE_CONFIG_HOME", "XDG_CONFIG_HOME", (".config", "galivelop-voice"))
+    return _home("GVOICE_CONFIG_HOME", None, lambda: _grun.config_dir(FOLDER, ENV_PREFIX))
 
 
 def data_dir() -> Path:
-    return _home_dir("GVOICE_DATA_HOME", "XDG_DATA_HOME", (".local", "share", "galivelop-voice"))
+    return _home("GVOICE_DATA_HOME", None, lambda: _grun.data_dir(FOLDER, ENV_PREFIX))
 
 
 def state_dir() -> Path:
-    """State shared by the Galivelop generators of one machine (D8): ``$GVOICE_STATE_HOME`` (tests), else
-    ``$XDG_STATE_HOME/galivelop``, else ``~/.local/state/galivelop``. Not ``galivelop-voice``: the folder is the
-    same for every generator, so they share the machine lock."""
-    explicit = os.environ.get("GVOICE_STATE_HOME")
-    if explicit:
-        return Path(explicit)
-    base = _xdg_base("XDG_STATE_HOME")
-    if base is not None:
-        return base / "galivelop"
-    return Path.home() / ".local" / "state" / "galivelop"
+    """grun's state folder; ``$GALIVELOP_STATE_HOME`` (absolute) wins, else ``$GVOICE_STATE_HOME`` even if relative."""
+    galivelop = os.environ.get("GALIVELOP_STATE_HOME")
+    if galivelop and os.path.isabs(galivelop):
+        return _grun.state_dir()
+    return _home("GVOICE_STATE_HOME", None, _grun.state_dir)
 
 
 def machine_lock_path() -> Path:
-    """The machine lock (D8): ``<state>/gpu.lock``."""
     return state_dir() / "gpu.lock"
 
 
@@ -78,38 +60,20 @@ def engine_dir() -> Path:
 
 def check_relative(rel) -> str:
     """Reject anything that is not a plain relative path; return it unchanged."""
-    if not isinstance(rel, str):
-        raise PathError("path.type")
-    if rel == "":
-        raise PathError("path.empty")
-    if "\x00" in rel:
-        raise PathError("path.nul")
-    if any(ord(c) < 0x20 or ord(c) == 0x7F for c in rel):
-        raise PathError("path.control")
-    if "\\" in rel:
-        raise PathError("path.backslash")
-    if rel.startswith("/"):
-        raise PathError("path.absolute")
-    if rel.startswith("~"):
-        raise PathError("path.tilde")
-    if ".." in rel.split("/"):
-        raise PathError("path.dotdot")
-    return rel
+    try:
+        return _grun.check_relative(rel)
+    except _grun.PathError as exc:
+        raise errors.from_grun(exc) from None
 
 
 def inside(root, rel) -> Path:
     """Resolve `rel` under `root` (following links) and require it stays inside.
 
     The target may not exist yet. Returns the resolved path."""
-    check_relative(rel)
     try:
-        real_root = Path(root).resolve()
-        target = (real_root / rel).resolve()
-    except (OSError, RuntimeError):
-        raise PathError("path.unresolvable", path=rel)
-    if target != real_root and real_root not in target.parents:
-        raise PathError("path.outside", path=rel)
-    return target
+        return _grun.inside(root, rel)
+    except _grun.PathError as exc:
+        raise errors.from_grun(exc) from None
 
 
 _PROJECT_NAME = None

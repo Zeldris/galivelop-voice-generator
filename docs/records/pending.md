@@ -7,7 +7,7 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
 - Hallazgos leves de la revisión de bloque de la lectora es (F2-F3, locale y efectos), sin arreglar en este PR (no vuelven a revisarse en él):
   - `gvoice/effects.py` `apply` no comprueba que `dst` y `src` sean el mismo archivo (`samefile`) y ffmpeg corre con `-y`: lo sobrescribiría mientras lo lee.
   - `gvoice/effects.py` `apply` no pasa `-f wav` y escribe directo en `dst`: debería escribir a un temporal y `os.replace`.
-  - Un locale desconocido lanza `ValueError` en vez de un `GvoiceError` traducido (`worker.py:183`, `speech_locale.py:17`).
+  - Un locale desconocido lanza `ValueError` en vez de un `GvoiceError` traducido (`VoiceRunner._take` de `worker.py`, `speech_locale.py:17`).
   - `gvoice/effects.py:76-85` `load_chain` no sanea el nombre del preset, y un preset tapa a un archivo local del mismo nombre.
   - `gvoice/effects.py` comprueba `_SUPPORTED` dos veces (`_step` y `apply`).
   - `gvoice/queue.py:239` usa un criterio truthy para `locale` y `orders.py` usa `is not None`: unificarlos.
@@ -37,11 +37,9 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
   - El rollback de huellas puede borrar el par bueno anterior, y `print_not_written` pasa `path.suffix` en vez de la ruta.
   - Carreras de señales en `_kill_group`/`Popen`.
   - `recover_orphans` antes de `clean_workdirs` deja carpetas `q<entrada>` vacías.
-  - Espera de memoria aunque `_take` devuelva un intento ya hecho.
   - El comentario de `engine_qwentts.py:49` sobre el proyecto.
   - `models fetch` concurrentes comparten `.part`, sin fsync de la carpeta y con progreso solo al 0 y 100 %.
   - `is_cancel_requested` cada 50 ms.
-  - `MemoryTests` de `tests/test_worker.py` está tras `unittest.main()`.
 - Proponer a la persona añadir `bash -n instalar.sh` a `check` de `.claude/gw.json` y a `.github/workflows/check.yml` (`.claude/` está protegido); mientras, `tests/test_install.py` lo corre.
 - Hallazgos leves de la revisión de F1, sin arreglar en este PR (no vuelven a revisarse en él):
   - `queue.json` borrado o rehecho reinicia `nextId`, y una entrada nueva casa con un intento viejo por `queueEntry` (`worker._take`, carpeta `attempts/q<id>`).
@@ -68,3 +66,8 @@ Lo que queda abierto; la bitácora solo apunta aquí. Se añade y se quita en es
   - `loading()` vive en `gvoice/ui/js/components/shortcuts.js` y `projects-view.js`/`project-view.js` lo importan solo por eso: su sitio es `dom.js`.
   - Dos líneas en blanco seguidas tras los imports en `project-view.js` y `projects-view.js`.
 - Flujo (upstream, 2026-11-18): la fusión de settings.json de apply.py v0.8.0 añade PreToolUse ^(Read|Bash)$ → whole-read.py sin quitar el Read antiguo, y el gancho corre dos veces en cada Read; aquí se quitó a mano. Llevarlo a Galivelop-workflow.
+- Leves de la revisión de bloque de R3 (2026-11-27), sin arreglar:
+  - Un `kind` desconocido en la cola ya no es `queue.corrupt` sino `KeyError`/`worker.unexpected`, y `test_corrupt_queue` (`tests/test_queue.py`) se debilitó: validar `KINDS` al cargar o restaurar el test.
+  - `gvoice/worker.py` (136-142 y 152-162): `load_profile` y el pedido se cargan antes de esperar el candado de máquina y pueden quedar obsoletos; recargar dentro del candado o ajustar el docstring.
+  - `GVOICE_MEMINFO` y `GVOICE_PROC_STATUS` pasaron a `GRUN_MEMINFO` y `GRUN_PROC_STATUS` sin alias: poner alias o una nota en el plan.
+- Barrido de leves (retro R3, P3 y P4, aprobados): una tarea que cierre los 3 leves de la revisión de bloque de R3 (`worker.py`: carga del perfil antes del candado y alias `GVOICE_MEMINFO`/`GVOICE_PROC_STATUS`; `queue.py`: validar `KINDS`) y retire de esta lista las entradas obsoletas de bloques ya fusionados. Para la siguiente versión; id al abrirla.

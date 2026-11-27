@@ -48,7 +48,9 @@ import wave
 from pathlib import Path
 from typing import Callable, Optional
 
-from . import fsutil, limits, machine_lock, models, paths
+from grun import fsutil
+
+from . import limits, machine_lock, models, paths
 from .engine import (Cancelled, DesignJob, Engine, EngineError, EngineResult, EngineTimeout, LineJob, PrintJob,
                      _device)
 from .errors import GvoiceError

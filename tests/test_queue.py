@@ -2,6 +2,7 @@ import copy
 import fcntl
 import json
 import os
+import socket
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,6 +17,14 @@ LINE = json.loads((ROOT / "examples" / "order-line.json").read_text())
 CONFIG = json.loads((ROOT / "examples" / "galivelop-voices.json").read_text())
 
 
+def closed_url() -> str:
+    """The address of an Ollama that is not there (a worker looks for one before every job), so a test never talks to
+    the one of the machine it runs on."""
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return "http://127.0.0.1:%d" % sock.getsockname()[1]
+
+
 class QueueBase(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -23,7 +32,7 @@ class QueueBase(unittest.TestCase):
         self.tmp = Path(tmp.name).resolve()
         env = mock.patch.dict(os.environ, {
             "GVOICE_CONFIG_HOME": str(self.tmp / "cfg"), "GVOICE_DATA_HOME": str(self.tmp / "data"),
-            "GVOICE_STATE_HOME": str(self.tmp / "state")})
+            "GALIVELOP_STATE_HOME": str(self.tmp / "state"), "GRUN_OLLAMA_URL": closed_url()})
         env.start()
         self.addCleanup(env.stop)
         for var in ("GVOICE_MACHINE_PROFILE", "GVOICE_ENGINE", "GVOICE_FAKE_DELAY", "GVOICE_FAKE_FAIL"):
@@ -278,6 +287,66 @@ class QueueTests(QueueBase):
         queue.get(1)
         self.assertTrue((pending.parent / "audio.wav").is_file())
 
+    def test_a_queue_json_of_the_old_format_is_read_as_it_is(self):
+        """D-10: the file of gimg/gvoice (``nextId``, ``entries``; no ``position``, no ``orphanCount``) is neither
+        migrated nor rewritten by a read; its entries are taken in id order and the next id goes on."""
+        old = {"nextId": 4, "entries": [
+            {"id": 1, "kind": "voice", "project": "world", "key": "narrator", "seed": 1, "text": "t", "state": "done",
+             "pid": None, "enqueuedAt": "2026-01-01T00:00:00Z", "startedAt": "2026-01-01T00:00:01Z",
+             "finishedAt": "2026-01-01T00:00:02Z", "error": None, "attemptId": 1, "cancelRequested": False,
+             "instruction": "i"},
+            {"id": 3, "kind": "prints", "project": "world", "key": "narrator", "seed": None, "text": None, "take": 1,
+             "state": "queued", "pid": None, "enqueuedAt": "2026-01-01T00:00:03Z", "startedAt": None,
+             "finishedAt": None, "error": None, "attemptId": None, "cancelRequested": False},
+            {"id": 2, "kind": "voice", "project": "world", "key": "narrator", "seed": 2, "text": "t",
+             "state": "queued", "pid": None, "enqueuedAt": "2026-01-01T00:00:02Z", "startedAt": None,
+             "finishedAt": None, "error": None, "attemptId": None, "cancelRequested": False, "instruction": "i"}]}
+        path = self.tmp / "data" / "queue.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps(old))
+        before = path.read_bytes()
+        self.assertEqual([e["id"] for e in queue.list_entries()], [1, 3, 2])  # file order
+        self.assertEqual(queue.get(1), old["entries"][0])
+        self.assertEqual(path.read_bytes(), before)  # read, not migrated
+        self.assertEqual(queue.entry_view(old["entries"][0], "en"), old["entries"][0])
+        self.assertEqual(queue.next_queued()["id"], 2)  # no position: by id, as a queue.json of gimg was always taken
+        self.assertEqual(queue.claim()["id"], 2)
+        self.hold_worker_lock()
+        orders.submit(self.p, self.voice())
+        self.assertEqual(self.push()[0]["id"], 4)  # nextId goes on
+        self.assertEqual(json.loads(path.read_text())["nextId"], 5)
+
+    def test_a_worker_that_dies_twice_with_the_entry_fails_it(self):
+        """grun (D-5): the first orphaning requeues, the second closes the entry as ``queue.orphaned`` (before, a
+        job that kills its worker was requeued for ever); the pending audio is deleted both times."""
+        self.push()
+        pending = orders.pending_audio_path(self.p, "narrator", 1)
+        for round_ in (1, 2):
+            self.assertEqual(queue.claim()["id"], 1)
+            pending.parent.mkdir(parents=True, exist_ok=True)
+            pending.write_bytes(b"half")
+            entry = queue.get(1)  # no worker lock: recovery
+            self.assertFalse(pending.parent.exists(), round_)
+            self.assertEqual(entry["orphanCount"], round_)
+        self.assertEqual((entry["state"], entry["pid"], entry["startedAt"]), ("failed", None, None))
+        self.assertEqual(entry["error"], {"code": "queue.orphaned", "params": {"id": 1, "count": 2}})
+        self.assertIsNone(queue.claim())
+        self.assertIn("2 times", queue.error_text(entry, "en"))
+        self.assertIn("2 veces", queue.error_text(entry, "es"))
+
+    def test_errors_of_grun_come_out_as_gvoice_errors_with_gvoice_texts(self):
+        self.push()
+        queue.claim()
+        exc = self.code(queue.finish, 1, "cancelled")  # grun: a running entry is cancelled only after a cancel request
+        self.assertEqual((exc.code, exc.params), ("queue.invalid_transition",
+                                                  {"id": 1, "from_state": "running", "to_state": "cancelled"}))
+        self.assertIn("running", exc.message("en"))
+        self.assertIn("no puede pasar de", exc.message("es"))
+        self.assertEqual(self.code(queue.get, "x").code, "queue.unknown")
+
+    def test_takes_are_not_batches(self):
+        self.assertTrue(all("batch" not in e for e in self.push(count=3)))
+
     def test_prune_keeps_last_200_terminal(self):
         for _ in range(5):
             self.push(count=41)
@@ -289,7 +358,7 @@ class QueueTests(QueueBase):
     def test_corrupt_queue(self):
         path = self.tmp / "data" / "queue.json"
         for text in ("{not json", '{"nextId": 1, "entries": "x"}',
-                     '{"nextId": 1, "entries": [{"id": 1, "state": "queued", "kind": "image"}]}'):
+                     '{"nextId": 1, "entries": [{"id": 1, "state": "paused", "kind": "voice"}]}'):  # (an unknown ``kind`` is grun's business no more)
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text)
             exc = self.code(queue.list_entries)
@@ -456,6 +525,74 @@ class ServiceTests(QueueBase):
         orders.submit(self.p, self.voice())
         self.assertEqual(self.code(queue.enqueue_prints, self.p, "narrator", 9).code, "order.attempt_unknown")
         self.assertEqual(queue.list_entries(), [])
+
+
+FIXTURE = ROOT / "tests" / "fixtures" / "queue-views-main.json"
+NEW_FIELDS = ("position", "orphanCount")  # what grun adds to an entry (invariant 13: they may appear, nothing else)
+
+
+class ApiShapeTests(QueueBase):
+    """Invariant 13 (grun): the entries that ``gvoice queue list --json`` / ``/api/queue`` give, and that the
+    interface reads, keep the shape the ``main`` branch gave before gvoice moved onto `grun.queue`.
+    ``tests/fixtures/queue-views-main.json`` was produced by `gvoice/queue.py` of ``origin/main`` (8a17618): one entry
+    of each kind in each state (``cr`` is a running one with ``cancelRequested``)."""
+    NOW = "2026-01-01T00:00:00Z"
+    ROLES = ("running", "done", "failed", "cancelled", "cr")
+
+    def views(self) -> dict:
+        """The scenario: 5 entries of each kind taken (ids 1-5 voice, 6-10 line, 11-15 prints, one per role) and one
+        more of each kept ``queued`` (16-18). Returns ``{"<kind>-<state>": entry_view}``; the pid is ``"<pid>"``."""
+        self.hold_worker_lock()
+        orders.submit(self.p, self.voice())
+        takes = [self.take(seed=i + 1) for i in range(6)]
+        orders.choose(self.p, "narrator", takes[0])
+        orders.submit(self.p, self.line())
+        queue.new_takes(self.p, "narrator", 5)
+        queue.new_takes(self.p, "narrator/intro-01", 5)
+        for take in takes[:5]:
+            queue.enqueue_prints(self.p, "narrator", take)
+        for _ in range(15):
+            queue.claim()
+        for entry_id in range(1, 16):
+            role = self.ROLES[(entry_id - 1) % 5]
+            if role == "done":
+                queue.finish(entry_id, "done", attempt_id=1)
+            elif role == "failed":
+                queue.finish(entry_id, "failed", error=queue.make_error("engine.failed", message="boom"))
+            elif role == "cancelled":
+                queue.cancel(entry_id)
+                queue.finish(entry_id, "cancelled")
+            elif role == "cr":
+                queue.cancel(entry_id)
+        queue.new_takes(self.p, "narrator", 1)
+        queue.new_takes(self.p, "narrator/intro-01", 1)
+        queue.enqueue_prints(self.p, "narrator", takes[5])
+        views = {}
+        for entry in queue.list_entries():
+            state = "cr" if entry["cancelRequested"] and entry["state"] == "running" else entry["state"]
+            view = queue.entry_view(entry, "en")
+            if view["pid"] == os.getpid():
+                view["pid"] = "<pid>"
+            views["%s-%s" % (entry["kind"], state)] = view
+        return views
+
+    def test_entry_view_keeps_the_shape_of_main(self):
+        with mock.patch("grun.queue._now", return_value=self.NOW):
+            views = self.views()
+        expected = json.loads(FIXTURE.read_text())
+        self.assertEqual(sorted(views), sorted(expected))
+        self.assertEqual(len(expected), 18)
+        for name, want in expected.items():
+            got = views[name]
+            self.assertEqual({k: v for k, v in got.items() if k not in NEW_FIELDS}, want, name)
+
+    def test_the_fields_grun_adds_are_the_documented_ones(self):
+        with mock.patch("grun.queue._now", return_value=self.NOW):
+            views = self.views()
+        for name, got in views.items():
+            self.assertEqual(got.get("orphanCount"), 0, name)
+            self.assertIsInstance(got["position"], int, name)
+            self.assertNotIn("batch", got, name)  # a take is not a batch: the interface shows entries one by one
 
 
 if __name__ == "__main__":

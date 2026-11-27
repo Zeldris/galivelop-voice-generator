@@ -54,6 +54,19 @@
             "cpu"
           ],
           "description": "Device used if the preferred one is unusable."
+        },
+        "ollama": {
+          "type": "string",
+          "enum": [
+            "unload",
+            "abort",
+            "ignore"
+          ],
+          "description": "What the worker does with the models Ollama keeps in memory when it takes the machine lock: unload them (default), abort the job or ignore them."
+        },
+        "ollamaUrl": {
+          "type": "string",
+          "description": "Address of Ollama (local host only; GRUN_OLLAMA_URL wins; default http://localhost:11434)."
         }
       }
     },

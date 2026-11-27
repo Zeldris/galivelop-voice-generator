@@ -18,7 +18,7 @@ from gvoice.errors import GvoiceError
 FAKE = str(Path(__file__).resolve().parent / "fake_qwentts.py")
 NEVER = lambda: False
 VARS = ("FAKE_QT_FAIL_DEVICE", "FAKE_QT_HANG", "FAKE_QT_NOWAV", "FAKE_QT_BADWAV", "FAKE_QT_CRASH",
-        "FAKE_QT_LATE_FAIL_S", "FAKE_QT_SLEEP_S", "FAKE_QT_KILL_SELF", "GVOICE_MEMINFO", "GVOICE_PROC_STATUS", "GVOICE_STATE_HOME", "GVOICE_ENGINE", "GVOICE_MACHINE_PROFILE")
+        "FAKE_QT_LATE_FAIL_S", "FAKE_QT_SLEEP_S", "FAKE_QT_KILL_SELF", "GRUN_MEMINFO", "GRUN_PROC_STATUS", "GALIVELOP_STATE_HOME", "GVOICE_ENGINE", "GVOICE_MACHINE_PROFILE")
 
 
 def wav_ms(path):
@@ -360,7 +360,7 @@ class QwenTtsTests(unittest.TestCase):
 
     def test_an_orphaned_engine_keeps_the_machine_lock(self):
         from gvoice import machine_lock
-        os.environ["GVOICE_STATE_HOME"] = str(self.tmp / "state")
+        os.environ["GALIVELOP_STATE_HOME"] = str(self.tmp / "state")
         os.environ["FAKE_QT_HANG"] = "1"
         code = ("from gvoice import engine, engine_qwentts, machine_lock, limits\n"
                 "job = engine.DesignJob(instruction='x', text='hi', seed=1, output=%r, machine=limits.load_machine('steam-deck'))\n"
@@ -400,7 +400,7 @@ class QwenTtsTests(unittest.TestCase):
     def meminfo(self, mb):
         path = self.tmp / "meminfo"
         path.write_text("MemTotal: 16000000 kB\nMemAvailable: %d kB\nBuffers: 1 kB\n" % (mb * 1024))
-        os.environ["GVOICE_MEMINFO"] = str(path)
+        os.environ["GRUN_MEMINFO"] = str(path)
 
     def watched(self):
         return engine_qwentts.QwenTtsEngine(watch_memory=True)
@@ -447,7 +447,7 @@ class QwenTtsTests(unittest.TestCase):
         os.environ["FAKE_QT_HANG"] = "1"
         status = self.tmp / "status"
         status.write_text("VmHWM:\t  1048576 kB\n")
-        os.environ["GVOICE_PROC_STATUS"] = str(status)
+        os.environ["GRUN_PROC_STATUS"] = str(status)
         self.meminfo(1000)
         exc = self.error(lambda: self.watched().design(self.design(), NEVER))
         self.assertEqual(exc.stats, {"min_free_mb": 1000, "peak_rss_mb": 1024})
@@ -491,7 +491,7 @@ class QwenTtsTests(unittest.TestCase):
         self.no_wait4()
         status = self.tmp / "status"
         status.write_text("Name:\tqwen-tts\nVmHWM:\t  2097152 kB\nVmRSS:\t 1 kB\n")
-        os.environ["GVOICE_PROC_STATUS"] = str(status)
+        os.environ["GRUN_PROC_STATUS"] = str(status)
         result = self.watched().design(self.design(), NEVER)
         self.assertEqual((result.min_free_mb, result.peak_rss_mb), (3000, 2048))
 
@@ -500,7 +500,7 @@ class QwenTtsTests(unittest.TestCase):
         self.meminfo(6000)
         status = self.tmp / "status"
         status.write_text("VmHWM:\t  2097152 kB\n")  # the sampled one, lower than the real peak
-        os.environ["GVOICE_PROC_STATUS"] = str(status)
+        os.environ["GRUN_PROC_STATUS"] = str(status)
         real = os.wait4
 
         def wait4(pid, options):
@@ -531,8 +531,8 @@ class QwenTtsTests(unittest.TestCase):
 
     def test_unreadable_sources_give_none_and_no_abort(self):
         os.environ["FAKE_QT_SLEEP_S"] = "0.3"
-        os.environ["GVOICE_MEMINFO"] = str(self.tmp / "nope")
-        os.environ["GVOICE_PROC_STATUS"] = str(self.tmp / "nope2")
+        os.environ["GRUN_MEMINFO"] = str(self.tmp / "nope")
+        os.environ["GRUN_PROC_STATUS"] = str(self.tmp / "nope2")
         self.no_wait4()
         result = self.watched().design(self.design(), NEVER)
         self.assertEqual((result.min_free_mb, result.peak_rss_mb), (None, None))

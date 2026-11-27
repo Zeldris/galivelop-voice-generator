@@ -1,7 +1,10 @@
 """Voice engines: the interface and the fake one (F1); the real wrapper of `qwen-tts` is `engine_qwentts` (F2).
 
-Copiado de gimg@fa1076e (D7); adaptado a gvoice: three operations instead of one image (D10) and the result carries
-what D16 asks for the log (device, seed, engine commit and model).
+Three operations instead of one image (D10) and a result that carries what D16 asks for the log (device, seed, engine
+commit and model). The errors are grun's (`grun.engine`, D-9, R3): a worker that is `grun.worker.Worker` classifies them
+(``engine.timeout``, ``engine.<code>``, ``engine.failed``, a cancel); the classes here only add ``stats`` (the memory
+figures of a failed run, for the log) and the fixed message of the timeout. The worker turns the three operations into
+grun's ``Engine.run`` (`worker.VoiceRunner`).
 
 * `design`: instruction (from the sheet) + test text + seed -> a take (a ``.wav``).
 * `line`: voice print (``.spk`` + ``.rvq``) + text + seed -> the line audio (a ``.wav``).
@@ -24,7 +27,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
-from . import fsutil, paths
+from grun import engine as grun_engine, fsutil
+
+from . import paths
 from .errors import GvoiceError
 
 FAKE_VERSION = "fake-1"
@@ -95,7 +100,7 @@ class EngineResult:
     backend: Optional[str] = None
 
 
-class EngineError(Exception):
+class EngineError(grun_engine.EngineError):
     """The engine failed; `message` is for the log and the queue entry. With a `code` (and its `params`) the worker
     stores that code, so the front end shows the translated ``error.<code>`` text instead of ``engine.failed``.
 
@@ -104,24 +109,18 @@ class EngineError(Exception):
 
     stats: Optional[dict] = None
 
-    def __init__(self, message: str, code: Optional[str] = None, **params):
-        super().__init__(message)
-        self.message = message
-        self.code = code
-        self.params = params
-
 
 TIMEOUT_MESSAGE = "timeout"
 
 
-class EngineTimeout(EngineError):
+class EngineTimeout(EngineError, grun_engine.EngineTimeout):
     """The job ran past `job.timeout_s`; the message is always `TIMEOUT_MESSAGE`."""
 
     def __init__(self):
         super().__init__(TIMEOUT_MESSAGE)
 
 
-class Cancelled(Exception):
+class Cancelled(grun_engine.Cancelled):
     """`should_cancel()` returned true while generating. `stats` as in `EngineError`."""
 
     stats: Optional[dict] = None

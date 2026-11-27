@@ -1,6 +1,9 @@
 """Machine profile loading and safety limits: time, memory and models (D15).
 
-Copiado de gimg@fa1076e (D7); adaptado a gvoice: no pixel, step or reference limits."""
+Adapter over `grun.limits` (R3): the time and memory limits and the memory readers are grun's (re-exported; the test
+hooks are ``GRUN_MEMINFO`` and ``GRUN_PROC_STATUS``). Here stay what is gvoice's: `LimitError` as a `GvoiceError`
+(`check_memory` re-raises grun's with it), the machine profile loading (schema, presets in `gvoice/machine_profiles/`)
+and `check_model`."""
 from __future__ import annotations
 
 import json
@@ -8,7 +11,10 @@ import os
 import re
 from pathlib import Path
 
-from . import fsutil, paths, schema
+from grun import fsutil
+from grun import limits as _grun
+
+from . import paths, schema
 from .errors import GvoiceError
 
 DEFAULT_PROFILE = "steam-deck"
@@ -16,7 +22,7 @@ _PRESETS = Path(__file__).resolve().parent / "machine_profiles"
 _NAME = re.compile(r"[a-z0-9][a-z0-9-]*")
 
 
-class LimitError(GvoiceError):
+class LimitError(GvoiceError, _grun.LimitError):
     """A job exceeds a limit of the machine profile."""
 
 
@@ -70,22 +76,16 @@ def load_machine(ref: str | None = None) -> dict:
     return _preset(ref)
 
 
-def timeout_s(machine: dict) -> int:
-    """Time limit of one attempt, in seconds (``timeoutS``)."""
-    return machine["timeoutS"]
+timeout_s = _grun.timeout_s
+must_abort = _grun.must_abort
 
 
 def check_memory(free_mb, machine: dict) -> None:
     """Raise `LimitError` if `free_mb` is below ``minFreeMemoryMb`` (to start a job). ``None`` (unknown) passes."""
-    minimum = machine.get("minFreeMemoryMb")
-    if free_mb is not None and minimum is not None and free_mb < minimum:
-        raise LimitError("limit.memory", free=free_mb, min=minimum)
-
-
-def must_abort(free_mb, machine: dict) -> bool:
-    """Whether a running job has to be aborted: free memory fell below ``watchMemoryMb``."""
-    watch = machine.get("watchMemoryMb")
-    return free_mb is not None and watch is not None and free_mb < watch
+    try:
+        _grun.check_memory(free_mb, machine)
+    except _grun.LimitError as exc:
+        raise LimitError(exc.code, **exc.params) from None
 
 
 def check_model(use: str, model: str, machine: dict) -> None:
@@ -99,44 +99,8 @@ def check_model(use: str, model: str, machine: dict) -> None:
         raise LimitError("limit.model", model=model, use=use, allowed=", ".join(allowed))
 
 
-MEMINFO_ENV = "GVOICE_MEMINFO"  # tests: a file with the format of /proc/meminfo
-PROC_STATUS_ENV = "GVOICE_PROC_STATUS"  # tests: a file in the format of /proc/<pid>/status; ``{pid}`` is replaced
-
-
-def _meminfo_mb(field: str, meminfo: str | None = None):
-    """Field `field` of ``/proc/meminfo`` (kB) in MB, or ``None`` where it cannot be read. `meminfo` defaults to
-    ``$GVOICE_MEMINFO``, else ``/proc/meminfo``."""
-    meminfo = meminfo or os.environ.get(MEMINFO_ENV) or "/proc/meminfo"
-    try:
-        with open(meminfo, encoding="ascii") as fh:
-            for line in fh:
-                if line.startswith(field + ":"):
-                    return int(line.split()[1]) // 1024
-    except (OSError, ValueError, IndexError):
-        pass
-    return None
-
-
-def available_memory_mb(meminfo: str | None = None):
-    """``MemAvailable`` in MB, or ``None`` where it cannot be read. `meminfo` defaults to ``$GVOICE_MEMINFO``, else
-    ``/proc/meminfo``."""
-    return _meminfo_mb("MemAvailable", meminfo)
-
-
-def total_memory_mb(meminfo: str | None = None):
-    """``MemTotal`` in MB, or ``None`` where it cannot be read (same source as `available_memory_mb`)."""
-    return _meminfo_mb("MemTotal", meminfo)
-
-
-def peak_rss_mb(pid: int):
-    """Peak resident memory (``VmHWM``) of process `pid` in MB, or ``None`` if it cannot be read (it is gone, or
-    there is no ``/proc``). The file is ``$GVOICE_PROC_STATUS`` (``{pid}`` replaced) when set."""
-    template = os.environ.get(PROC_STATUS_ENV) or "/proc/{pid}/status"
-    try:
-        with open(template.format(pid=pid), encoding="ascii", errors="replace") as fh:
-            for line in fh:
-                if line.startswith("VmHWM:"):
-                    return int(line.split()[1]) // 1024
-    except (OSError, ValueError, IndexError):
-        pass
-    return None
+MEMINFO_ENV = _grun.MEMINFO_ENV
+PROC_STATUS_ENV = _grun.PROC_STATUS_ENV
+available_memory_mb = _grun.available_memory_mb
+total_memory_mb = _grun.total_memory_mb
+peak_rss_mb = _grun.peak_rss_mb

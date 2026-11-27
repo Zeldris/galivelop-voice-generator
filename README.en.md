@@ -45,7 +45,12 @@ python3 -m gvoice fx apply lectura voice.wav clean.wav   # cleans a reading voic
 
 `order list` and `order show` mark the chosen lines made with a reference that is no longer the current one (stale,
 D10). `--json` gives machine-readable output and `--lang es|en` the language; the rest with `--help`. Variables:
-`GVOICE_CONFIG_HOME`, `GVOICE_DATA_HOME`, `GVOICE_STATE_HOME`, `GVOICE_ENGINE` (only `fake` for now) and `GVOICE_LANG`.
+`GVOICE_CONFIG_HOME`, `GVOICE_DATA_HOME`, `GALIVELOP_STATE_HOME`, `GVOICE_ENGINE` (only `fake` for now) and `GVOICE_LANG`. (and `GRUN_OLLAMA_URL`, below).
+
+When it takes the machine lock the worker (`grun.worker.Worker`, R3) frees the models Ollama has loaded in memory (D-7). The
+machine profile decides what to do with `engine.ollama` (optional: `unload`, the default, `abort` or `ignore`) and the
+address with `engine.ollamaUrl` (optional) or the `GRUN_OLLAMA_URL` variable, which wins over the profile; the default is
+`http://localhost:11434`. Only a local host is accepted (`localhost`, `127.0.0.1`, `::1`); with no Ollama in sight nothing is done.
 
 ## Structure
 

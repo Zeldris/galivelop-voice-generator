@@ -26,7 +26,7 @@ class LockBase(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.tmp = Path(tmp.name).resolve()
-        env = mock.patch.dict(os.environ, {"GVOICE_STATE_HOME": str(self.tmp / "state")})
+        env = mock.patch.dict(os.environ, {"GALIVELOP_STATE_HOME": str(self.tmp / "state")})
         env.start()
         self.addCleanup(env.stop)
 
@@ -48,7 +48,7 @@ class PathTests(LockBase):
 
     def test_xdg_then_home(self):
         with mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(self.tmp / "xdg")}):
-            os.environ.pop("GVOICE_STATE_HOME")
+            os.environ.pop("GALIVELOP_STATE_HOME")
             self.assertEqual(paths.machine_lock_path(), self.tmp / "xdg" / "galivelop" / "gpu.lock")
             os.environ["XDG_STATE_HOME"] = "relative/dir"  # not absolute: ignored
             self.assertEqual(paths.machine_lock_path(), Path.home() / ".local/state/galivelop/gpu.lock")
@@ -57,6 +57,14 @@ class PathTests(LockBase):
 
 
 class HoldTests(LockBase):
+    def test_held_fds_is_a_tuple_and_the_record_names_gvoice(self):
+        self.assertEqual(machine_lock.held_fds(), ())
+        with machine_lock.hold(entry=7):
+            self.assertIsInstance(machine_lock.held_fds(), tuple)
+            self.assertEqual(len(machine_lock.held_fds()), 1)
+            record = machine_lock.holder()
+        self.assertEqual((record["app"], record["entry"], record["pid"]), ("gvoice", 7, os.getpid()))
+
     def test_creates_the_missing_state_folder(self):
         self.assertFalse((self.tmp / "state").exists())
         with machine_lock.hold():
@@ -78,7 +86,7 @@ class HoldTests(LockBase):
     def test_unwritable_state_folder(self):
         blocker = self.tmp / "file"
         blocker.write_text("x")
-        with mock.patch.dict(os.environ, {"GVOICE_STATE_HOME": str(blocker / "sub")}):
+        with mock.patch.dict(os.environ, {"GALIVELOP_STATE_HOME": str(blocker / "sub")}):
             with self.assertRaises(GvoiceError) as cm:
                 with machine_lock.hold():
                     self.fail("must not get the lock")

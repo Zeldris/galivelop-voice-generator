@@ -6,7 +6,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from gvoice import fsutil, projects
+from grun import fsutil
+from gvoice import projects
 from gvoice.errors import GvoiceError
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -162,11 +163,18 @@ class ErrorMessageTests(unittest.TestCase):
     def test_every_error_code_used_has_text_in_both_languages(self):
         import re
         from gvoice import i18n
-        src = "".join((ROOT / "gvoice" / f).read_text() for f in ("paths.py", "projects.py"))
-        codes = set(re.findall(r'(?:Error|GvoiceError)\(\s*"([a-z_.]+)"', src))
+        # the codes grun raises on behalf of gvoice (path guard, machine lock, limits, queue) need gvoice's texts too
+        src = "".join((ROOT / d / f).read_text() for d, f in (("gvoice", "projects.py"), ("grun", "paths.py"),
+                                                              ("grun", "machine_lock.py"), ("grun", "limits.py"),
+                                                              ("grun", "queue.py")))
+        codes = set(re.findall(r'(?:Error|GvoiceError|make_error)\(\s*"([a-z_.]+)"', src))
+        self.assertLessEqual({"queue.bad_item", "queue.invalid_transition", "queue.orphaned"}, codes)
         self.assertGreater(len(codes), 15)
         for code in codes:
             for lang in ("es", "en"):
                 self.assertNotEqual(i18n.t("error." + code, lang, path="p", name="n", field="f", reason="r",
                                           required="1", current="0", root="r", limit=1, segment="s",
-                                          project="p"), "error." + code, (lang, code))
+                                          project="p", free=1, min=2, index=0, to="up", allowed="a", progress="p",
+                                          states="s", state="queued", id=1, from_state="a", to_state="b",
+                                          count=2),
+                                 "error." + code, (lang, code))

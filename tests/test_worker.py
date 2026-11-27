@@ -1,12 +1,15 @@
 import io
+import json
 import os
 import subprocess
 import sys
 import threading
 import time
 import unittest
+from pathlib import Path
 from unittest import mock
 
+from grun import queue as grun_queue
 from gvoice import engine, limits, log, machine_lock, orders, paths, queue, worker
 from gvoice.errors import GvoiceError
 from tests.test_machine_lock import HOLDER, ROOT
@@ -145,7 +148,7 @@ class VoiceTakeTests(WorkerBase):
     def test_a_take_already_stored_is_not_made_twice(self):
         # a worker that died between add_attempt and finish: recovery requeues, the retry adds nothing
         self.push()
-        with mock.patch.object(queue, "finish", side_effect=GvoiceError("queue.unknown", id=1)):
+        with mock.patch.object(grun_queue.Queue, "finish", side_effect=GvoiceError("queue.unknown", id=1)):
             self.run_worker()
         self.assertEqual(len(orders.get(self.p, "narrator")["attempts"]), 1)
         self.run_worker()  # entry 1 is running without a live worker: recovered and redone
@@ -291,7 +294,7 @@ class MachineLockTests(WorkerBase):
         blocker = self.tmp / "file"
         blocker.write_text("x")
         self.push()
-        with mock.patch.dict(os.environ, {"GVOICE_STATE_HOME": str(blocker / "sub")}):
+        with mock.patch.dict(os.environ, {"GALIVELOP_STATE_HOME": str(blocker / "sub")}):
             self.run_worker()
         entry = queue.get(1)
         self.assertEqual((entry["state"], entry["error"]["code"]), ("failed", "machine_lock.unavailable"))
@@ -435,14 +438,10 @@ class LineTests(WorkerBase):
         self.assertEqual(self.code(orders.submit, self.p, self.line()).code, "order.voice_not_fixed")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class MemoryTests(WorkerBase):
     def setUp(self):
         super().setUp()
-        patch = mock.patch.dict(os.environ, {"GVOICE_MEMINFO": str(self.tmp_meminfo())})
+        patch = mock.patch.dict(os.environ, {"GRUN_MEMINFO": str(self.tmp_meminfo())})
         patch.start()
         self.addCleanup(patch.stop)
         poll = mock.patch.object(worker, "MEMORY_POLL_S", 0.05)
@@ -457,7 +456,7 @@ class MemoryTests(WorkerBase):
         return os.path.join(tmp.name, "meminfo")
 
     def set_free(self, mb):
-        with open(os.environ["GVOICE_MEMINFO"], "w") as fh:
+        with open(os.environ["GRUN_MEMINFO"], "w") as fh:
             fh.write("MemAvailable: %d kB\n" % (mb * 1024))
 
     def watching_engine(self):
@@ -505,13 +504,28 @@ class MemoryTests(WorkerBase):
         self.assertEqual(orders.get(self.p, "narrator")["attempts"], [])
         self.assertEqual(log_lines(), [])
 
+    def test_a_take_already_stored_does_not_wait_for_memory(self):
+        self.push()
+        spec = orders.attempt_specs(self.p, "narrator", seed=1)[0]
+        spec["result"] = engine.EngineResult(duration_ms=5, engine_version="fake-1", audio_ms=900)
+        orders.add_attempt(self.p, "narrator", spec, entry_id=1)  # a worker died before it closed the entry
+        thread = threading.Thread(target=self.run_worker, kwargs={"engine": self.watching_engine()}, daemon=True)
+        thread.start()
+        thread.join(5)
+        stuck = thread.is_alive()
+        if stuck:
+            queue.cancel(1)  # frees a worker that waits for memory
+            thread.join(5)
+        self.assertFalse(stuck)  # 2000 MB are free and the profile asks for 4096
+        self.assertEqual((queue.get(1)["state"], queue.get(1)["attemptId"]), ("done", 1))
+
     def test_the_fake_engine_does_not_wait(self):
         self.push()
         self.run_worker()
         self.assertEqual(queue.get(1)["state"], "done")
 
     def test_unknown_memory_does_not_wait(self):
-        os.environ["GVOICE_MEMINFO"] = os.environ["GVOICE_MEMINFO"] + ".missing"
+        os.environ["GRUN_MEMINFO"] = os.environ["GRUN_MEMINFO"] + ".missing"
         self.push()
         self.run_worker(engine=self.watching_engine())
         self.assertEqual(queue.get(1)["state"], "done")
@@ -596,3 +610,138 @@ class MemoryTests(WorkerBase):
         self.foreign_holder()  # an orphaned engine (or the image generator) holds the machine
         self.assertEqual(self.run_worker(), 0)
         self.assertTrue(stale.is_dir())
+
+
+class FakeOllama:
+    """A local Ollama: ``/api/ps`` lists the loaded models, a request with ``keep_alive: 0`` drops one. `lock_held`
+    says whether the machine lock was held when each drop came (the eviction happens inside the holder)."""
+
+    def __init__(self, loaded=("llama3",)):
+        import http.server
+
+        self.loaded = list(loaded)
+        self.drops = []
+        self.lock_held = []
+        outer = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def _send(self, body):
+                data = json.dumps(body).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            def do_GET(self):
+                self._send({"models": [{"name": name, "size": 1000} for name in outer.loaded]})
+
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                if body.get("keep_alive") == 0:
+                    outer.drops.append(body["model"])
+                    outer.lock_held.append(machine_lock.busy())
+                    outer.loaded = [m for m in outer.loaded if m != body["model"]]
+                self._send({})
+
+        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.url = "http://127.0.0.1:%d" % self.server.server_address[1]
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+
+    def __enter__(self):
+        self.thread.start()
+        return self
+
+    def __exit__(self, *exc):
+        self.server.shutdown()
+        self.server.server_close()
+
+
+class OllamaTests(WorkerBase):
+    """D-7 (grun): the worker frees the memory Ollama holds once it has the machine lock, by ``engine.ollama``."""
+
+    def profile(self, **engine_fields):
+        data = json.loads((Path(limits.__file__).parent / "machine_profiles" / "steam-deck.json").read_text())
+        data.pop("$schema", None)
+        data["engine"].update(engine_fields)
+        path = self.tmp / "profile.json"
+        path.write_text(json.dumps(data))
+        os.environ["GVOICE_MACHINE_PROFILE"] = str(path)
+
+    def test_models_loaded_in_ollama_are_unloaded_inside_the_lock(self):
+        self.push()
+        with FakeOllama() as ollama:
+            os.environ["GRUN_OLLAMA_URL"] = ollama.url
+            self.run_worker()
+        self.assertEqual(queue.get(1)["state"], "done")
+        self.assertEqual((ollama.drops, ollama.lock_held), (["llama3", "llama3"], [True, True]))  # generate and embed
+
+    def test_abort_fails_the_entry_with_the_models_and_makes_nothing(self):
+        self.profile(ollama="abort")
+        self.push()
+        with FakeOllama(loaded=("llama3", "qwen")) as ollama:
+            os.environ["GRUN_OLLAMA_URL"] = ollama.url
+            self.run_worker()
+        entry = queue.get(1)
+        self.assertEqual((entry["state"], entry["error"]["code"]), ("failed", "engine.ollama_loaded"))
+        self.assertEqual(entry["error"]["params"], {"models": "llama3, qwen"})
+        self.assertIn("Ollama still has models loaded (llama3, qwen)", queue.error_text(entry["error"], "en"))
+        self.assertEqual((ollama.drops, orders.get(self.p, "narrator")["attempts"]), ([], []))
+
+    def test_ignore_leaves_ollama_alone(self):
+        self.profile(ollama="ignore")
+        self.push()
+        with FakeOllama() as ollama:
+            os.environ["GRUN_OLLAMA_URL"] = ollama.url
+            self.run_worker()
+        self.assertEqual((queue.get(1)["state"], ollama.drops), ("done", []))
+
+    def test_the_address_of_the_profile_is_used_without_the_variable(self):
+        with FakeOllama() as ollama:
+            self.profile(ollamaUrl=ollama.url)
+            del os.environ["GRUN_OLLAMA_URL"]
+            self.push()
+            self.run_worker()
+        self.assertEqual((queue.get(1)["state"], ollama.drops), ("done", ["llama3", "llama3"]))
+
+    def test_an_address_that_is_not_local_fails_the_entry(self):
+        os.environ["GRUN_OLLAMA_URL"] = "http://ollama.example.com:11434"
+        self.push()
+        self.run_worker()
+        entry = queue.get(1)
+        self.assertEqual((entry["state"], entry["error"]["code"]), ("failed", "net.non_local_host"))
+        self.assertIn("ollama.example.com", queue.error_text(entry["error"], "en"))
+        self.assertIn("ollama.example.com", queue.error_text(entry["error"], "es"))
+
+    def test_an_invalid_profile_fails_the_entry_with_its_schema_errors(self):
+        self.profile(ollama="sometimes")
+        self.push()
+        self.run_worker()
+        entry = queue.get(1)
+        self.assertEqual((entry["state"], entry["error"]["code"]), ("failed", "machine.invalid"))
+        self.assertEqual([(e["path"], e["code"]) for e in entry["error"]["errors"]], [("/engine/ollama", "enum")])
+        self.assertIn("/engine/ollama", queue.error_text(entry, "en"))
+
+
+class CloseTests(WorkerBase):
+    def test_a_cancel_that_comes_after_the_run_leaves_no_pending_audio_and_no_log(self):
+        self.push()
+        real = engine.FakeEngine.design
+
+        def then_cancel(self_, job, should_cancel):
+            result = real(self_, job, should_cancel)
+            queue.cancel(1)  # the take is written; the cancel arrives before it is stored
+            return result
+
+        with mock.patch.object(engine.FakeEngine, "design", then_cancel):
+            self.run_worker()
+        self.assertEqual(queue.get(1)["state"], "cancelled")
+        self.assertEqual(orders.get(self.p, "narrator")["attempts"], [])
+        self.assertFalse(orders.pending_audio_path(self.p, "narrator", 1).parent.exists())
+        self.assertEqual(log_lines(), [])
+
+
+if __name__ == "__main__":
+    unittest.main()

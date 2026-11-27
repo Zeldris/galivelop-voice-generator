@@ -67,7 +67,7 @@ def _single_worker():
     path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(str(path), os.O_RDWR | os.O_CREAT, 0o600)
     try:
-        # a momentary holder (`queue._no_worker` probing the lock) must not make a fresh worker give up
+        # a momentary holder (`grun.queue.Queue` probing the lock) must not make a fresh worker give up
         deadline = time.monotonic() + LOCK_RETRY_S
         while True:
             try:

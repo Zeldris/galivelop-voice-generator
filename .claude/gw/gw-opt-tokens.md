@@ -48,6 +48,10 @@ las crea una vez; desde entonces son del proyecto.
   persona (retro 2026-11-17 F5.9, P1): medir cada revisión pequeña; si se repite y pesa, se vuelve a proponer con
   las cifras.
 
+- Revisión de bloque de R3 (2026-11-27, sesión `15c9eb88`): `gw-reviewer` 26 llamadas a 97k de media, 2,5M de entrada de
+  los 3,9M totales; la principal solo 0,94M. Segunda medición del anidado de `/code-review` (retro R3, P1, propuesta
+  al flujo).
+
 ## Ajustes en vigor
 
 - Ventana de compactación automática: `CLAUDE_CODE_AUTO_COMPACT_WINDOW` en `.claude/settings.json`.
@@ -81,3 +85,5 @@ las crea una vez; desde entonces son del proyecto.
 - 2026-11-24, `gw-update` 0.8.2 → 0.9.0 (`6ea0a867`): 29 llamadas, contexto medio 107k (suelo 91k, techo 129k),
   0 compactaciones, 3,09M de entrada; revisor `sonnet` 0,17M. Arranque fijo ~81,5k (77 %); Claude Docs seguía
   conectado (retro 2026-11-24, P1, la aplica la persona).
+- 2026-11-27, R3 (`15c9eb88`): principal 10 llamadas, contexto medio 94k, 0 compactaciones; subagentes 2,96M de
+  entrada en 39 llamadas.

@@ -242,6 +242,17 @@ class BrokenExamples(unittest.TestCase):
         err = S.validate(data, S.load_schema("machine-profile"))[0]
         self.assertEqual((err.path, err.code, err.params["name"]), ("", "required", "watchMemoryMb"))
 
+    def test_machine_profile_ollama_fields_are_optional_and_checked(self):
+        schema = S.load_schema("machine-profile")
+        data = copy.deepcopy(read(EXAMPLES["machine-profile"]))
+        self.assertEqual(S.validate(data, schema), [])  # the profiles that exist do not name them
+        data["engine"].update(ollama="abort", ollamaUrl="http://localhost:11434")
+        self.assertEqual(S.validate(data, schema), [])
+        self.broken(EXAMPLES["machine-profile"], "machine-profile", lambda d: d["engine"].update(ollama="sometimes"),
+                    [("/engine/ollama", "enum")])
+        self.broken(EXAMPLES["machine-profile"], "machine-profile", lambda d: d["engine"].update(ollamaUrl=5),
+                    [("/engine/ollamaUrl", "type")])
+
 
 if __name__ == "__main__":
     unittest.main()
